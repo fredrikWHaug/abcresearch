@@ -1,8 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import type { ClinicalTrial } from '@/services/clinicalTrialsAPI';
-import { Building2, Calendar, Users, MapPin, Activity } from 'lucide-react';
+import { SlideAPI } from '@/services/slideAPI';
+import type { SlideData } from '@/services/slideAPI';
+import { Slide } from '@/components/Slide';
+import { Building2, Calendar, Users, MapPin, Activity, FileText, Loader2 } from 'lucide-react';
 
 interface MarketMapProps {
   trials: ClinicalTrial[];
@@ -11,6 +15,31 @@ interface MarketMapProps {
 }
 
 export function MarketMap({ trials, loading, query }: MarketMapProps) {
+  const [slideData, setSlideData] = useState<SlideData | null>(null);
+  const [generatingSlide, setGeneratingSlide] = useState(false);
+  const [slideError, setSlideError] = useState<string | null>(null);
+
+  const handleGenerateSlide = async () => {
+    if (trials.length === 0) return;
+    
+    setGeneratingSlide(true);
+    setSlideError(null);
+    
+    try {
+      const slide = await SlideAPI.generateSlide(trials, query);
+      setSlideData(slide);
+    } catch (error) {
+      console.error('Error generating slide:', error);
+      setSlideError(error instanceof Error ? error.message : 'Failed to generate slide');
+    } finally {
+      setGeneratingSlide(false);
+    }
+  };
+
+  const handleCloseSlide = () => {
+    setSlideData(null);
+    setSlideError(null);
+  };
   if (loading) {
     return (
       <div className="w-full h-full flex items-center justify-center">
@@ -74,8 +103,34 @@ export function MarketMap({ trials, loading, query }: MarketMapProps) {
     <div className="w-full h-full overflow-y-auto p-6">
       <div className="max-w-7xl mx-auto">
         <div className="mb-6">
-          <h2 className="text-2xl font-bold text-gray-800">Market Map Results</h2>
-          <p className="text-gray-600 mt-1">Found {trials.length} trials for: "{query}"</p>
+          <div className="flex justify-between items-start">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-800">Market Map Results</h2>
+              <p className="text-gray-600 mt-1">Found {trials.length} trials for: "{query}"</p>
+            </div>
+            <div className="flex flex-col gap-2">
+              <Button
+                onClick={handleGenerateSlide}
+                disabled={generatingSlide || trials.length === 0}
+                className="flex items-center gap-2"
+              >
+                {generatingSlide ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <FileText className="h-4 w-4" />
+                    Generate Slide
+                  </>
+                )}
+              </Button>
+              {slideError && (
+                <p className="text-sm text-red-600 max-w-xs">{slideError}</p>
+              )}
+            </div>
+          </div>
         </div>
 
         <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-2">
@@ -162,6 +217,15 @@ export function MarketMap({ trials, loading, query }: MarketMapProps) {
           ))}
         </div>
       </div>
+
+      {/* Slide Modal */}
+      {slideData && (
+        <Slide
+          slideData={slideData}
+          onClose={handleCloseSlide}
+          query={query}
+        />
+      )}
     </div>
   );
 }
