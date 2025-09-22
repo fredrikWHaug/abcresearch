@@ -1,52 +1,94 @@
-# Hello World App
+# CS1060 Homework 3
 
-A beautiful Hello World application built with modern web technologies.
+Name: Fredrik Willumsen Haug
+Github Handle: fredrikWHaug
+Repo URL: https://github.com/cs1060f25/fredrikwhaug-hw3
+Team PRD: https://drive.google.com/file/d/1yPZkodni39C78QE9jn4rkvxiRkgp_dHZ/view?usp=drivesdk
 
-## Tech Stack
 
-- **React 18** - UI library
-- **TypeScript** - Type safety
-- **Vite** - Fast build tool and dev server
-- **Tailwind CSS** - Utility-first CSS framework
-- **shadcn/ui** - Beautiful, accessible UI components
 
-## Features
+# AI Generated Readme
 
-- ✨ Beautiful gradient typography
-- 🌙 Dark mode support
-- 📱 Responsive design
-- ⚡ Fast development with Vite HMR
-- 🎨 Modern UI with Tailwind CSS
+# ABCresearch Prototype
 
-## Getting Started
+An AI-powered clinical trials research platform that helps biotech professionals analyze and visualize clinical trial data from ClinicalTrials.gov.
 
-1. Install dependencies:
+## ✨ Features
+
+- **AI-Powered Search** - Natural language processing for intuitive clinical trial searches
+- **Market Map Visualization** - Interactive visualization of clinical trial data
+- **AI-Generated Insights** - Automated slide generation with key findings
+- **Real-time Data** - Direct integration with ClinicalTrials.gov API
+- **Responsive Design** - Works on desktop and tablet devices
+
+## 🚀 Tech Stack
+
+- **Frontend**: React 18, TypeScript, Vite
+- **Styling**: Tailwind CSS, shadcn/ui
+- **Backend**: Vercel Serverless Functions
+- **AI**: Anthropic Claude for natural language processing
+- **Authentication**: Supabase Auth
+- **Deployment**: Vercel
+
+## 🛠️ Getting Started
+
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/your-username/abc-research-prototype.git
+   cd abc-research-prototype
+   ```
+
+2. **Install dependencies**
    ```bash
    npm install
    ```
 
-2. Start the development server:
+3. **Set up environment variables**
+   Create a `.env` file in the root directory:
+   ```env
+   VITE_SUPABASE_URL=your-supabase-url
+   VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
+   ANTHROPIC_API_KEY=your-anthropic-api-key
+   ```
+
+4. **Start the development server**
    ```bash
    npm run dev
    ```
 
-3. Open your browser and navigate to `http://localhost:5173`
+5. **Open your browser** at `http://localhost:5173`
 
-## Project Structure
+## 🔍 How It Works
+
+1. **Search** for clinical trials using natural language (e.g., "Phase 3 cancer trials by Merck")
+2. **View** results in an interactive market map
+3. **Generate** professional slides with AI-powered insights
+4. **Export** findings for presentations and reports
+
+## 📂 Project Structure
 
 ```
 src/
-├── lib/
-│   └── utils.ts          # Utility functions for shadcn/ui
-├── App.tsx               # Main Hello World component
-├── main.tsx              # Application entry point
-└── index.css             # Global styles with Tailwind directives
+├── components/         # Reusable React components
+│   ├── Dashboard.tsx   # Main application view
+│   └── MarketMap.tsx   # Clinical trials visualization
+├── services/          # API and service integrations
+│   └── clinicalTrialsAPI.ts  # ClinicalTrials.gov API client
+├── contexts/          # React contexts
+└── App.tsx           # Application root component
 ```
 
-Currently, two official plugins are available:
+## 🤝 Contributing
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## Expanding the ESLint configuration
 
