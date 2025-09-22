@@ -1,17 +1,30 @@
 import React from 'react'
+import { AuthProvider, useAuth } from '@/contexts/AuthContext'
+import { AuthForm } from '@/components/auth/AuthForm'
+import { Dashboard } from '@/components/Dashboard'
+
+function AppContent() {
+  const { user, loading } = useAuth()
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-foreground mx-auto"></div>
+          <p className="mt-4 text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    )
+  }
+
+  return user ? <Dashboard /> : <AuthForm />
+}
 
 function App() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
-      <div className="text-center">
-        <h1 className="text-6xl font-bold bg-gradient-to-r from-slate-900 to-slate-600 dark:from-slate-100 dark:to-slate-400 bg-clip-text text-transparent tracking-tight">
-          Hello, World!
-        </h1>
-        <p className="mt-4 text-lg text-slate-600 dark:text-slate-400 font-medium">
-          Built with React, TypeScript, Vite & shadcn/ui
-        </p>
-      </div>
-    </div>
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   )
 }
 
