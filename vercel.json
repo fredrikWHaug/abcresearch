@@ -1,7 +1,7 @@
 {
   "functions": {
     "api/generate-slide.ts": {
-      "runtime": "@vercel/node"
+      "maxDuration": 30
     }
   }
 }
