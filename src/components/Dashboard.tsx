@@ -1,52 +1,76 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import { useAuth } from '@/contexts/AuthContext'
+import { LogOut, Send } from 'lucide-react'
 
 export function Dashboard() {
-  const { user, signOut } = useAuth()
+  const { signOut } = useAuth()
+  const [message, setMessage] = useState('')
+
+  const handleSendMessage = () => {
+    // Placeholder for message handling
+    console.log('Message sent:', message)
+    setMessage('')
+  }
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleSendMessage()
+    }
+  }
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 py-8">
-        <div className="max-w-2xl mx-auto">
-          <Card>
-            <CardHeader className="text-center">
-              <CardTitle className="text-3xl font-bold text-foreground">
-                Welcome to Your Dashboard!
-              </CardTitle>
-              <CardDescription className="text-lg">
-                You're successfully authenticated
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="text-center space-y-2">
-                <p className="text-muted-foreground">
-                  Logged in as:
-                </p>
-                <p className="font-semibold text-lg">
-                  {user?.email}
-                </p>
-              </div>
-              
-              <div className="border-t pt-6">
-                <h3 className="text-lg font-semibold mb-3">User Information</h3>
-                <div className="space-y-2 text-sm">
-                  <p><span className="font-medium">User ID:</span> {user?.id}</p>
-                  <p><span className="font-medium">Email Confirmed:</span> {user?.email_confirmed_at ? 'Yes' : 'No'}</p>
-                  <p><span className="font-medium">Created:</span> {user?.created_at ? new Date(user.created_at).toLocaleDateString() : 'Unknown'}</p>
-                </div>
-              </div>
+    <div className="min-h-screen flex">
+      {/* Left Half - Chat Interface */}
+      <div className="w-1/2 bg-background flex flex-col">
+        {/* Chat Messages Area */}
+        <div className="flex-1 p-6 overflow-y-auto">
+          <div className="max-w-2xl mx-auto space-y-4">
+            {/* Empty chat area ready for messages */}
+          </div>
+        </div>
 
-              <div className="flex justify-center pt-4">
-                <Button onClick={signOut} variant="outline">
-                  Sign Out
-                </Button>
+        {/* Input Area */}
+        <div className="p-6 border-t">
+          <div className="max-w-2xl mx-auto">
+            <div className="flex items-end space-x-3">
+              <div className="flex-1">
+                <Input
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  placeholder="Type your message here..."
+                  className="min-h-[50px] resize-none"
+                />
               </div>
-            </CardContent>
-          </Card>
+              <Button 
+                onClick={handleSendMessage}
+                disabled={!message.trim()}
+                size="icon"
+                className="h-[50px] w-[50px]"
+              >
+                <Send className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
+
+      {/* Right Half - Market Map */}
+      <div className="w-1/2 bg-blue-100 flex items-center justify-center">
+        <h1 className="text-4xl font-bold text-blue-800">Market Map</h1>
+      </div>
+
+      {/* Logout Icon - Top Left */}
+      <button
+        onClick={signOut}
+        className="fixed top-6 left-6 p-3 bg-white rounded-full shadow-lg hover:shadow-xl transition-shadow border border-gray-200 hover:bg-gray-50"
+        title="Sign Out"
+      >
+        <LogOut className="h-5 w-5 text-gray-600" />
+      </button>
     </div>
   )
 }
