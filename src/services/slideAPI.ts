@@ -1,17 +1,26 @@
 import type { ClinicalTrial } from './clinicalTrialsAPI';
 
+interface ChartData {
+  phaseChart: Array<{ name: string; value: number }>;
+  statusChart: Array<{ name: string; value: number }>;
+  sponsorChart: Array<{ name: string; value: number }>;
+  yearChart: Array<{ year: string; value: number }>;
+}
+
+interface KeyMetric {
+  label: string;
+  value: string;
+  trend: 'up' | 'down' | 'neutral';
+}
+
 export interface SlideData {
   title: string;
-  insights: string[];
-  tableData: Array<{
-    nctId: string;
-    title: string;
-    phase: string;
-    status: string;
-    sponsor: string;
-    enrollment: number;
-  }>;
-  summary: string;
+  subtitle: string;
+  keyMetrics: KeyMetric[];
+  competitiveLandscape: string[];
+  trendAnalysis: string;
+  recommendation: string;
+  chartData: ChartData;
 }
 
 export interface SlideResponse {

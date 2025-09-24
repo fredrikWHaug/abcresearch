@@ -35,47 +35,96 @@ export default async function handler(req: any, res: any) {
       return res.status(500).json({ error: 'Anthropic API key not configured' });
     }
 
-    // Prepare data summary for Claude
-    const trialsSummary = trials.slice(0, 10).map(trial => ({
-      id: trial.nctId,
-      title: trial.briefTitle,
-      status: trial.overallStatus,
-      phase: trial.phase?.[0] || 'Unknown',
-      sponsor: trial.sponsors?.lead || 'Unknown',
-      enrollment: trial.enrollment || 0,
-      conditions: trial.conditions?.slice(0, 2).join(', ') || 'Not specified'
-    }));
+    // Extract analytical data for visualization
+    const phaseDistribution: { [key: string]: number } = {};
+    const statusDistribution: { [key: string]: number } = {};
+    const sponsorDistribution: { [key: string]: number } = {};
+    const enrollmentByPhase: { [key: string]: number[] } = {};
+    const yearDistribution: { [key: string]: number } = {};
+    
+    trials.forEach(trial => {
+      // Phase distribution
+      const phase = trial.phase?.[0] || 'Not Specified';
+      phaseDistribution[phase] = (phaseDistribution[phase] || 0) + 1;
+      
+      // Status distribution
+      const status = trial.overallStatus || 'Unknown';
+      statusDistribution[status] = (statusDistribution[status] || 0) + 1;
+      
+      // Sponsor distribution (top 5)
+      const sponsor = trial.sponsors?.lead || 'Unknown';
+      sponsorDistribution[sponsor] = (sponsorDistribution[sponsor] || 0) + 1;
+      
+      // Enrollment by phase
+      if (trial.enrollment && phase !== 'Not Specified') {
+        if (!enrollmentByPhase[phase]) enrollmentByPhase[phase] = [];
+        enrollmentByPhase[phase].push(trial.enrollment);
+      }
+      
+      // Year distribution
+      const year = trial.startDate ? new Date(trial.startDate).getFullYear().toString() : 'Unknown';
+      if (year !== 'Unknown' && parseInt(year) >= 2020) {
+        yearDistribution[year] = (yearDistribution[year] || 0) + 1;
+      }
+    });
+    
+    // Calculate average enrollment by phase
+    const avgEnrollmentByPhase: { [key: string]: number } = {};
+    Object.entries(enrollmentByPhase).forEach(([phase, enrollments]) => {
+      avgEnrollmentByPhase[phase] = Math.round(enrollments.reduce((a, b) => a + b, 0) / enrollments.length);
+    });
+    
+    // Get top sponsors
+    const topSponsors = Object.entries(sponsorDistribution)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([sponsor, count]) => ({ sponsor, count }));
 
-    const prompt = `You are a biotech analyst creating a professional slide for pharmaceutical executives. 
+    const prompt = `You are a senior biotech analyst creating an executive-level market analysis slide for pharmaceutical leaders. 
 
 Query: "${query}"
-Clinical Trials Data: ${JSON.stringify(trialsSummary, null, 2)}
+Total Trials Found: ${trials.length}
 
-Create a professional slide analysis with:
+Key Analytics:
+- Phase Distribution: ${JSON.stringify(phaseDistribution)}
+- Status Distribution: ${JSON.stringify(statusDistribution)}
+- Top 5 Sponsors: ${JSON.stringify(topSponsors)}
+- Average Enrollment by Phase: ${JSON.stringify(avgEnrollmentByPhase)}
+- Trials by Year (2020+): ${JSON.stringify(yearDistribution)}
 
-1. **Title**: A compelling title for this market landscape
-2. **Key Insights**: 3-4 bullet points of the most important findings
-3. **Data Table**: A summary table of the top 5-7 trials with columns: NCT ID, Title (truncated), Phase, Status, Sponsor, Enrollment
-4. **Market Summary**: 2-3 sentences about what this data reveals about the competitive landscape
+Create a data-driven market analysis with:
 
-Format your response as JSON with this structure:
+1. **title**: Executive-level title (under 50 chars)
+2. **subtitle**: One-line market context
+3. **keyMetrics**: 4 critical metrics with values
+4. **competitiveLandscape**: 2-3 insights about market competition
+5. **trendAnalysis**: Key trend observation
+6. **recommendation**: Strategic recommendation based on data
+7. **chartData**: Formatted data for visualization:
+   - phaseChart: phase distribution for pie chart
+   - statusChart: status distribution for donut chart
+   - sponsorChart: top 5 sponsors for bar chart
+   - yearChart: year distribution for line chart
+
+Format your response as JSON with this exact structure:
 {
-  "title": "Market Landscape Title",
-  "insights": ["Insight 1", "Insight 2", "Insight 3"],
-  "tableData": [
-    {
-      "nctId": "NCT123",
-      "title": "Short title...",
-      "phase": "Phase 2",
-      "status": "Recruiting",
-      "sponsor": "Company",
-      "enrollment": 100
-    }
+  "title": "string",
+  "subtitle": "string",
+  "keyMetrics": [
+    {"label": "string", "value": "string", "trend": "up|down|neutral"}
   ],
-  "summary": "Market summary paragraph"
+  "competitiveLandscape": ["string"],
+  "trendAnalysis": "string",
+  "recommendation": "string",
+  "chartData": {
+    "phaseChart": [{"name": "string", "value": number}],
+    "statusChart": [{"name": "string", "value": number}],
+    "sponsorChart": [{"name": "string", "value": number}],
+    "yearChart": [{"year": "string", "value": number}]
+  }
 }
 
-Keep titles under 60 characters, insights under 100 characters each, and table titles under 40 characters.`;
+Focus on actionable insights, not just descriptions. Think like a McKinsey consultant.`;
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
