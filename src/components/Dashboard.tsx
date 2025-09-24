@@ -143,25 +143,23 @@ export function Dashboard() {
         {/* Input Area */}
         <div className="p-6 border-t">
           <div className="max-w-2xl mx-auto">
-            <div className="flex items-end space-x-3">
-              <div className="flex-1">
-                <Input
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  onKeyPress={handleKeyPress}
-                  placeholder="Search clinical trials... (e.g., 'Phase 3 cancer trials by Merck')"
-                  className="min-h-[50px] resize-none"
-                  disabled={loading}
-                />
-              </div>
-              <Button 
+            <div className="relative">
+              <input
+                type="text"
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                onKeyPress={handleKeyPress}
+                placeholder="Search clinical trials... (e.g., 'Phase 3 cancer trials by Merck')"
+                className="flex h-[50px] w-full rounded-md border border-gray-300 bg-white pl-4 pr-12 py-2 ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={loading}
+              />
+              <button
                 onClick={handleSendMessage}
                 disabled={!message.trim() || loading}
-                size="icon"
-                className="h-[50px] w-[50px]"
+                className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 rounded-full bg-gray-800 hover:bg-gray-900 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
               >
-                <Send className="h-4 w-4" />
-              </Button>
+                <Send className="h-3 w-3 text-white" />
+              </button>
             </div>
           </div>
         </div>
