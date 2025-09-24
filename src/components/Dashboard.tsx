@@ -152,8 +152,10 @@ export function Dashboard() {
       <div className="h-screen flex flex-col">
         <ToggleButtons />
         {/* Full Screen Market Map */}
-        <div className="flex-1 overflow-hidden">
-          <MarketMap trials={trials} loading={loading} query={lastQuery} />
+        <div className="flex-1 overflow-hidden bg-gray-50 min-h-0 max-h-full">
+          <div className="h-full">
+            <MarketMap trials={trials} loading={loading} query={lastQuery} />
+          </div>
         </div>
         {/* Logout Icon - Top Left */}
         <button
