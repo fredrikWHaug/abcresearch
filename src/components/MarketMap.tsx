@@ -75,8 +75,20 @@ export function MarketMap({ trials, loading, query }: MarketMapProps) {
     );
   }
 
+  // Show loading state when generating slide
+  if (generatingSlide) {
+    return (
+      <div className="w-full h-full flex items-center justify-center min-h-0">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Generating market analysis...</p>
+        </div>
+      </div>
+    );
+  }
+
   // Show centered generate button when trials exist but no slide has been generated
-  if (trials.length > 0 && !slideData && !generatingSlide) {
+  if (trials.length > 0 && !slideData) {
     return (
       <div className="w-full h-full flex items-center justify-center min-h-0">
         <div className="text-center">
