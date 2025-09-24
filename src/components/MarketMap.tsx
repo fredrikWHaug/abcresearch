@@ -100,8 +100,9 @@ export function MarketMap({ trials, loading, query }: MarketMapProps) {
   };
 
   return (
-    <div className="w-full h-full overflow-y-auto p-6">
-      <div className="max-w-7xl mx-auto">
+    <div className="w-full h-full flex flex-col">
+      <div className="flex-1 overflow-y-auto p-6">
+        <div className="max-w-7xl mx-auto">
         <div className="mb-6">
           <div className="flex justify-between items-start">
             <div>
@@ -215,6 +216,7 @@ export function MarketMap({ trials, loading, query }: MarketMapProps) {
               </CardContent>
             </Card>
           ))}
+        </div>
         </div>
       </div>
 

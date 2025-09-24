@@ -71,9 +71,9 @@ export function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen flex">
+    <div className="h-screen flex">
       {/* Left Half - Chat Interface */}
-      <div className="w-1/2 bg-background flex flex-col">
+      <div className="w-1/2 bg-background flex flex-col h-screen">
         {/* Chat Messages Area */}
         <div className="flex-1 p-6 overflow-y-auto">
           <div className="max-w-2xl mx-auto space-y-4">
@@ -137,7 +137,7 @@ export function Dashboard() {
       </div>
 
       {/* Right Half - Market Map */}
-      <div className="w-1/2 bg-gray-50">
+      <div className="w-1/2 bg-gray-50 h-screen overflow-hidden">
         <MarketMap trials={trials} loading={loading} query={lastQuery} />
       </div>
 
