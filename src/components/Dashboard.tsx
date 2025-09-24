@@ -173,9 +173,9 @@ export function Dashboard() {
       <ToggleButtons />
 
       {/* Split View Content */}
-      <div className="flex-1 flex">
+      <div className="flex-1 flex overflow-hidden">
         {/* Left Half - Chat Interface */}
-        <div className="w-1/2 bg-background flex flex-col h-full">
+        <div className="w-1/2 bg-background flex flex-col">
           {/* Chat Messages Area */}
           <div className="flex-1 p-6 overflow-y-auto min-h-0 max-h-full">
             <div className="max-w-2xl mx-auto space-y-4">
@@ -223,8 +223,8 @@ export function Dashboard() {
           </div>
         </div>
 
-        {/* Right Half - Trials List or Market Map */}
-        <div className="w-1/2 bg-gray-50 overflow-hidden flex flex-col">
+        {/* Right Half - Trials List */}
+        <div className="w-1/2 bg-gray-50 overflow-hidden">
           <TrialsList trials={trials} loading={loading} query={lastQuery} />
         </div>
       </div>
