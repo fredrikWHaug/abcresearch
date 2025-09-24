@@ -80,27 +80,24 @@ export function Dashboard() {
           <div className="text-center mb-8">
             <h1 className="text-3xl font-semibold text-gray-800 mb-2">Welcome back</h1>
           </div>
-          <div className="flex items-end space-x-3">
-            <div className="flex-1">
-              <input
-                type="text"
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                onKeyPress={handleKeyPress}
-                placeholder="Search clinical trials... (e.g., 'Phase 3 cancer trials by Merck')"
-                className="flex h-[60px] w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-lg ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={loading}
-                autoFocus
-              />
-            </div>
-            <Button 
+          <div className="relative">
+            <input
+              type="text"
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              onKeyPress={handleKeyPress}
+              placeholder="Search clinical trials... (e.g., 'Phase 3 cancer trials by Merck')"
+              className="flex h-[60px] w-full rounded-md border border-gray-300 bg-white pl-4 pr-16 py-2 text-lg ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={loading}
+              autoFocus
+            />
+            <button
               onClick={handleSendMessage}
               disabled={!message.trim() || loading}
-              size="icon"
-              className="h-[60px] w-[60px]"
+              className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-gray-800 hover:bg-gray-900 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
             >
-              <Send className="h-5 w-5" />
-            </Button>
+              <Send className="h-4 w-4 text-white" />
+            </button>
           </div>
         </div>
 
