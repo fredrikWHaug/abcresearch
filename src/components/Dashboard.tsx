@@ -24,6 +24,7 @@ export function Dashboard() {
   const [loading, setLoading] = useState(false)
   const [lastQuery, setLastQuery] = useState('')
   const [chatHistory, setChatHistory] = useState<Array<{type: 'user' | 'system', message: string}>>([])
+  const [hasSearched, setHasSearched] = useState(false)
 
   const handleSendMessage = async () => {
     if (!message.trim()) return;
@@ -31,6 +32,7 @@ export function Dashboard() {
     const userMessage = message.trim();
     setMessage('');
     setLastQuery(userMessage);
+    setHasSearched(true);
     
     // Add user message to chat history
     setChatHistory(prev => [...prev, { type: 'user', message: userMessage }]);
@@ -70,6 +72,51 @@ export function Dashboard() {
     }
   }
 
+  if (!hasSearched) {
+    // Initial centered search bar layout
+    return (
+      <div className="h-screen flex items-center justify-center bg-background">
+        <div className="w-full max-w-2xl px-6">
+          <div className="text-center mb-8">
+            <h1 className="text-3xl font-semibold text-gray-800 mb-2">Welcome back</h1>
+          </div>
+          <div className="flex items-end space-x-3">
+            <div className="flex-1">
+              <input
+                type="text"
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                onKeyPress={handleKeyPress}
+                placeholder="Search clinical trials... (e.g., 'Phase 3 cancer trials by Merck')"
+                className="flex h-[60px] w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-lg ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={loading}
+                autoFocus
+              />
+            </div>
+            <Button 
+              onClick={handleSendMessage}
+              disabled={!message.trim() || loading}
+              size="icon"
+              className="h-[60px] w-[60px]"
+            >
+              <Send className="h-5 w-5" />
+            </Button>
+          </div>
+        </div>
+
+        {/* Logout Icon - Top Left */}
+        <button
+          onClick={handleSignOut}
+          className="fixed top-6 left-6 p-3 bg-white rounded-full shadow-lg hover:shadow-xl transition-shadow border border-gray-200 hover:bg-gray-50 z-50"
+          title="Sign Out"
+        >
+          <LogOut className="h-5 w-5 text-gray-600 hover:text-red-600" />
+        </button>
+      </div>
+    );
+  }
+
+  // After search - normal split view layout
   return (
     <div className="h-screen flex">
       {/* Left Half - Chat Interface */}
@@ -77,28 +124,22 @@ export function Dashboard() {
         {/* Chat Messages Area */}
         <div className="flex-1 p-6 overflow-y-auto">
           <div className="max-w-2xl mx-auto space-y-4">
-            {chatHistory.length === 0 ? (
-              <div className="text-center text-gray-500 py-12">
-                <p className="text-lg font-medium">Search for clinical trials</p>
-              </div>
-            ) : (
-              chatHistory.map((item, index) => (
+            {chatHistory.map((item, index) => (
+              <div
+                key={index}
+                className={`flex ${item.type === 'user' ? 'justify-end' : 'justify-start'}`}
+              >
                 <div
-                  key={index}
-                  className={`flex ${item.type === 'user' ? 'justify-end' : 'justify-start'}`}
+                  className={`max-w-[80%] p-3 rounded-lg ${
+                    item.type === 'user'
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-gray-100 text-gray-800'
+                  }`}
                 >
-                  <div
-                    className={`max-w-[80%] p-3 rounded-lg ${
-                      item.type === 'user'
-                        ? 'bg-blue-500 text-white'
-                        : 'bg-gray-100 text-gray-800'
-                    }`}
-                  >
-                    {item.message}
-                  </div>
+                  {item.message}
                 </div>
-              ))
-            )}
+              </div>
+            ))}
           </div>
         </div>
 
