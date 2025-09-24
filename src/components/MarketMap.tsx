@@ -75,6 +75,27 @@ export function MarketMap({ trials, loading, query }: MarketMapProps) {
     );
   }
 
+  // Show centered generate button when trials exist but no slide has been generated
+  if (trials.length > 0 && !slideData && !generatingSlide) {
+    return (
+      <div className="w-full h-full flex items-center justify-center min-h-0">
+        <div className="text-center">
+          <div className="mb-8">
+            <h2 className="text-3xl font-bold text-gray-800 mb-2">Market Analysis Ready</h2>
+            <p className="text-gray-600 text-lg">Found {trials.length} clinical trials for analysis</p>
+          </div>
+          <Button
+            onClick={handleGenerateSlide}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 text-lg font-semibold rounded-lg shadow-lg hover:shadow-xl transition-all duration-200"
+          >
+            <FileText className="h-5 w-5 mr-2" />
+            Generate Market Map
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   const getPhaseColor = (phase?: string[]) => {
     if (!phase || phase.length === 0) return 'bg-gray-100 text-gray-700';
     const phaseStr = phase[0];
@@ -109,28 +130,11 @@ export function MarketMap({ trials, loading, query }: MarketMapProps) {
               <h2 className="text-2xl font-bold text-gray-800">Market Map Results</h2>
               <p className="text-gray-600 mt-1">Found {trials.length} trials for: "{query}"</p>
             </div>
-            <div className="flex flex-col gap-2">
-              <Button
-                onClick={handleGenerateSlide}
-                disabled={generatingSlide || trials.length === 0}
-                className="flex items-center gap-2"
-              >
-                {generatingSlide ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <FileText className="h-4 w-4" />
-                    Generate Slide
-                  </>
-                )}
-              </Button>
-              {slideError && (
+            {slideError && (
+              <div className="flex flex-col gap-2">
                 <p className="text-sm text-red-600 max-w-xs">{slideError}</p>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         </div>
 
