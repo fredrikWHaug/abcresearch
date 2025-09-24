@@ -149,13 +149,11 @@ export function Dashboard() {
   if (viewMode === 'marketmap') {
     // Full screen market map view
     return (
-      <div className="h-screen flex flex-col">
+      <div className="h-screen flex flex-col overflow-hidden">
         <ToggleButtons />
         {/* Full Screen Market Map */}
-        <div className="flex-1 overflow-hidden bg-gray-50 min-h-0 max-h-full">
-          <div className="h-full">
-            <MarketMap trials={trials} loading={loading} query={lastQuery} />
-          </div>
+        <div className="flex-1 overflow-hidden bg-gray-50">
+          <MarketMap trials={trials} loading={loading} query={lastQuery} />
         </div>
         {/* Logout Icon - Top Left */}
         <button

@@ -42,7 +42,7 @@ export function MarketMap({ trials, loading, query }: MarketMapProps) {
   };
   if (loading) {
     return (
-      <div className="w-full h-full flex items-center justify-center">
+      <div className="w-full h-full flex items-center justify-center min-h-0">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
           <p className="mt-4 text-gray-600">Searching clinical trials...</p>
@@ -53,7 +53,7 @@ export function MarketMap({ trials, loading, query }: MarketMapProps) {
 
   if (!query) {
     return (
-      <div className="w-full h-full flex items-center justify-center">
+      <div className="w-full h-full flex items-center justify-center min-h-0">
         <div className="text-center text-gray-500">
           <Activity className="h-16 w-16 mx-auto mb-4 text-gray-300" />
           <h2 className="text-2xl font-semibold mb-2">Clinical Trials Market Map</h2>
@@ -66,7 +66,7 @@ export function MarketMap({ trials, loading, query }: MarketMapProps) {
 
   if (trials.length === 0) {
     return (
-      <div className="w-full h-full flex items-center justify-center">
+      <div className="w-full h-full flex items-center justify-center min-h-0">
         <div className="text-center">
           <p className="text-gray-600">No trials found for: "{query}"</p>
           <p className="text-sm text-gray-500 mt-2">Try adjusting your search terms</p>
@@ -100,8 +100,8 @@ export function MarketMap({ trials, loading, query }: MarketMapProps) {
   };
 
   return (
-    <div className="w-full h-full flex flex-col max-h-full">
-      <div className="flex-1 overflow-y-auto p-6 min-h-0 max-h-full">
+    <div className="w-full h-full flex flex-col overflow-hidden">
+      <div className="flex-1 overflow-y-auto p-6 min-h-0">
         <div className="max-w-7xl mx-auto">
         <div className="mb-6">
           <div className="flex justify-between items-start">
