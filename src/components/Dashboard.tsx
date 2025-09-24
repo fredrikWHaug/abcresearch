@@ -117,7 +117,7 @@ export function Dashboard() {
 
   // Shared toggle component
   const ToggleButtons = () => (
-    <div className="p-4 border-b bg-white">
+    <div className="p-4 border-b bg-white relative z-50">
       <div className="max-w-4xl mx-auto">
         <div className="flex rounded-lg bg-gray-100 p-1">
           <button
