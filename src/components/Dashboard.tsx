@@ -175,9 +175,9 @@ export function Dashboard() {
       {/* Split View Content */}
       <div className="flex-1 flex">
         {/* Left Half - Chat Interface */}
-        <div className="w-1/2 bg-background flex flex-col min-h-0">
+        <div className="w-1/2 bg-background flex flex-col h-full">
           {/* Chat Messages Area */}
-          <div className="flex-1 p-6 overflow-y-auto min-h-0">
+          <div className="flex-1 p-6 overflow-y-auto min-h-0 max-h-full">
             <div className="max-w-2xl mx-auto space-y-4">
               {chatHistory.map((item, index) => (
                 <div
@@ -198,8 +198,8 @@ export function Dashboard() {
             </div>
           </div>
 
-          {/* Input Area */}
-          <div className="p-6 border-t">
+          {/* Input Area - Fixed at bottom */}
+          <div className="p-6 border-t bg-background flex-shrink-0">
             <div className="max-w-2xl mx-auto">
               <div className="relative">
                 <input
