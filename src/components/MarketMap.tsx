@@ -12,9 +12,10 @@ interface MarketMapProps {
   trials: ClinicalTrial[];
   loading: boolean;
   query: string;
+  isFullScreen?: boolean;
 }
 
-export function MarketMap({ trials, loading, query }: MarketMapProps) {
+export function MarketMap({ trials, loading, query, isFullScreen = false }: MarketMapProps) {
   const [slideData, setSlideData] = useState<SlideData | null>(null);
   const [generatingSlide, setGeneratingSlide] = useState(false);
   const [slideError, setSlideError] = useState<string | null>(null);
@@ -134,7 +135,7 @@ export function MarketMap({ trials, loading, query }: MarketMapProps) {
 
   return (
     <div className="w-full h-full flex flex-col overflow-hidden">
-      <div className="flex-1 overflow-y-auto p-6 min-h-0">
+      <div className="flex-1 overflow-y-auto p-6 min-h-0 max-h-full">
         <div className="max-w-7xl mx-auto">
         <div className="mb-6">
           <div className="flex justify-between items-start">

@@ -153,7 +153,7 @@ export function Dashboard() {
         <ToggleButtons />
         {/* Full Screen Market Map */}
         <div className="flex-1 overflow-hidden bg-gray-50">
-          <MarketMap trials={trials} loading={loading} query={lastQuery} />
+          <MarketMap trials={trials} loading={loading} query={lastQuery} isFullScreen={true} />
         </div>
         {/* Logout Icon - Top Left */}
         <button
@@ -175,9 +175,9 @@ export function Dashboard() {
       {/* Split View Content */}
       <div className="flex-1 flex">
         {/* Left Half - Chat Interface */}
-        <div className="w-1/2 bg-background flex flex-col">
+        <div className="w-1/2 bg-background flex flex-col min-h-0">
           {/* Chat Messages Area */}
-          <div className="flex-1 p-6 overflow-y-auto">
+          <div className="flex-1 p-6 overflow-y-auto min-h-0">
             <div className="max-w-2xl mx-auto space-y-4">
               {chatHistory.map((item, index) => (
                 <div
@@ -223,8 +223,8 @@ export function Dashboard() {
           </div>
         </div>
 
-        {/* Right Half - Trials List */}
-        <div className="w-1/2 bg-gray-50 overflow-hidden">
+        {/* Right Half - Trials List or Market Map */}
+        <div className="w-1/2 bg-gray-50 overflow-hidden flex flex-col">
           <TrialsList trials={trials} loading={loading} query={lastQuery} />
         </div>
       </div>
