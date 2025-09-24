@@ -134,85 +134,20 @@ export function MarketMap({ trials, loading, query }: MarketMapProps) {
           </div>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-2">
+        <div className="space-y-0">
           {trials.map((trial) => (
-            <Card key={trial.nctId} className="hover:shadow-lg transition-shadow">
-              <CardHeader className="pb-3">
-                <div className="flex justify-between items-start">
-                  <CardTitle className="text-lg line-clamp-2 flex-1 mr-2">
+            <Card key={trial.nctId} className="hover:shadow-md transition-shadow rounded-none border-b border-l border-r first:border-t last:rounded-b-md">
+              <CardContent className="p-4">
+                <a 
+                  href={`https://clinicaltrials.gov/study/${trial.nctId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block hover:bg-gray-50 rounded-lg p-2 -m-2 transition-colors"
+                >
+                  <CardTitle className="text-lg line-clamp-2 hover:text-blue-600 transition-colors">
                     {trial.briefTitle}
                   </CardTitle>
-                  <a 
-                    href={`https://clinicaltrials.gov/study/${trial.nctId}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="ml-2 shrink-0"
-                  >
-                    <Badge variant="outline" className="hover:bg-blue-50 cursor-pointer">
-                      {trial.nctId} ↗
-                    </Badge>
-                  </a>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {/* Status and Phase */}
-                <div className="flex gap-2 flex-wrap">
-                  <Badge className={getStatusColor(trial.overallStatus)}>
-                    {trial.overallStatus}
-                  </Badge>
-                  {trial.phase && trial.phase.map((p, i) => (
-                    <Badge key={i} className={getPhaseColor([p])}>
-                      {p}
-                    </Badge>
-                  ))}
-                </div>
-
-                {/* Sponsor */}
-                {trial.sponsors?.lead && (
-                  <div className="flex items-center text-sm text-gray-600">
-                    <Building2 className="h-4 w-4 mr-2 shrink-0" />
-                    <span className="truncate">{trial.sponsors.lead}</span>
-                  </div>
-                )}
-
-                {/* Conditions */}
-                {trial.conditions && trial.conditions.length > 0 && (
-                  <div className="text-sm">
-                    <span className="font-medium text-gray-700">Conditions: </span>
-                    <span className="text-gray-600">
-                      {trial.conditions.slice(0, 2).join(', ')}
-                      {trial.conditions.length > 2 && ` +${trial.conditions.length - 2} more`}
-                    </span>
-                  </div>
-                )}
-
-                {/* Enrollment */}
-                {trial.enrollment && (
-                  <div className="flex items-center text-sm text-gray-600">
-                    <Users className="h-4 w-4 mr-2" />
-                    <span>{trial.enrollment.toLocaleString()} participants</span>
-                  </div>
-                )}
-
-                {/* Dates */}
-                <div className="flex items-center text-sm text-gray-600">
-                  <Calendar className="h-4 w-4 mr-2" />
-                  <span>
-                    {trial.startDate ? `Started: ${trial.startDate}` : 'Start date not available'}
-                    {trial.completionDate && ` | Est. completion: ${trial.completionDate}`}
-                  </span>
-                </div>
-
-                {/* Locations */}
-                {trial.locations && trial.locations.length > 0 && (
-                  <div className="flex items-center text-sm text-gray-600">
-                    <MapPin className="h-4 w-4 mr-2" />
-                    <span>
-                      {trial.locations.length} location{trial.locations.length > 1 ? 's' : ''}
-                      {trial.locations[0]?.country && ` (${trial.locations[0].country})`}
-                    </span>
-                  </div>
-                )}
+                </a>
               </CardContent>
             </Card>
           ))}
