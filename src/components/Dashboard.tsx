@@ -153,7 +153,7 @@ export function Dashboard() {
         <ToggleButtons />
         {/* Full Screen Market Map */}
         <div className="flex-1 overflow-hidden bg-gray-50">
-          <MarketMap trials={trials} loading={loading} query={lastQuery} isFullScreen={true} />
+          <MarketMap trials={trials} loading={loading} query={lastQuery} />
         </div>
         {/* Logout Icon - Top Left */}
         <button

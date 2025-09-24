@@ -12,10 +12,9 @@ interface MarketMapProps {
   trials: ClinicalTrial[];
   loading: boolean;
   query: string;
-  isFullScreen?: boolean;
 }
 
-export function MarketMap({ trials, loading, query, isFullScreen = false }: MarketMapProps) {
+export function MarketMap({ trials, loading, query }: MarketMapProps) {
   const [slideData, setSlideData] = useState<SlideData | null>(null);
   const [generatingSlide, setGeneratingSlide] = useState(false);
   const [slideError, setSlideError] = useState<string | null>(null);
