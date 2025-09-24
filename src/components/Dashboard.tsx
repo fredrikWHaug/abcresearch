@@ -79,14 +79,7 @@ export function Dashboard() {
           <div className="max-w-2xl mx-auto space-y-4">
             {chatHistory.length === 0 ? (
               <div className="text-center text-gray-500 py-12">
-                <p className="text-lg font-medium">Welcome to ABCresearch</p>
-                <p className="mt-2">Search for clinical trials using natural language</p>
-                <p className="text-sm mt-4">Try queries like:</p>
-                <ul className="text-sm mt-2 space-y-1">
-                  <li>"Phase 2 oncology trials"</li>
-                  <li>"Pfizer diabetes studies"</li>
-                  <li>"Recruiting trials for Alzheimer's"</li>
-                </ul>
+                <p className="text-lg font-medium">Search for clinical trials</p>
               </div>
             ) : (
               chatHistory.map((item, index) => (
