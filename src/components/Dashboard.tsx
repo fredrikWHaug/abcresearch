@@ -26,7 +26,7 @@ export function Dashboard() {
   const [lastQuery, setLastQuery] = useState('')
   const [chatHistory, setChatHistory] = useState<Array<{type: 'user' | 'system', message: string}>>([])
   const [hasSearched, setHasSearched] = useState(false)
-  const [viewMode, setViewMode] = useState<'trials' | 'marketmap'>('trials')
+  const [viewMode, setViewMode] = useState<'research' | 'marketmap'>('research')
 
   const handleSendMessage = async () => {
     if (!message.trim()) return;
@@ -115,93 +115,117 @@ export function Dashboard() {
     );
   }
 
-  // After search - normal split view layout
-  return (
-    <div className="h-screen flex">
-      {/* Left Half - Chat Interface */}
-      <div className="w-1/2 bg-background flex flex-col h-screen">
-        {/* Chat Messages Area */}
-        <div className="flex-1 p-6 overflow-y-auto">
-          <div className="max-w-2xl mx-auto space-y-4">
-            {chatHistory.map((item, index) => (
-              <div
-                key={index}
-                className={`flex ${item.type === 'user' ? 'justify-end' : 'justify-start'}`}
-              >
-                <div
-                  className={`max-w-[80%] p-3 rounded-lg ${
-                    item.type === 'user'
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-gray-100 text-gray-800'
-                  }`}
-                >
-                  {item.message}
-                </div>
-              </div>
-            ))}
-          </div>
+  // Shared toggle component
+  const ToggleButtons = () => (
+    <div className="p-4 border-b bg-white">
+      <div className="max-w-4xl mx-auto">
+        <div className="flex rounded-lg bg-gray-100 p-1">
+          <button
+            onClick={() => setViewMode('research')}
+            className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+              viewMode === 'research'
+                ? 'bg-white text-gray-900 shadow-sm'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            Research
+          </button>
+          <button
+            onClick={() => setViewMode('marketmap')}
+            className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+              viewMode === 'marketmap'
+                ? 'bg-white text-gray-900 shadow-sm'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            Market Map
+          </button>
         </div>
+      </div>
+    </div>
+  );
 
-        {/* Input Area */}
-        <div className="p-6 border-t">
-          <div className="max-w-2xl mx-auto">
-            <div className="relative">
-              <input
-                type="text"
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                onKeyPress={handleKeyPress}
-                placeholder="Search clinical trials... (e.g., 'Phase 3 cancer trials by Merck')"
-                className="flex h-[50px] w-full rounded-md border border-gray-300 bg-white pl-4 pr-12 py-2 ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={loading}
-              />
-              <button
-                onClick={handleSendMessage}
-                disabled={!message.trim() || loading}
-                className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 rounded-full bg-gray-800 hover:bg-gray-900 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
-              >
-                <Send className="h-3 w-3 text-white" />
-              </button>
+  // After search - conditional layout based on view mode
+  if (viewMode === 'marketmap') {
+    // Full screen market map view
+    return (
+      <div className="h-screen flex flex-col">
+        <ToggleButtons />
+        {/* Full Screen Market Map */}
+        <div className="flex-1 overflow-hidden">
+          <MarketMap trials={trials} loading={loading} query={lastQuery} />
+        </div>
+        {/* Logout Icon - Top Left */}
+        <button
+          onClick={handleSignOut}
+          className="fixed top-6 left-6 p-3 bg-white rounded-full shadow-lg hover:shadow-xl transition-shadow border border-gray-200 hover:bg-gray-50 z-50"
+          title="Sign Out"
+        >
+          <LogOut className="h-5 w-5 text-gray-600 hover:text-red-600" />
+        </button>
+      </div>
+    );
+  }
+
+  // Research mode - split view layout
+  return (
+    <div className="h-screen flex flex-col">
+      <ToggleButtons />
+
+      {/* Split View Content */}
+      <div className="flex-1 flex">
+        {/* Left Half - Chat Interface */}
+        <div className="w-1/2 bg-background flex flex-col">
+          {/* Chat Messages Area */}
+          <div className="flex-1 p-6 overflow-y-auto">
+            <div className="max-w-2xl mx-auto space-y-4">
+              {chatHistory.map((item, index) => (
+                <div
+                  key={index}
+                  className={`flex ${item.type === 'user' ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div
+                    className={`max-w-[80%] p-3 rounded-lg ${
+                      item.type === 'user'
+                        ? 'bg-blue-500 text-white'
+                        : 'bg-gray-100 text-gray-800'
+                    }`}
+                  >
+                    {item.message}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Input Area */}
+          <div className="p-6 border-t">
+            <div className="max-w-2xl mx-auto">
+              <div className="relative">
+                <input
+                  type="text"
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  placeholder="Search clinical trials... (e.g., 'Phase 3 cancer trials by Merck')"
+                  className="flex h-[50px] w-full rounded-md border border-gray-300 bg-white pl-4 pr-12 py-2 ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={loading}
+                />
+                <button
+                  onClick={handleSendMessage}
+                  disabled={!message.trim() || loading}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 rounded-full bg-gray-800 hover:bg-gray-900 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
+                >
+                  <Send className="h-3 w-3 text-white" />
+                </button>
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Right Half - Toggle View */}
-      <div className="w-1/2 bg-gray-50 h-screen overflow-hidden flex flex-col">
-        {/* Toggle Button */}
-        <div className="p-4 border-b bg-white">
-          <div className="flex rounded-lg bg-gray-100 p-1">
-            <button
-              onClick={() => setViewMode('trials')}
-              className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
-                viewMode === 'trials'
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              Trials
-            </button>
-            <button
-              onClick={() => setViewMode('marketmap')}
-              className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
-                viewMode === 'marketmap'
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              Market Map
-            </button>
-          </div>
-        </div>
-
-        {/* Content Area */}
-        <div className="flex-1 overflow-hidden">
-          {viewMode === 'trials' ? (
-            <TrialsList trials={trials} loading={loading} query={lastQuery} />
-          ) : (
-            <MarketMap trials={trials} loading={loading} query={lastQuery} />
-          )}
+        {/* Right Half - Trials List */}
+        <div className="w-1/2 bg-gray-50 overflow-hidden">
+          <TrialsList trials={trials} loading={loading} query={lastQuery} />
         </div>
       </div>
 
