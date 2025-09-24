@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input'
 import { useAuth } from '@/contexts/AuthContext'
 import { LogOut, Send } from 'lucide-react'
 import { MarketMap } from '@/components/MarketMap'
+import { TrialsList } from '@/components/TrialsList'
 import { ClinicalTrialsAPI } from '@/services/clinicalTrialsAPI'
 import type { ClinicalTrial } from '@/services/clinicalTrialsAPI'
 
@@ -25,6 +26,7 @@ export function Dashboard() {
   const [lastQuery, setLastQuery] = useState('')
   const [chatHistory, setChatHistory] = useState<Array<{type: 'user' | 'system', message: string}>>([])
   const [hasSearched, setHasSearched] = useState(false)
+  const [viewMode, setViewMode] = useState<'trials' | 'marketmap'>('trials')
 
   const handleSendMessage = async () => {
     if (!message.trim()) return;
@@ -165,9 +167,42 @@ export function Dashboard() {
         </div>
       </div>
 
-      {/* Right Half - Market Map */}
-      <div className="w-1/2 bg-gray-50 h-screen overflow-hidden">
-        <MarketMap trials={trials} loading={loading} query={lastQuery} />
+      {/* Right Half - Toggle View */}
+      <div className="w-1/2 bg-gray-50 h-screen overflow-hidden flex flex-col">
+        {/* Toggle Button */}
+        <div className="p-4 border-b bg-white">
+          <div className="flex rounded-lg bg-gray-100 p-1">
+            <button
+              onClick={() => setViewMode('trials')}
+              className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                viewMode === 'trials'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Trials
+            </button>
+            <button
+              onClick={() => setViewMode('marketmap')}
+              className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                viewMode === 'marketmap'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Market Map
+            </button>
+          </div>
+        </div>
+
+        {/* Content Area */}
+        <div className="flex-1 overflow-hidden">
+          {viewMode === 'trials' ? (
+            <TrialsList trials={trials} loading={loading} query={lastQuery} />
+          ) : (
+            <MarketMap trials={trials} loading={loading} query={lastQuery} />
+          )}
+        </div>
       </div>
 
       {/* Logout Icon - Top Left */}
