@@ -271,7 +271,7 @@ export function Dashboard() {
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               onKeyPress={handleKeyPress}
-              placeholder="Search clinical trials... (e.g., 'Cancer trials')"
+              placeholder={hasSearched ? "Respond to ABCresearch's agent..." : "How can I help you today?"}
               className="flex h-[60px] w-full rounded-md border border-gray-300 bg-white pl-4 pr-16 py-2 text-lg ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50"
               disabled={loading}
               autoFocus
@@ -359,7 +359,7 @@ export function Dashboard() {
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
                   onKeyPress={handleKeyPress}
-                  placeholder="Search clinical trials... (e.g., 'Cancer trials')"
+                  placeholder={hasSearched ? "Respond to ABCresearch's agent..." : "How can I help you today?"}
                   className="flex h-[50px] w-full rounded-md border border-gray-300 bg-white pl-4 pr-12 py-2 ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50"
                   disabled={loading}
                 />
