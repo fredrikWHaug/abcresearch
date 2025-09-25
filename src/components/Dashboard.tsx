@@ -56,10 +56,13 @@ export function Dashboard() {
       
       setTrials(result.trials);
       
+      // Generate a natural, informative response based on the results
+      const responseMessage = generateSearchResponse(result, userMessage);
+      
       // Add system response to chat history
       setChatHistory(prev => [...prev, { 
         type: 'system', 
-        message: `Found ${result.trials.length} clinical trials matching your query. Results are displayed in the Market Map.` 
+        message: responseMessage
       }]);
       
     } catch (error) {
@@ -78,6 +81,39 @@ export function Dashboard() {
       e.preventDefault()
       handleSendMessage()
     }
+  }
+
+  const generateSearchResponse = (result: any, userQuery: string): string => {
+    const { trials, searchStrategies } = result;
+    const totalTrials = trials.length;
+    
+    if (totalTrials === 0) {
+      return `I couldn't find any clinical trials matching "${userQuery}". Try using different keywords or broader terms like "cancer", "diabetes", or "Phase 2 trials".`;
+    }
+    
+    // Analyze the results
+    const recruitingCount = trials.filter((t: any) => t.overallStatus === 'RECRUITING').length;
+    const phase3Count = trials.filter((t: any) => t.phase?.some((p: string) => p.includes('3'))).length;
+    const topSponsors = [...new Set(trials.map((t: any) => t.sponsors?.lead).filter(Boolean))].slice(0, 3);
+    
+    // Generate natural response
+    let response = `Great! I found ${totalTrials} clinical trials for "${userQuery}". `;
+    
+    if (recruitingCount > 0) {
+      response += `${recruitingCount} are currently recruiting participants. `;
+    }
+    
+    if (phase3Count > 0) {
+      response += `${phase3Count} are in Phase 3 (late-stage trials). `;
+    }
+    
+    if (topSponsors.length > 0) {
+      response += `Key sponsors include ${topSponsors.join(', ')}. `;
+    }
+    
+    response += `The results are ranked by relevance and displayed in the Market Map. You can also view them in the Research tab.`;
+    
+    return response;
   }
 
   // Shared header component
