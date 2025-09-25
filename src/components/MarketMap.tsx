@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -12,12 +12,25 @@ interface MarketMapProps {
   trials: ClinicalTrial[];
   loading: boolean;
   query: string;
+  slideData: SlideData | null;
+  setSlideData: (data: SlideData | null) => void;
+  generatingSlide: boolean;
+  setGeneratingSlide: (generating: boolean) => void;
+  slideError: string | null;
+  setSlideError: (error: string | null) => void;
 }
 
-export function MarketMap({ trials, loading, query }: MarketMapProps) {
-  const [slideData, setSlideData] = useState<SlideData | null>(null);
-  const [generatingSlide, setGeneratingSlide] = useState(false);
-  const [slideError, setSlideError] = useState<string | null>(null);
+export function MarketMap({ 
+  trials, 
+  loading, 
+  query,
+  slideData,
+  setSlideData,
+  generatingSlide,
+  setGeneratingSlide,
+  slideError,
+  setSlideError 
+}: MarketMapProps) {
 
   const handleGenerateSlide = async () => {
     if (trials.length === 0) return;

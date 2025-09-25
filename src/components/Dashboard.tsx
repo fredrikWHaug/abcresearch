@@ -7,6 +7,7 @@ import { MarketMap } from '@/components/MarketMap'
 import { TrialsList } from '@/components/TrialsList'
 import { ClinicalTrialsAPI } from '@/services/clinicalTrialsAPI'
 import type { ClinicalTrial } from '@/services/clinicalTrialsAPI'
+import type { SlideData } from '@/services/slideAPI'
 
 export function Dashboard() {
   const { signOut, isGuest, exitGuestMode } = useAuth()
@@ -27,6 +28,9 @@ export function Dashboard() {
   const [chatHistory, setChatHistory] = useState<Array<{type: 'user' | 'system', message: string}>>([])
   const [hasSearched, setHasSearched] = useState(false)
   const [viewMode, setViewMode] = useState<'research' | 'marketmap'>('research')
+  const [slideData, setSlideData] = useState<SlideData | null>(null)
+  const [generatingSlide, setGeneratingSlide] = useState(false)
+  const [slideError, setSlideError] = useState<string | null>(null)
 
   const handleSendMessage = async () => {
     if (!message.trim()) return;
@@ -41,6 +45,10 @@ export function Dashboard() {
     
     try {
       setLoading(true);
+      
+      // Reset slide data when performing a new search
+      setSlideData(null);
+      setSlideError(null);
       
       // Parse the natural language query
       const searchParams = ClinicalTrialsAPI.parseQuery(userMessage);
@@ -210,7 +218,17 @@ export function Dashboard() {
         
         {/* Full Screen Market Map */}
         <div className="flex-1 overflow-hidden bg-gray-50">
-          <MarketMap trials={trials} loading={loading} query={lastQuery} />
+          <MarketMap 
+            trials={trials} 
+            loading={loading} 
+            query={lastQuery}
+            slideData={slideData}
+            setSlideData={setSlideData}
+            generatingSlide={generatingSlide}
+            setGeneratingSlide={setGeneratingSlide}
+            slideError={slideError}
+            setSlideError={setSlideError}
+          />
         </div>
       </div>
     );
