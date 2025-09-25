@@ -76,15 +76,15 @@ export function Dashboard() {
 
   // Guest mode indicator component with animation
   const GuestModeIndicator = () => {
-    const [isExpanded, setIsExpanded] = useState(true);
-    const [isClicked, setIsClicked] = useState(false);
+    const [showInitial, setShowInitial] = useState(true);
+    const [isManuallyExpanded, setIsManuallyExpanded] = useState(false);
 
     useEffect(() => {
       if (!isGuest) return;
       
       // Auto-collapse after 3 seconds
       const timer = setTimeout(() => {
-        setIsExpanded(false);
+        setShowInitial(false);
       }, 3000);
 
       return () => clearTimeout(timer);
@@ -92,7 +92,7 @@ export function Dashboard() {
 
     if (!isGuest) return null;
     
-    const shouldShowFull = isExpanded || isClicked;
+    const shouldShowFull = showInitial || isManuallyExpanded;
     
     return (
       <div className="fixed top-6 right-6 z-50">
@@ -100,7 +100,7 @@ export function Dashboard() {
           className={`bg-amber-50 border border-amber-200 rounded-lg shadow-lg transition-all duration-300 ease-in-out ${
             shouldShowFull ? 'p-3 max-w-xs' : 'p-2 w-12 h-12 flex items-center justify-center cursor-pointer'
           }`}
-          onClick={!shouldShowFull ? () => setIsClicked(!isClicked) : undefined}
+          onClick={!shouldShowFull ? () => setIsManuallyExpanded(true) : undefined}
         >
           <div className={`flex items-start gap-2 ${shouldShowFull ? '' : 'items-center justify-center'}`}>
             <svg className={`text-amber-600 flex-shrink-0 ${shouldShowFull ? 'w-4 h-4 mt-0.5' : 'w-6 h-6'}`} fill="currentColor" viewBox="0 0 20 20">
@@ -113,7 +113,7 @@ export function Dashboard() {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      setIsClicked(false);
+                      setIsManuallyExpanded(false);
                     }}
                     className="absolute -top-1 -right-1 w-5 h-5 bg-gray-200 hover:bg-gray-300 rounded-full flex items-center justify-center text-gray-600 hover:text-gray-700 transition-colors"
                   >
