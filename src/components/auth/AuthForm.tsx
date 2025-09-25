@@ -61,9 +61,13 @@ export function AuthForm() {
         } else {
           setMessage('Account creation failed. Please try again.')
         }
-      } else {
-        // Successful login
-        setMessage('Welcome back!')
+      } else if (isLogin) {
+        // Successful login - only show message if we have a session
+        if (data?.session) {
+          setMessage('Welcome back!')
+        } else {
+          setMessage('Login failed. Please try again.')
+        }
       }
     } catch (error) {
       console.error('Auth error:', error)
