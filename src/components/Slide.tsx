@@ -31,6 +31,157 @@ interface SlideProps {
   query: string;
 }
 
+// Generate static HTML for printing
+const generatePrintHTML = (slideData: SlideData, query: string) => {
+  return `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>${slideData.title} - Market Analysis</title>
+        <meta charset="utf-8">
+        <script src="https://cdn.tailwindcss.com"></script>
+        <style>
+          @page {
+            size: A4;
+            margin: 15mm;
+          }
+          
+          @media print {
+            body { margin: 0; }
+            .page-break { page-break-after: always; }
+            .no-break { page-break-inside: avoid; }
+          }
+          
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.5;
+            color: #111827;
+          }
+          
+          .chart-container {
+            width: 100%;
+            height: 300px;
+            margin: 20px 0;
+          }
+          
+          .metric-box {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 16px;
+          }
+          
+          .chart-placeholder {
+            background: #f3f4f6;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            color: #6b7280;
+          }
+        </style>
+      </head>
+      <body class="bg-white p-8">
+        <!-- Page 1 -->
+        <div class="mb-8">
+          <h1 class="text-4xl font-bold mb-2">${slideData.title}</h1>
+          <p class="text-xl text-gray-600">${slideData.subtitle}</p>
+          <div class="mt-4 h-1 w-32 bg-blue-600"></div>
+        </div>
+        
+        <div class="grid grid-cols-4 gap-4 mb-8">
+          ${slideData.keyMetrics.map((metric: KeyMetric) => `
+            <div class="metric-box">
+              <p class="text-sm text-gray-600 font-medium">${metric.label}</p>
+              <p class="text-2xl font-bold">
+                ${metric.value}
+                ${metric.trend === 'up' ? '↑' : metric.trend === 'down' ? '↓' : '→'}
+              </p>
+            </div>
+          `).join('')}
+        </div>
+        
+        <div class="grid grid-cols-2 gap-6 mb-8">
+          <div class="border border-gray-200 rounded-lg p-6">
+            <h3 class="text-lg font-semibold mb-4">Phase Distribution</h3>
+            <div class="chart-placeholder">
+              <p class="font-semibold mb-2">Phase Distribution Chart</p>
+              ${slideData.chartData.phaseChart.map((item: any) => 
+                `<div>${item.name}: ${item.value}</div>`
+              ).join('')}
+            </div>
+          </div>
+          
+          <div class="border border-gray-200 rounded-lg p-6">
+            <h3 class="text-lg font-semibold mb-4">Trial Status</h3>
+            <div class="chart-placeholder">
+              <p class="font-semibold mb-2">Status Distribution Chart</p>
+              ${slideData.chartData.statusChart.map((item: any) => 
+                `<div>${item.name}: ${item.value}</div>`
+              ).join('')}
+            </div>
+          </div>
+        </div>
+        
+        <div class="page-break"></div>
+        
+        <!-- Page 2 -->
+        <div class="grid grid-cols-2 gap-6 mb-8">
+          <div class="border border-gray-200 rounded-lg p-6">
+            <h3 class="text-lg font-semibold mb-4">Top Sponsors</h3>
+            <div class="chart-placeholder">
+              ${slideData.chartData.sponsorChart.map((item: any, index: number) => 
+                `<div>${index + 1}. ${item.name}: ${item.value}</div>`
+              ).join('')}
+            </div>
+          </div>
+          
+          <div class="border border-gray-200 rounded-lg p-6">
+            <h3 class="text-lg font-semibold mb-4">Activity Timeline</h3>
+            <div class="chart-placeholder">
+              ${slideData.chartData.yearChart.map((item: any) => 
+                `<div>${item.year}: ${item.value} trials</div>`
+              ).join('')}
+            </div>
+          </div>
+        </div>
+        
+        <div class="grid grid-cols-2 gap-6 mb-8">
+          <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+            <h3 class="text-lg font-semibold mb-4">Competitive Landscape</h3>
+            <ul class="space-y-2">
+              ${slideData.competitiveLandscape.map((insight: string, index: number) => `
+                <li class="flex items-start">
+                  <span class="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-semibold mr-3 flex-shrink-0">
+                    ${index + 1}
+                  </span>
+                  <span class="text-gray-700">${insight}</span>
+                </li>
+              `).join('')}
+            </ul>
+          </div>
+          
+          <div class="bg-gray-50 border border-gray-200 rounded-lg p-6">
+            <h3 class="text-lg font-semibold mb-4">Market Trend Analysis</h3>
+            <p class="text-gray-700">${slideData.trendAnalysis}</p>
+          </div>
+        </div>
+        
+        <div class="bg-blue-600 text-white rounded-lg p-6 mb-8 no-break">
+          <h3 class="text-xl font-semibold mb-3">Strategic Recommendation</h3>
+          <p class="text-lg">${slideData.recommendation}</p>
+        </div>
+        
+        <div class="border-t pt-6 text-sm text-gray-500 flex justify-between">
+          <p>Query: "${query}"</p>
+          <p>Generated by ABCresearch • ${new Date().toLocaleDateString()}</p>
+        </div>
+      </body>
+    </html>
+  `;
+};
+
 export function Slide({ slideData, onClose, query }: SlideProps) {
   const PHASE_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
   const STATUS_COLORS = ['#10b981', '#3b82f6', '#6b7280', '#f59e0b'];
@@ -47,7 +198,31 @@ export function Slide({ slideData, onClose, query }: SlideProps) {
   };
 
   const handlePrint = () => {
-    window.print();
+    // Create a new window for printing
+    const printWindow = window.open('', '_blank');
+    
+    if (!printWindow) {
+      alert('Please allow pop-ups to export the PDF');
+      return;
+    }
+    
+    // Generate the complete HTML content
+    const printHTML = generatePrintHTML(slideData, query);
+    
+    // Write the content to the new window
+    printWindow.document.write(printHTML);
+    printWindow.document.close();
+    
+    // Trigger print after a short delay
+    printWindow.onload = () => {
+      setTimeout(() => {
+        printWindow.print();
+        // Close window after print dialog
+        printWindow.onafterprint = () => {
+          printWindow.close();
+        };
+      }, 500);
+    };
   };
 
   return (
