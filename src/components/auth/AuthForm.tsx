@@ -82,14 +82,8 @@ export function AuthForm() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl font-bold">
-            {isLogin ? 'Welcome Back' : 'Create Account'}
+            {isLogin ? 'ABCresearch Portal' : 'Create Account'}
           </CardTitle>
-          <CardDescription>
-            {isLogin 
-              ? 'Sign in to your account to continue' 
-              : 'Sign up for a new account to get started'
-            }
-          </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -128,10 +122,23 @@ export function AuthForm() {
                 {message}
               </div>
             )}
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button type="submit" className="w-full bg-black hover:bg-gray-800 text-white" disabled={loading}>
               {loading ? 'Loading...' : isLogin ? 'Sign In' : 'Sign Up'}
             </Button>
           </form>
+
+          <div className="mt-4 text-center">
+            <button
+              type="button"
+              onClick={() => setIsLogin(!isLogin)}
+              className="text-sm text-muted-foreground hover:text-foreground"
+            >
+              {isLogin 
+                ? <>Don't have an account? <span className="underline">Sign up</span></> 
+                : <>Already have an account? <span className="underline">Sign in</span></>
+              }
+            </button>
+          </div>
           
           {/* Guest Mode Section */}
           <div className="mt-6 pt-6 border-t border-border">
@@ -147,28 +154,7 @@ export function AuthForm() {
               >
                 Continue as Guest
               </Button>
-              <div className="text-xs text-muted-foreground">
-                <div className="flex items-center justify-center gap-1">
-                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                  </svg>
-                  Your data won't be saved
-                </div>
-              </div>
             </div>
-          </div>
-
-          <div className="mt-4 text-center">
-            <button
-              type="button"
-              onClick={() => setIsLogin(!isLogin)}
-              className="text-sm text-muted-foreground hover:text-foreground"
-            >
-              {isLogin 
-                ? "Don't have an account? Sign up" 
-                : "Already have an account? Sign in"
-              }
-            </button>
           </div>
         </CardContent>
       </Card>
