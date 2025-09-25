@@ -37,7 +37,9 @@ export function AuthForm() {
 
       if (error) {
         // Handle specific error cases
-        if (error.message.includes('User already registered')) {
+        if (error.message.includes('User already registered') || 
+            error.message.includes('already exists') ||
+            error.message.includes('duplicate key value')) {
           setMessage('An account with this email already exists. Try signing in instead.')
         } else if (error.message.includes('Invalid login credentials')) {
           setMessage('Invalid email or password. Please check your credentials.')
@@ -49,15 +51,19 @@ export function AuthForm() {
           setMessage(error.message)
         }
       } else if (!isLogin) {
-        // For signup: if no session is created, it means the user already exists
-        if (data.user && !data.session) {
-          setMessage('An account with this email already exists. Try signing in instead.')
-        } else if (data.user && data.session) {
-          // New user created and logged in
-          setMessage('Account created successfully!')
-        } else if (data.user && !data.user.email_confirmed_at) {
-          // User created but needs email confirmation
-          setMessage('Check your email for the confirmation link!')
+        // For signup success
+        if (data.user) {
+          // Check if email confirmation is required
+          if (!data.session && !data.user.email_confirmed_at) {
+            // This is normal - user created but needs email confirmation
+            setMessage('Account created! Check your email for the confirmation link.')
+          } else if (data.session) {
+            // User created and automatically logged in (when email confirmation is disabled)
+            setMessage('Account created successfully!')
+          } else {
+            // User exists but still show success message since signup didn't error
+            setMessage('Account created! Please check your email to confirm.')
+          }
         } else {
           setMessage('Account creation failed. Please try again.')
         }
