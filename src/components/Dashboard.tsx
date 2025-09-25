@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useAuth } from '@/contexts/AuthContext'
-import { LogOut, Send } from 'lucide-react'
+import { LogOut, Send, Menu, FolderOpen } from 'lucide-react'
 import { MarketMap } from '@/components/MarketMap'
 import { TrialsList } from '@/components/TrialsList'
 import { ClinicalTrialsAPI } from '@/services/clinicalTrialsAPI'
@@ -22,6 +22,17 @@ export function Dashboard() {
       console.error('Sign out error:', error);
     }
   }
+
+  const handleProjects = () => {
+    console.log('Projects button clicked!');
+    setIsMenuOpen(false);
+    // TODO: Implement projects functionality
+  }
+
+  const handleMenuToggle = () => {
+    setIsMenuOpen(!isMenuOpen);
+  }
+
   const [message, setMessage] = useState('')
   const [trials, setTrials] = useState<ClinicalTrial[]>([])
   const [loading, setLoading] = useState(false)
@@ -32,6 +43,24 @@ export function Dashboard() {
   const [slideData, setSlideData] = useState<SlideData | null>(null)
   const [generatingSlide, setGeneratingSlide] = useState(false)
   const [slideError, setSlideError] = useState<string | null>(null)
+  const [isMenuOpen, setIsMenuOpen] = useState(false)
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (isMenuOpen) {
+        const target = event.target as Element;
+        if (!target.closest('.menu-container')) {
+          setIsMenuOpen(false);
+        }
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isMenuOpen]);
 
   const handleSendMessage = async () => {
     if (!message.trim()) return;
@@ -119,14 +148,36 @@ export function Dashboard() {
   // Shared header component
   const Header = () => (
     <div className="h-16 bg-white border-b border-gray-200 z-50 flex items-center justify-between px-6">
-      {/* Logout Icon - Left */}
-      <button
-        onClick={handleSignOut}
-        className="p-3 bg-white rounded-full shadow-lg hover:shadow-xl transition-shadow border border-gray-200 hover:bg-gray-50"
-        title="Sign Out"
-      >
-        <LogOut className="h-5 w-5 text-gray-600 hover:text-red-600" />
-      </button>
+      {/* Hamburger Menu - Left */}
+      <div className="relative menu-container">
+        <button
+          onClick={handleMenuToggle}
+          className="p-3 bg-white rounded-full shadow-lg hover:shadow-xl transition-shadow border border-gray-200 hover:bg-gray-50"
+          title="Menu"
+        >
+          <Menu className="h-5 w-5 text-gray-600 hover:text-gray-800" />
+        </button>
+        
+        {/* Dropdown Menu */}
+        {isMenuOpen && (
+          <div className="absolute top-12 left-0 bg-white rounded-lg shadow-xl border border-gray-200 py-2 min-w-[160px] z-50">
+            <button
+              onClick={handleProjects}
+              className="w-full px-4 py-3 text-left text-gray-700 hover:bg-gray-50 flex items-center gap-3 transition-colors"
+            >
+              <FolderOpen className="h-4 w-4 text-gray-500" />
+              Projects
+            </button>
+            <button
+              onClick={handleSignOut}
+              className="w-full px-4 py-3 text-left text-gray-700 hover:bg-gray-50 flex items-center gap-3 transition-colors"
+            >
+              <LogOut className="h-4 w-4 text-gray-500" />
+              Sign Out
+            </button>
+          </div>
+        )}
+      </div>
       
       {/* Toggle Buttons - Center (only show after search) */}
       {hasSearched && (
