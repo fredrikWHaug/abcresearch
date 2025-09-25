@@ -6,6 +6,7 @@ import { LogOut, Send } from 'lucide-react'
 import { MarketMap } from '@/components/MarketMap'
 import { TrialsList } from '@/components/TrialsList'
 import { ClinicalTrialsAPI } from '@/services/clinicalTrialsAPI'
+import { EnhancedSearchAPI } from '@/services/enhancedSearchAPI'
 import type { ClinicalTrial } from '@/services/clinicalTrialsAPI'
 import type { SlideData } from '@/services/slideAPI'
 
@@ -50,11 +51,8 @@ export function Dashboard() {
       setSlideData(null);
       setSlideError(null);
       
-      // Parse the natural language query
-      const searchParams = ClinicalTrialsAPI.parseQuery(userMessage);
-      
-      // Fetch trials from the API
-      const result = await ClinicalTrialsAPI.searchTrials(searchParams);
+      // Use enhanced search with AI-powered query expansion
+      const result = await EnhancedSearchAPI.searchWithEnhancement(userMessage);
       
       setTrials(result.trials);
       
