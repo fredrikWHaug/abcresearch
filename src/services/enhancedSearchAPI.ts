@@ -1,4 +1,5 @@
 import { ClinicalTrialsAPI, type ClinicalTrial, type SearchParams } from './clinicalTrialsAPI';
+import { TrialRankingService } from './trialRankingService';
 
 interface EnhancedQueries {
   primary: SearchParams;
@@ -102,10 +103,13 @@ export class EnhancedSearchAPI {
         }
         return acc;
       }, []);
+      
+      // Apply ranking to the unique trials
+      const rankedTrials = TrialRankingService.rankTrials(uniqueTrials, userQuery);
 
       return {
-        trials: uniqueTrials,
-        totalCount: uniqueTrials.length,
+        trials: rankedTrials,
+        totalCount: rankedTrials.length,
         searchStrategies: {
           primary: { count: primaryResult.trials.length, trials: primaryResult.trials },
           alternative: { count: alternativeResult.trials.length, trials: alternativeResult.trials },

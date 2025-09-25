@@ -1,5 +1,6 @@
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import type { ClinicalTrial } from '@/services/clinicalTrialsAPI';
 
 interface TrialsListProps {
@@ -53,19 +54,36 @@ export function TrialsList({ trials, loading, query }: TrialsListProps) {
           </div>
 
           <div className="space-y-0">
-            {trials.map((trial) => (
+            {trials.map((trial: any, index) => (
               <Card key={trial.nctId} className="hover:shadow-md transition-shadow rounded-none border-b border-l border-r first:border-t last:rounded-b-md">
                 <CardContent className="p-4">
-                  <a 
-                    href={`https://clinicaltrials.gov/study/${trial.nctId}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block hover:bg-gray-50 rounded-lg p-2 -m-2 transition-colors"
-                  >
-                    <div className="text-lg font-medium hover:text-blue-600 transition-colors">
-                      {trial.briefTitle}
+                  <div className="flex items-start gap-3">
+                    {/* Ranking badge */}
+                    <div className="flex-shrink-0">
+                      <Badge variant={index < 3 ? "default" : "secondary"} className="font-mono">
+                        #{index + 1}
+                      </Badge>
                     </div>
-                  </a>
+                    
+                    {/* Trial content */}
+                    <div className="flex-1">
+                      <a 
+                        href={`https://clinicaltrials.gov/study/${trial.nctId}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block hover:bg-gray-50 rounded-lg p-2 -m-2 transition-colors"
+                      >
+                        <div className="text-lg font-medium hover:text-blue-600 transition-colors">
+                          {trial.briefTitle}
+                        </div>
+                      </a>
+                      {trial.rankScore && (
+                        <div className="text-xs text-gray-500 mt-1">
+                          Match score: {trial.rankScore}%
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
             ))}

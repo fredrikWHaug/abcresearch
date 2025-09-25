@@ -164,19 +164,50 @@ export function MarketMap({
         </div>
 
         <div className="space-y-0">
-          {trials.map((trial) => (
+          {trials.map((trial: any, index) => (
             <Card key={trial.nctId} className="hover:shadow-md transition-shadow rounded-none border-b border-l border-r first:border-t last:rounded-b-md">
               <CardContent className="p-4">
-                <a 
-                  href={`https://clinicaltrials.gov/study/${trial.nctId}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block hover:bg-gray-50 rounded-lg p-2 -m-2 transition-colors"
-                >
-                  <CardTitle className="text-lg line-clamp-2 hover:text-blue-600 transition-colors">
-                    {trial.briefTitle}
-                  </CardTitle>
-                </a>
+                <div className="flex items-start gap-3">
+                  {/* Ranking indicator */}
+                  <div className="flex-shrink-0">
+                    <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-sm ${
+                      index === 0 ? 'bg-yellow-100 text-yellow-700' :
+                      index === 1 ? 'bg-gray-100 text-gray-700' :
+                      index === 2 ? 'bg-orange-100 text-orange-700' :
+                      'bg-gray-50 text-gray-600'
+                    }`}>
+                      #{index + 1}
+                    </div>
+                    {trial.rankScore && (
+                      <div className="text-xs text-center mt-1 text-gray-500">
+                        {trial.rankScore}%
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Trial content */}
+                  <div className="flex-1">
+                    <a 
+                      href={`https://clinicaltrials.gov/study/${trial.nctId}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block hover:bg-gray-50 rounded-lg p-2 -m-2 transition-colors"
+                    >
+                      <CardTitle className="text-lg line-clamp-2 hover:text-blue-600 transition-colors">
+                        {trial.briefTitle}
+                      </CardTitle>
+                    </a>
+                    {trial.rankReasons && trial.rankReasons.length > 0 && (
+                      <div className="flex gap-2 mt-2">
+                        {trial.rankReasons.map((reason: string, idx: number) => (
+                          <Badge key={idx} variant="secondary" className="text-xs">
+                            {reason}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
               </CardContent>
             </Card>
           ))}
