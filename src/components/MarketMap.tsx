@@ -149,18 +149,15 @@ export function MarketMap({
     <div className="w-full h-full flex flex-col overflow-hidden">
       <div className="flex-1 overflow-y-auto p-6 min-h-0 max-h-full">
         <div className="max-w-7xl mx-auto">
-        <div className="mb-6">
-          <div className="flex justify-between items-start">
-            <div>
-              <h2 className="text-2xl font-bold text-gray-800">Market Map Results</h2>
-              <p className="text-gray-600 mt-1">Found {trials.length} trials for: "{query}"</p>
+        <div className="mb-6 text-center">
+          <h2 className="text-2xl font-bold text-gray-800">
+            {trials.length} clinical trials found for your search
+          </h2>
+          {slideError && (
+            <div className="mt-2">
+              <p className="text-sm text-red-600">{slideError}</p>
             </div>
-            {slideError && (
-              <div className="flex flex-col gap-2">
-                <p className="text-sm text-red-600 max-w-xs">{slideError}</p>
-              </div>
-            )}
-          </div>
+          )}
         </div>
 
         <div className="space-y-0">
