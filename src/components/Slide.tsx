@@ -51,8 +51,8 @@ export function Slide({ slideData, onClose, query }: SlideProps) {
   };
 
   return (
-    <div className="fixed inset-x-0 top-16 bottom-0 bg-gray-50 z-40 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg max-w-7xl w-full max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-x-0 top-16 bottom-0 bg-gray-50 z-40 flex items-center justify-center p-4 print:inset-0 print:p-0">
+      <div className="bg-white rounded-lg max-w-7xl w-full max-h-[90vh] overflow-y-auto print:max-w-none print:max-h-none print:rounded-none">
         {/* Header with controls */}
         <div className="flex justify-between items-center p-4 border-b print:hidden">
           <h2 className="text-lg font-semibold">Executive Market Analysis</h2>
@@ -215,51 +215,121 @@ export function Slide({ slideData, onClose, query }: SlideProps) {
       <style dangerouslySetInnerHTML={{
         __html: `
           @media print {
-            .print\\:hidden {
-              display: none !important;
+            @page {
+              size: A4;
+              margin: 20mm;
             }
             
-            /* Hide the modal overlay and show only content */
-            .fixed.inset-x-0.top-16.bottom-0 {
-              position: static !important;
-              background: white !important;
+            /* Reset all positioning for print */
+            body {
+              margin: 0 !important;
               padding: 0 !important;
-              margin: 0 !important;
-            }
-            
-            /* Make the modal content full page */
-            .bg-white.rounded-lg.max-w-7xl {
-              max-width: none !important;
-              border-radius: 0 !important;
-              box-shadow: none !important;
-              margin: 0 !important;
-              max-height: none !important;
-            }
-            
-            /* Ensure all content is visible */
-            .overflow-y-auto {
               overflow: visible !important;
             }
             
-            /* Make charts print properly */
-            .recharts-wrapper {
-              width: 100% !important;
-              height: auto !important;
+            /* Hide everything except the slide */
+            body > div:not(.print\\:inset-0) {
+              display: none !important;
             }
             
-            /* Ensure text is black for printing */
-            * {
-              color: black !important;
+            /* Show slide at full width */
+            .print\\:inset-0 {
+              position: static !important;
+              width: 100% !important;
+              height: auto !important;
+              display: block !important;
               background: white !important;
             }
             
-            /* Page breaks for better layout */
-            .grid.grid-cols-2 {
-              page-break-inside: avoid;
+            .print\\:max-w-none {
+              max-width: 100% !important;
+              overflow: visible !important;
+              height: auto !important;
             }
             
-            .grid.grid-cols-4 {
-              page-break-inside: avoid;
+            /* Force all content to be visible */
+            #slide-content {
+              width: 100% !important;
+              height: auto !important;
+              overflow: visible !important;
+              position: static !important;
+              display: block !important;
+            }
+            
+            /* Make all grids print-friendly */
+            .grid {
+              display: grid !important;
+              width: 100% !important;
+            }
+            
+            /* Ensure charts are visible */
+            .recharts-wrapper {
+              display: block !important;
+              width: 100% !important;
+              height: 300px !important;
+              page-break-inside: avoid !important;
+            }
+            
+            .recharts-surface {
+              width: 100% !important;
+              height: 100% !important;
+            }
+            
+            /* Force visibility */
+            * {
+              visibility: visible !important;
+              opacity: 1 !important;
+              transform: none !important;
+            }
+            
+            /* Better text colors for print */
+            .text-gray-900, .text-gray-800, .text-gray-700, .text-gray-600 {
+              color: #000 !important;
+            }
+            
+            /* Background colors for badges */
+            .bg-blue-100 { background-color: #e0f2fe !important; }
+            .bg-green-100 { background-color: #d1fae5 !important; }
+            .bg-yellow-100 { background-color: #fef3c7 !important; }
+            .bg-gray-100 { background-color: #f3f4f6 !important; }
+            
+            /* Keep borders visible */
+            .border, .border-gray-200 {
+              border-color: #e5e7eb !important;
+            }
+            
+            /* Page break controls */
+            .mb-8 { 
+              page-break-after: auto;
+              margin-bottom: 2rem !important;
+            }
+            
+            /* Strategic recommendation should stay together */
+            .bg-gradient-to-r {
+              page-break-inside: avoid !important;
+              background: #3b82f6 !important;
+              color: white !important;
+              print-color-adjust: exact !important;
+              -webkit-print-color-adjust: exact !important;
+            }
+            
+            .bg-gradient-to-r * {
+              color: white !important;
+            }
+            
+            /* Ensure proper spacing */
+            .p-8 {
+              padding: 1rem !important;
+            }
+            
+            /* Grid adjustments for print */
+            @media (max-width: 768px) {
+              .grid-cols-2 {
+                grid-template-columns: 1fr !important;
+              }
+              .grid-cols-4 {
+                grid-template-columns: repeat(2, 1fr) !important;
+              }
             }
           }
         `
