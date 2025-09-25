@@ -6,9 +6,12 @@ interface AuthContextType {
   user: User | null
   session: Session | null
   loading: boolean
+  isGuest: boolean
   signUp: (email: string, password: string) => Promise<any>
   signIn: (email: string, password: string) => Promise<any>
   signOut: () => Promise<void>
+  enterGuestMode: () => void
+  exitGuestMode: () => void
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -17,8 +20,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
+  const [isGuest, setIsGuest] = useState(false)
 
   useEffect(() => {
+    // Check for guest mode in localStorage
+    const guestMode = localStorage.getItem('isGuestMode') === 'true'
+    if (guestMode) {
+      setIsGuest(true)
+      setLoading(false)
+      return
+    }
+
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
@@ -63,15 +75,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Force local sign out regardless of API response
     setSession(null)
     setUser(null)
+    setIsGuest(false)
+    localStorage.removeItem('isGuestMode')
+  }
+
+  const enterGuestMode = () => {
+    setIsGuest(true)
+    localStorage.setItem('isGuestMode', 'true')
+  }
+
+  const exitGuestMode = () => {
+    setIsGuest(false)
+    localStorage.removeItem('isGuestMode')
   }
 
   const value = {
     user,
     session,
     loading,
+    isGuest,
     signUp,
     signIn,
     signOut,
+    enterGuestMode,
+    exitGuestMode,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

@@ -4,7 +4,7 @@ import { AuthForm } from '@/components/auth/AuthForm'
 import { Dashboard } from '@/components/Dashboard'
 
 function AppContent() {
-  const { user, loading } = useAuth()
+  const { user, loading, isGuest } = useAuth()
 
   if (loading) {
     return (
@@ -17,7 +17,7 @@ function AppContent() {
     )
   }
 
-  return user ? <Dashboard /> : <AuthForm />
+  return (user || isGuest) ? <Dashboard /> : <AuthForm />
 }
 
 function App() {

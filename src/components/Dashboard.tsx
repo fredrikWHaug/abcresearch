@@ -9,7 +9,7 @@ import { ClinicalTrialsAPI } from '@/services/clinicalTrialsAPI'
 import type { ClinicalTrial } from '@/services/clinicalTrialsAPI'
 
 export function Dashboard() {
-  const { signOut } = useAuth()
+  const { signOut, isGuest, exitGuestMode } = useAuth()
   
   const handleSignOut = async () => {
     console.log('Logout button clicked!');
@@ -74,6 +74,34 @@ export function Dashboard() {
     }
   }
 
+  // Guest mode indicator component
+  const GuestModeIndicator = () => {
+    if (!isGuest) return null;
+    
+    return (
+      <div className="fixed top-6 right-6 z-50">
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 shadow-lg max-w-xs">
+          <div className="flex items-start gap-2">
+            <svg className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+            </svg>
+            <div className="text-xs">
+              <div className="font-medium text-amber-800">Guest Mode</div>
+              <div className="text-amber-700 mt-1">Your data won't be saved. 
+                <button 
+                  onClick={exitGuestMode}
+                  className="underline hover:text-amber-900 ml-1"
+                >
+                  Sign up to save
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   if (!hasSearched) {
     // Initial centered search bar layout
     return (
@@ -111,6 +139,9 @@ export function Dashboard() {
         >
           <LogOut className="h-5 w-5 text-gray-600 hover:text-red-600" />
         </button>
+        
+        {/* Guest Mode Indicator */}
+        <GuestModeIndicator />
       </div>
     );
   }
@@ -163,6 +194,9 @@ export function Dashboard() {
         >
           <LogOut className="h-5 w-5 text-gray-600 hover:text-red-600" />
         </button>
+        
+        {/* Guest Mode Indicator */}
+        <GuestModeIndicator />
       </div>
     );
   }
@@ -237,6 +271,9 @@ export function Dashboard() {
       >
         <LogOut className="h-5 w-5 text-gray-600 hover:text-red-600" />
       </button>
+      
+      {/* Guest Mode Indicator */}
+      <GuestModeIndicator />
     </div>
   )
 }
