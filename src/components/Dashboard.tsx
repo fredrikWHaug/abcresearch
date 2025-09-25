@@ -152,7 +152,7 @@ export function Dashboard() {
       <div className="relative menu-container">
         <button
           onClick={handleMenuToggle}
-          className="p-3 bg-white rounded-full shadow-lg hover:shadow-xl transition-shadow border border-gray-200 hover:bg-gray-50"
+          className="p-3 bg-white rounded-lg shadow-lg hover:shadow-xl transition-shadow border border-gray-200 hover:bg-gray-50"
           title="Menu"
         >
           <Menu className="h-5 w-5 text-gray-600 hover:text-gray-800" />
