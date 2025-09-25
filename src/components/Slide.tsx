@@ -217,119 +217,59 @@ export function Slide({ slideData, onClose, query }: SlideProps) {
           @media print {
             @page {
               size: A4;
-              margin: 20mm;
+              margin: 10mm;
             }
             
-            /* Reset all positioning for print */
-            body {
-              margin: 0 !important;
-              padding: 0 !important;
-              overflow: visible !important;
-            }
-            
-            /* Hide everything except the slide */
-            body > div:not(.print\\:inset-0) {
+            /* Hide print button */
+            .print\\:hidden {
               display: none !important;
             }
             
-            /* Show slide at full width */
-            .print\\:inset-0 {
-              position: static !important;
-              width: 100% !important;
-              height: auto !important;
-              display: block !important;
-              background: white !important;
+            /* Fix modal positioning for print */
+            .fixed {
+              position: absolute !important;
             }
             
-            .print\\:max-w-none {
+            /* Remove modal constraints */
+            .max-h-\\[90vh\\] {
+              max-height: none !important;
+            }
+            
+            .overflow-y-auto {
+              overflow: visible !important;
+            }
+            
+            /* Ensure content spans full width */
+            .max-w-7xl {
               max-width: 100% !important;
-              overflow: visible !important;
-              height: auto !important;
             }
             
-            /* Force all content to be visible */
-            #slide-content {
+            /* Fix chart containers for print */
+            .recharts-responsive-container {
               width: 100% !important;
-              height: auto !important;
-              overflow: visible !important;
-              position: static !important;
-              display: block !important;
-            }
-            
-            /* Make all grids print-friendly */
-            .grid {
-              display: grid !important;
-              width: 100% !important;
-            }
-            
-            /* Ensure charts are visible */
-            .recharts-wrapper {
-              display: block !important;
-              width: 100% !important;
-              height: 300px !important;
+              height: 250px !important;
               page-break-inside: avoid !important;
             }
             
-            .recharts-surface {
-              width: 100% !important;
-              height: 100% !important;
+            /* Ensure grids don't break */
+            .grid {
+              page-break-inside: avoid !important;
             }
             
-            /* Force visibility */
+            /* Color preservation */
             * {
-              visibility: visible !important;
-              opacity: 1 !important;
-              transform: none !important;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
             }
             
-            /* Better text colors for print */
-            .text-gray-900, .text-gray-800, .text-gray-700, .text-gray-600 {
-              color: #000 !important;
+            /* Force page breaks between major sections */
+            .mb-8:nth-of-type(3) {
+              page-break-before: always !important;
             }
             
-            /* Background colors for badges */
-            .bg-blue-100 { background-color: #e0f2fe !important; }
-            .bg-green-100 { background-color: #d1fae5 !important; }
-            .bg-yellow-100 { background-color: #fef3c7 !important; }
-            .bg-gray-100 { background-color: #f3f4f6 !important; }
-            
-            /* Keep borders visible */
-            .border, .border-gray-200 {
-              border-color: #e5e7eb !important;
-            }
-            
-            /* Page break controls */
-            .mb-8 { 
-              page-break-after: auto;
-              margin-bottom: 2rem !important;
-            }
-            
-            /* Strategic recommendation should stay together */
+            /* Keep recommendation box together */
             .bg-gradient-to-r {
               page-break-inside: avoid !important;
-              background: #3b82f6 !important;
-              color: white !important;
-              print-color-adjust: exact !important;
-              -webkit-print-color-adjust: exact !important;
-            }
-            
-            .bg-gradient-to-r * {
-              color: white !important;
-            }
-            
-            /* Ensure proper spacing */
-            .p-8 {
-              padding: 1rem !important;
-            }
-            
-            /* Grid adjustments for print */
-            @media (max-width: 768px) {
-              .grid-cols-2 {
-                grid-template-columns: 1fr !important;
-              }
-              .grid-cols-4 {
-                grid-template-columns: repeat(2, 1fr) !important;
-              }
             }
           }
         `
