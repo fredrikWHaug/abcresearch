@@ -61,11 +61,30 @@ export class EnhancedSearchAPI {
       // Get enhanced queries from AI
       const enhancedQueries = await this.enhanceQuery(userQuery);
       
-      // Perform searches in parallel
+      // Clean up the enhanced queries to ensure they're valid
+      const cleanQuery = (params: SearchParams): SearchParams => {
+        const cleaned: SearchParams = {};
+        
+        // Only add non-null values
+        if (params.condition && params.condition !== 'null') cleaned.condition = params.condition;
+        if (params.sponsor && params.sponsor !== 'null') cleaned.sponsor = params.sponsor;
+        if (params.phase && params.phase !== 'null') cleaned.phase = params.phase;
+        if (params.status && params.status !== 'null') cleaned.status = params.status;
+        if (params.query && params.query !== 'null') cleaned.query = params.query;
+        
+        // If no parameters were set, use the original user query
+        if (Object.keys(cleaned).length === 0) {
+          cleaned.query = userQuery;
+        }
+        
+        return cleaned;
+      };
+      
+      // Perform searches in parallel with cleaned queries
       const [primaryResult, alternativeResult, broadResult] = await Promise.all([
-        ClinicalTrialsAPI.searchTrials(enhancedQueries.primary),
-        ClinicalTrialsAPI.searchTrials(enhancedQueries.alternative),
-        ClinicalTrialsAPI.searchTrials(enhancedQueries.broad)
+        ClinicalTrialsAPI.searchTrials(cleanQuery(enhancedQueries.primary)),
+        ClinicalTrialsAPI.searchTrials(cleanQuery(enhancedQueries.alternative)),
+        ClinicalTrialsAPI.searchTrials(cleanQuery(enhancedQueries.broad))
       ]);
 
       // Merge and deduplicate results

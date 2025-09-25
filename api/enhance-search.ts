@@ -64,7 +64,10 @@ Rules:
 - PRIMARY: Most specific and targeted search
 - ALTERNATIVE: Broader medical terms and synonyms  
 - BROAD: Very wide search to catch related trials
-- Use ClinicalTrials.gov terminology
+- For "phase" use ONLY: "PHASE1", "PHASE2", "PHASE3", "PHASE4", or null
+- For "status" use ONLY: "RECRUITING", "ACTIVE_NOT_RECRUITING", "COMPLETED", "TERMINATED", or null
+- For "condition" and "sponsor": use simple terms (e.g., "cancer", "Pfizer")
+- For "query": use simple keywords, not full sentences
 - Return null for fields that don't apply
 - Only return the JSON object, nothing else`;
 
@@ -89,11 +92,21 @@ Rules:
     if (!response.ok) {
       const errorText = await response.text();
       console.error('Gemini API error:', errorText);
-      return res.status(500).json({ error: 'Failed to enhance search query' });
+      
+      // Fallback to basic search if Gemini fails
+      return res.status(200).json({
+        success: true,
+        enhancedQueries: {
+          primary: { query: query },
+          alternative: { query: query },
+          broad: { query: query }
+        }
+      });
     }
 
     const data = await response.json();
     const content = data.candidates[0].content.parts[0].text;
+    console.log('Gemini raw response:', content);
 
     // Parse the JSON response from Gemini
     let enhancedQueries;
