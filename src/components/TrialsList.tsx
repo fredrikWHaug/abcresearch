@@ -48,9 +48,10 @@ export function TrialsList({ trials, loading, query }: TrialsListProps) {
     <div className="w-full h-full flex flex-col">
       <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-7xl mx-auto">
-          <div className="mb-6">
-            <h2 className="text-2xl font-bold text-gray-800">Clinical Trials</h2>
-            <p className="text-gray-600 mt-1">Found {trials.length} trials for: "{query}"</p>
+          <div className="mb-6 text-center">
+            <h2 className="text-2xl font-bold text-gray-800">
+              {trials.length} clinical trials found for your search
+            </h2>
           </div>
 
           <div className="space-y-0">
