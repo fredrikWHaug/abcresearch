@@ -82,10 +82,10 @@ export function Dashboard() {
     useEffect(() => {
       if (!isGuest) return;
       
-      // Auto-collapse after 5 seconds
+      // Auto-collapse after 3 seconds
       const timer = setTimeout(() => {
         setIsExpanded(false);
-      }, 5000);
+      }, 3000);
 
       return () => clearTimeout(timer);
     }, [isGuest]);
@@ -97,10 +97,10 @@ export function Dashboard() {
     return (
       <div className="fixed top-6 right-6 z-50">
         <div 
-          className={`bg-amber-50 border border-amber-200 rounded-lg shadow-lg transition-all duration-300 ease-in-out cursor-pointer ${
-            shouldShowFull ? 'p-3 max-w-xs' : 'p-2 w-12 h-12 flex items-center justify-center'
+          className={`bg-amber-50 border border-amber-200 rounded-lg shadow-lg transition-all duration-300 ease-in-out ${
+            shouldShowFull ? 'p-3 max-w-xs' : 'p-2 w-12 h-12 flex items-center justify-center cursor-pointer'
           }`}
-          onClick={() => setIsClicked(!isClicked)}
+          onClick={!shouldShowFull ? () => setIsClicked(!isClicked) : undefined}
         >
           <div className={`flex items-start gap-2 ${shouldShowFull ? '' : 'items-center justify-center'}`}>
             <svg className={`text-amber-600 flex-shrink-0 ${shouldShowFull ? 'w-4 h-4 mt-0.5' : 'w-6 h-6'}`} fill="currentColor" viewBox="0 0 20 20">
@@ -108,14 +108,14 @@ export function Dashboard() {
             </svg>
             {shouldShowFull && (
               <div className="text-xs relative">
-                {/* X button - only show when clicked (not during initial display) */}
-                {isClicked && (
+                {/* X button - show when expanded */}
+                {shouldShowFull && (
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
                       setIsClicked(false);
                     }}
-                    className="absolute -top-1 -right-1 w-5 h-5 bg-amber-200 hover:bg-amber-300 rounded-full flex items-center justify-center text-amber-700 hover:text-amber-800 transition-colors"
+                    className="absolute -top-1 -right-1 w-5 h-5 bg-gray-200 hover:bg-gray-300 rounded-full flex items-center justify-center text-gray-600 hover:text-gray-700 transition-colors"
                   >
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -153,7 +153,7 @@ export function Dashboard() {
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               onKeyPress={handleKeyPress}
-              placeholder="Search clinical trials... (e.g., 'Phase 3 cancer trials by Merck')"
+              placeholder="Search clinical trials... (e.g., 'Cancer trials')"
               className="flex h-[60px] w-full rounded-md border border-gray-300 bg-white pl-4 pr-16 py-2 text-lg ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50"
               disabled={loading}
               autoFocus
@@ -278,7 +278,7 @@ export function Dashboard() {
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
                   onKeyPress={handleKeyPress}
-                  placeholder="Search clinical trials... (e.g., 'Phase 3 cancer trials by Merck')"
+                  placeholder="Search clinical trials... (e.g., 'Cancer trials')"
                   className="flex h-[50px] w-full rounded-md border border-gray-300 bg-white pl-4 pr-12 py-2 ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50"
                   disabled={loading}
                 />
