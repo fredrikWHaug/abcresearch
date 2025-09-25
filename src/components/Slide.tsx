@@ -219,19 +219,47 @@ export function Slide({ slideData, onClose, query }: SlideProps) {
               display: none !important;
             }
             
-            body * {
-              visibility: hidden;
+            /* Hide the modal overlay and show only content */
+            .fixed.inset-x-0.top-16.bottom-0 {
+              position: static !important;
+              background: white !important;
+              padding: 0 !important;
+              margin: 0 !important;
             }
             
-            #slide-content, #slide-content * {
-              visibility: visible;
+            /* Make the modal content full page */
+            .bg-white.rounded-lg.max-w-7xl {
+              max-width: none !important;
+              border-radius: 0 !important;
+              box-shadow: none !important;
+              margin: 0 !important;
+              max-height: none !important;
             }
             
-            #slide-content {
-              position: absolute;
-              left: 0;
-              top: 0;
-              width: 100%;
+            /* Ensure all content is visible */
+            .overflow-y-auto {
+              overflow: visible !important;
+            }
+            
+            /* Make charts print properly */
+            .recharts-wrapper {
+              width: 100% !important;
+              height: auto !important;
+            }
+            
+            /* Ensure text is black for printing */
+            * {
+              color: black !important;
+              background: white !important;
+            }
+            
+            /* Page breaks for better layout */
+            .grid.grid-cols-2 {
+              page-break-inside: avoid;
+            }
+            
+            .grid.grid-cols-4 {
+              page-break-inside: avoid;
             }
           }
         `
