@@ -229,10 +229,10 @@ export function Dashboard() {
     
     return (
       <div 
-        className={`bg-amber-50 border border-amber-200 rounded-lg shadow-lg transition-all duration-300 ease-in-out cursor-pointer ${
-          isExpanded ? 'p-3 max-w-xs' : 'p-2 w-12 h-12 flex items-center justify-center'
+        className={`bg-amber-50 border border-amber-200 rounded-lg shadow-lg transition-all duration-300 ease-in-out ${
+          isExpanded ? 'p-3 max-w-xs' : 'p-2 w-12 h-12 flex items-center justify-center cursor-pointer'
         }`}
-        onClick={() => setIsExpanded(!isExpanded)}
+        onClick={!isExpanded ? () => setIsExpanded(true) : undefined}
       >
           <div className={`flex items-start gap-2 ${isExpanded ? '' : 'items-center justify-center'}`}>
             <svg className={`text-amber-600 flex-shrink-0 ${isExpanded ? 'w-4 h-4 mt-0.5' : 'w-6 h-6'}`} fill="currentColor" viewBox="0 0 20 20">
