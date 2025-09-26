@@ -25,9 +25,17 @@ export class MarketMapService {
    * Save a market map to the database
    */
   static async saveMarketMap(data: CreateMarketMapData): Promise<SavedMarketMap> {
+    // Get the current user
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      throw new Error('User must be authenticated to save market maps');
+    }
+
     const { data: result, error } = await supabase
       .from('market_maps')
       .insert({
+        user_id: user.id,
         name: data.name,
         query: data.query,
         trials_data: data.trials_data,
