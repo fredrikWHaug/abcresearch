@@ -332,7 +332,7 @@ export function Dashboard() {
       {/* Split View Content */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left Half - Chat Interface */}
-        <div className="w-1/2 bg-background flex flex-col">
+        <div className="flex-1 bg-background flex flex-col">
           {/* Chat Messages Area */}
           <div className="flex-1 p-6 overflow-y-auto min-h-0 max-h-full">
             <div className="max-w-2xl mx-auto space-y-4">
@@ -379,7 +379,7 @@ export function Dashboard() {
         </div>
 
         {/* Right Half - Trials List */}
-        <div className="w-1/2 bg-gray-50 overflow-hidden">
+        <div className="flex-1 bg-gray-50 overflow-hidden">
           <TrialsList trials={trials} loading={loading} query={lastQuery} />
         </div>
       </div>
