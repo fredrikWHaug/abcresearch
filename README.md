@@ -127,8 +127,8 @@ api/                       # Vercel serverless functions
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/cs1060f25/fredrikwhaug-hw3.git
-   cd fredrikwhaug-hw3
+   git clone https://github.com/fredrikWHaug/abcresearch
+   cd abcresearch
    ```
 
 2. **Install dependencies**
