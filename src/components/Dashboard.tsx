@@ -185,13 +185,16 @@ export function Dashboard() {
         <GuestModeIndicator />
       </div>
       
-      {/* Toggle Buttons - Absolutely positioned center */}
+      {/* Toggle Buttons - Absolutely positioned center with equal widths */}
       {hasSearched && (
-        <div className="absolute left-1/2 transform -translate-x-1/2 z-20">
+        <div 
+          className="absolute z-20"
+          style={{ left: '50%', transform: 'translateX(-50%)' }}
+        >
           <div className="flex rounded-lg bg-gray-100 p-1">
             <button
               onClick={() => setViewMode('research')}
-              className={`py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+              className={`py-2 px-6 rounded-md text-sm font-medium transition-colors w-20 ${
                 viewMode === 'research'
                   ? 'bg-white text-gray-900 shadow-sm'
                   : 'text-gray-600 hover:text-gray-900'
@@ -201,7 +204,7 @@ export function Dashboard() {
             </button>
             <button
               onClick={() => setViewMode('marketmap')}
-              className={`py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+              className={`py-2 px-6 rounded-md text-sm font-medium transition-colors w-20 ${
                 viewMode === 'marketmap'
                   ? 'bg-white text-gray-900 shadow-sm'
                   : 'text-gray-600 hover:text-gray-900'
@@ -332,8 +335,11 @@ export function Dashboard() {
     <div className="h-screen flex flex-col relative">
       <Header />
       
-      {/* Vertical separator line - spans from header to bottom */}
-      <div className="absolute left-1/2 transform -translate-x-1/2 w-px h-full bg-gray-200 z-10 top-0 pointer-events-none"></div>
+      {/* Vertical separator line - spans from header to bottom with precise centering */}
+      <div 
+        className="absolute w-px h-full bg-gray-200 z-10 top-0 pointer-events-none"
+        style={{ left: '50%', transform: 'translateX(-0.5px)' }}
+      ></div>
 
       {/* Split View Content */}
       <div className="flex-1 flex overflow-hidden">
