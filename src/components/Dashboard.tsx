@@ -337,11 +337,7 @@ export function Dashboard() {
                   className={`flex ${item.type === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
                   <div
-                    className={`max-w-[80%] p-4 rounded-lg border ${
-                      item.type === 'user'
-                        ? 'border-gray-300 bg-white text-gray-800 shadow-sm'
-                        : 'border-gray-200 bg-gray-50 text-gray-700'
-                    }`}
+                    className="max-w-[80%] p-4 rounded-lg border border-gray-200 bg-gray-50 text-gray-700"
                   >
                     <div className="text-sm leading-relaxed">
                       {item.message}
