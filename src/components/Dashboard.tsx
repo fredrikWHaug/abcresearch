@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useAuth } from '@/contexts/AuthContext'
-import { LogOut, Send, Menu, FolderOpen, ArrowUp } from 'lucide-react'
+import { LogOut, Send, Menu, ArrowUp } from 'lucide-react'
 import { MarketMap } from '@/components/MarketMap'
 import { TrialsList } from '@/components/TrialsList'
 import { SavedMaps } from '@/components/SavedMaps'
@@ -25,11 +25,6 @@ export function Dashboard() {
     }
   }
 
-  const handleProjects = () => {
-    console.log('Projects button clicked!');
-    setIsMenuOpen(false);
-    setViewMode('savedmaps');
-  }
 
   const handleMenuToggle = () => {
     setIsMenuOpen(!isMenuOpen);
@@ -191,13 +186,6 @@ export function Dashboard() {
             {/* Dropdown Menu */}
             {isMenuOpen && (
               <div className="absolute top-12 left-0 bg-white rounded-lg shadow-xl border border-gray-200 py-2 min-w-[160px] z-50">
-                <button
-                  onClick={handleProjects}
-                  className="w-full px-4 py-3 text-left text-gray-700 hover:bg-gray-50 flex items-center gap-3 transition-colors"
-                >
-                  <FolderOpen className="h-4 w-4 text-gray-500" />
-                  Projects
-                </button>
                 <button
                   onClick={handleSignOut}
                   className="w-full px-4 py-3 text-left text-gray-700 hover:bg-gray-50 flex items-center gap-3 transition-colors"
