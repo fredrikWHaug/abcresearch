@@ -194,7 +194,7 @@ export function Dashboard() {
           <div className="flex rounded-lg bg-gray-100 p-1">
             <button
               onClick={() => setViewMode('research')}
-              className={`py-2 px-6 rounded-md text-sm font-medium transition-colors w-20 ${
+              className={`py-2 px-4 rounded-md text-sm font-medium transition-colors min-w-[80px] ${
                 viewMode === 'research'
                   ? 'bg-white text-gray-900 shadow-sm'
                   : 'text-gray-600 hover:text-gray-900'
@@ -204,7 +204,7 @@ export function Dashboard() {
             </button>
             <button
               onClick={() => setViewMode('marketmap')}
-              className={`py-2 px-6 rounded-md text-sm font-medium transition-colors w-20 ${
+              className={`py-2 px-4 rounded-md text-sm font-medium transition-colors min-w-[80px] ${
                 viewMode === 'marketmap'
                   ? 'bg-white text-gray-900 shadow-sm'
                   : 'text-gray-600 hover:text-gray-900'
