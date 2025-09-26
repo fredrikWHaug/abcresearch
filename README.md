@@ -1,11 +1,5 @@
 # ABCresearch
 
-**CS1060 Homework 3**  
-Name: Fredrik Willumsen Haug  
-Github Handle: fredrikWHaug  
-Repo URL: https://github.com/cs1060f25/fredrikwhaug-hw3  
-Team PRD: https://drive.google.com/file/d/1yPZkodni39C78QE9jn4rkvxiRkgp_dHZ/view?usp=drivesdk
-
 ## Overview
 
 ABCresearch is an AI-powered clinical trials research platform that enables biotech professionals to analyze and visualize clinical trial data from ClinicalTrials.gov. The platform combines natural language processing, intelligent search enhancement, and automated market analysis to provide actionable insights for pharmaceutical research and development.
