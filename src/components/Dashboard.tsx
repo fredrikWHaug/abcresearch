@@ -28,7 +28,7 @@ export function Dashboard() {
   const handleProjects = () => {
     console.log('Projects button clicked!');
     setIsMenuOpen(false);
-    setShowSavedMaps(true);
+    setViewMode('savedmaps');
   }
 
   const handleMenuToggle = () => {
@@ -42,7 +42,6 @@ export function Dashboard() {
     setLastQuery(savedMap.query);
     setHasSearched(true);
     setViewMode('marketmap');
-    setShowSavedMaps(false);
     
     // Clear any errors
     setSlideError(null);
@@ -67,12 +66,11 @@ export function Dashboard() {
   const [lastQuery, setLastQuery] = useState('')
   const [chatHistory, setChatHistory] = useState<Array<{type: 'user' | 'system', message: string}>>([])
   const [hasSearched, setHasSearched] = useState(false)
-  const [viewMode, setViewMode] = useState<'research' | 'marketmap'>('research')
+  const [viewMode, setViewMode] = useState<'research' | 'marketmap' | 'savedmaps'>('research')
   const [slideData, setSlideData] = useState<SlideData | null>(null)
   const [generatingSlide, setGeneratingSlide] = useState(false)
   const [slideError, setSlideError] = useState<string | null>(null)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
-  const [showSavedMaps, setShowSavedMaps] = useState(false)
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -217,12 +215,12 @@ export function Dashboard() {
       </div>
       
       {/* Toggle Buttons - Absolutely positioned center with equal widths */}
-      {hasSearched && (
+      {(hasSearched || viewMode === 'savedmaps') && (
         <div 
           className="absolute z-20"
           style={{ left: '50%', transform: 'translateX(-50%)' }}
         >
-          <div className="flex rounded-lg bg-gray-100 p-1 w-64">
+          <div className="flex rounded-lg bg-gray-100 p-1 w-96">
             <button
               onClick={() => setViewMode('research')}
               className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center ${
@@ -242,6 +240,16 @@ export function Dashboard() {
               }`}
             >
               Market Map
+            </button>
+            <button
+              onClick={() => setViewMode('savedmaps')}
+              className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center ${
+                viewMode === 'savedmaps'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Saved Maps
             </button>
           </div>
         </div>
@@ -337,7 +345,7 @@ export function Dashboard() {
   }
 
   // Show saved maps view
-  if (showSavedMaps) {
+  if (viewMode === 'savedmaps') {
     return (
       <div className="h-screen flex flex-col overflow-hidden">
         <Header />
