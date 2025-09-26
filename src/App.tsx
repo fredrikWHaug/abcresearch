@@ -6,6 +6,9 @@ import { Dashboard } from '@/components/Dashboard'
 function AppContent() {
   const { user, loading, isGuest } = useAuth()
 
+  // Debug logging
+  console.log('App render:', { user: !!user, loading, isGuest, shouldShowDashboard: !!(user || isGuest) })
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">

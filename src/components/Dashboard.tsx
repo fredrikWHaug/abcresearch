@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useAuth } from '@/contexts/AuthContext'
-import { LogOut, Send, Menu, FolderOpen } from 'lucide-react'
+import { LogOut, Send, Menu, FolderOpen, ArrowUp } from 'lucide-react'
 import { MarketMap } from '@/components/MarketMap'
 import { TrialsList } from '@/components/TrialsList'
 import { ClinicalTrialsAPI } from '@/services/clinicalTrialsAPI'
@@ -294,7 +294,7 @@ export function Dashboard() {
               disabled={!message.trim() || loading}
               className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-gray-800 hover:bg-gray-900 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
             >
-              <Send className="h-4 w-4 text-white" />
+              <ArrowUp className="h-4 w-4 text-white" />
             </button>
           </div>
         </div>
@@ -386,7 +386,7 @@ export function Dashboard() {
                   disabled={!message.trim() || loading}
                   className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 rounded-full bg-gray-800 hover:bg-gray-900 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
                 >
-                  <Send className="h-3 w-3 text-white" />
+                  <ArrowUp className="h-3 w-3 text-white" />
                 </button>
               </div>
             </div>

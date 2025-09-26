@@ -17,10 +17,15 @@ export function AuthForm() {
   // Redirect when user is authenticated
   useEffect(() => {
     if (user) {
+      console.log('User authenticated in AuthForm, clearing form')
       // Clear form and message when user is authenticated
       setEmail('')
       setPassword('')
       setMessage('')
+      // Force a small delay to ensure state updates propagate
+      setTimeout(() => {
+        console.log('AuthForm: User state updated, should redirect to Dashboard')
+      }, 100)
     }
   }, [user])
 

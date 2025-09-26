@@ -36,15 +36,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession(session)
       setUser(session?.user ?? null)
       setLoading(false)
+      
+      // If there's an existing session, exit guest mode
+      if (session?.user) {
+        setIsGuest(false)
+        localStorage.removeItem('isGuestMode')
+      }
     })
 
     // Listen for auth changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
+      console.log('Auth state change:', { event: _event, session: !!session, user: !!session?.user })
+      
       setSession(session)
       setUser(session?.user ?? null)
       setLoading(false)
+      
+      // If user successfully authenticates, exit guest mode
+      if (session?.user) {
+        console.log('User authenticated, exiting guest mode')
+        setIsGuest(false)
+        localStorage.removeItem('isGuestMode')
+      }
     })
 
     return () => subscription.unsubscribe()
@@ -63,6 +78,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       email,
       password,
     })
+    
+    // Immediately update context state if login succeeds
+    if (data?.session && data?.user) {
+      console.log('SignIn successful, updating context state')
+      setSession(data.session)
+      setUser(data.user)
+      setIsGuest(false)
+      localStorage.removeItem('isGuestMode')
+    }
+    
     return { data, error }
   }
 
