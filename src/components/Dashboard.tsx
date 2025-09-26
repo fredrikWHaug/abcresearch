@@ -5,8 +5,10 @@ import { useAuth } from '@/contexts/AuthContext'
 import { LogOut, Send, Menu, FolderOpen, ArrowUp } from 'lucide-react'
 import { MarketMap } from '@/components/MarketMap'
 import { TrialsList } from '@/components/TrialsList'
+import { SavedMaps } from '@/components/SavedMaps'
 import { ClinicalTrialsAPI } from '@/services/clinicalTrialsAPI'
 import { EnhancedSearchAPI } from '@/services/enhancedSearchAPI'
+import { MarketMapService, type SavedMarketMap } from '@/services/marketMapService'
 import type { ClinicalTrial } from '@/services/clinicalTrialsAPI'
 import type { SlideData } from '@/services/slideAPI'
 
@@ -26,11 +28,37 @@ export function Dashboard() {
   const handleProjects = () => {
     console.log('Projects button clicked!');
     setIsMenuOpen(false);
-    // TODO: Implement projects functionality
+    setShowSavedMaps(true);
   }
 
   const handleMenuToggle = () => {
     setIsMenuOpen(!isMenuOpen);
+  }
+
+  const handleLoadSavedMap = (savedMap: SavedMarketMap) => {
+    // Load the saved map data
+    setTrials(savedMap.trials_data);
+    setSlideData(savedMap.slide_data);
+    setLastQuery(savedMap.query);
+    setHasSearched(true);
+    setViewMode('marketmap');
+    setShowSavedMaps(false);
+    
+    // Clear any errors
+    setSlideError(null);
+  }
+
+  const handleDeleteSavedMap = (_id: number) => {
+    // If we're currently viewing the deleted map, clear the view
+    if (slideData && trials.length > 0) {
+      // Check if this is the currently loaded map by comparing some key data
+      // For now, we'll just clear the view if any map is deleted
+      setTrials([]);
+      setSlideData(null);
+      setLastQuery('');
+      setHasSearched(false);
+      setViewMode('research');
+    }
   }
 
   const [message, setMessage] = useState('')
@@ -44,6 +72,7 @@ export function Dashboard() {
   const [generatingSlide, setGeneratingSlide] = useState(false)
   const [slideError, setSlideError] = useState<string | null>(null)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const [showSavedMaps, setShowSavedMaps] = useState(false)
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -307,6 +336,21 @@ export function Dashboard() {
     );
   }
 
+  // Show saved maps view
+  if (showSavedMaps) {
+    return (
+      <div className="h-screen flex flex-col overflow-hidden">
+        <Header />
+        <div className="flex-1 overflow-hidden bg-gray-50">
+          <SavedMaps 
+            onLoadMap={handleLoadSavedMap}
+            onDeleteMap={handleDeleteSavedMap}
+          />
+        </div>
+      </div>
+    );
+  }
+
   // After search - conditional layout based on view mode
   if (viewMode === 'marketmap') {
     // Full screen market map view
@@ -326,6 +370,11 @@ export function Dashboard() {
             setGeneratingSlide={setGeneratingSlide}
             slideError={slideError}
             setSlideError={setSlideError}
+            onSaveSuccess={() => {
+              console.log('Market map saved successfully!');
+              // If we're viewing saved maps, we could refresh the list here
+              // For now, just show a success message
+            }}
           />
         </div>
       </div>

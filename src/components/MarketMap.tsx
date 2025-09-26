@@ -1,12 +1,14 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import type { ClinicalTrial } from '@/services/clinicalTrialsAPI';
 import { SlideAPI } from '@/services/slideAPI';
 import type { SlideData } from '@/services/slideAPI';
+import { MarketMapService } from '@/services/marketMapService';
 import { Slide } from '@/components/Slide';
-import { Building2, Calendar, Users, MapPin, Activity, FileText, Loader2 } from 'lucide-react';
+import { Building2, Calendar, Users, MapPin, Activity, FileText, Loader2, Save, X } from 'lucide-react';
 
 interface MarketMapProps {
   trials: ClinicalTrial[];
@@ -18,6 +20,7 @@ interface MarketMapProps {
   setGeneratingSlide: (generating: boolean) => void;
   slideError: string | null;
   setSlideError: (error: string | null) => void;
+  onSaveSuccess?: () => void;
 }
 
 export function MarketMap({ 
@@ -29,8 +32,13 @@ export function MarketMap({
   generatingSlide,
   setGeneratingSlide,
   slideError,
-  setSlideError 
+  setSlideError,
+  onSaveSuccess
 }: MarketMapProps) {
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [saveName, setSaveName] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const handleGenerateSlide = async () => {
     if (trials.length === 0) return;
@@ -52,6 +60,37 @@ export function MarketMap({
   const handleCloseSlide = () => {
     setSlideData(null);
     setSlideError(null);
+  };
+
+  const handleSaveMarketMap = async () => {
+    if (!slideData || !saveName.trim()) return;
+    
+    setSaving(true);
+    setSaveError(null);
+    
+    try {
+      await MarketMapService.saveMarketMap({
+        name: saveName.trim(),
+        query,
+        trials_data: trials,
+        slide_data: slideData,
+      });
+      
+      setShowSaveDialog(false);
+      setSaveName('');
+      onSaveSuccess?.();
+    } catch (error) {
+      console.error('Error saving market map:', error);
+      setSaveError(error instanceof Error ? error.message : 'Failed to save market map');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleOpenSaveDialog = () => {
+    setSaveName(slideData?.title || `Market Map - ${query}`);
+    setShowSaveDialog(true);
+    setSaveError(null);
   };
   if (loading) {
     return (
@@ -150,9 +189,20 @@ export function MarketMap({
       <div className="flex-1 overflow-y-auto p-6 min-h-0 max-h-full">
         <div className="max-w-7xl mx-auto">
         <div className="mb-6 text-center">
-          <h2 className="text-2xl font-bold text-gray-800">
-            {trials.length} clinical trials found for your search
-          </h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-2xl font-bold text-gray-800">
+              {trials.length} clinical trials found for your search
+            </h2>
+            {slideData && (
+              <Button
+                onClick={handleOpenSaveDialog}
+                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2"
+              >
+                <Save className="h-4 w-4 mr-2" />
+                Save Map
+              </Button>
+            )}
+          </div>
           {slideError && (
             <div className="mt-2">
               <p className="text-sm text-red-600">{slideError}</p>
@@ -219,6 +269,72 @@ export function MarketMap({
           onClose={handleCloseSlide}
           query={query}
         />
+      )}
+
+      {/* Save Dialog Modal */}
+      {showSaveDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">Save Market Map</h3>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowSaveDialog(false)}
+                className="p-1"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Map Name
+                </label>
+                <Input
+                  value={saveName}
+                  onChange={(e) => setSaveName(e.target.value)}
+                  placeholder="Enter a name for your market map"
+                  className="w-full"
+                />
+              </div>
+              
+              {saveError && (
+                <div className="text-sm text-red-600">
+                  {saveError}
+                </div>
+              )}
+              
+              <div className="flex gap-3 justify-end">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowSaveDialog(false)}
+                  disabled={saving}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleSaveMarketMap}
+                  disabled={saving || !saveName.trim()}
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                >
+                  {saving ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-4 w-4 mr-2" />
+                      Save
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
