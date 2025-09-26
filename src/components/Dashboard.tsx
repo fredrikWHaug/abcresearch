@@ -330,9 +330,12 @@ export function Dashboard() {
       <Header />
 
       {/* Split View Content */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Left Half - Chat Interface - Slightly larger to center the split */}
-        <div className="w-[52%] bg-background flex flex-col">
+      <div className="flex-1 flex overflow-hidden relative">
+        {/* Vertical separator line aligned with toggle center */}
+        <div className="absolute left-1/2 transform -translate-x-1/2 w-px h-full bg-gray-200 z-10"></div>
+        
+        {/* Left Half - Chat Interface */}
+        <div className="w-1/2 bg-background flex flex-col">
           {/* Chat Messages Area */}
           <div className="flex-1 p-6 overflow-y-auto min-h-0 max-h-full">
             <div className="max-w-2xl mx-auto space-y-4">
@@ -378,8 +381,8 @@ export function Dashboard() {
           </div>
         </div>
 
-        {/* Right Half - Trials List - Slightly smaller to balance */}
-        <div className="w-[48%] bg-gray-50 overflow-hidden">
+        {/* Right Half - Trials List */}
+        <div className="w-1/2 bg-gray-50 overflow-hidden">
           <TrialsList trials={trials} loading={loading} query={lastQuery} />
         </div>
       </div>
