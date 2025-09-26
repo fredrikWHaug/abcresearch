@@ -147,7 +147,7 @@ export function Dashboard() {
 
   // Shared header component
   const Header = () => (
-    <div className="h-16 bg-white border-b border-gray-200 z-50 flex items-center justify-between px-6">
+    <div className="h-16 bg-white border-b border-gray-200 z-50 flex items-center px-6 relative">
       {/* Left Side - Hamburger Menu + Guest Banner */}
       <div className="flex items-center gap-3">
         {/* Hamburger Menu */}
@@ -185,34 +185,33 @@ export function Dashboard() {
         <GuestModeIndicator />
       </div>
       
-      {/* Toggle Buttons - Center (only show after search) */}
+      {/* Toggle Buttons - Absolutely positioned center */}
       {hasSearched && (
-        <div className="flex rounded-lg bg-gray-100 p-1">
-          <button
-            onClick={() => setViewMode('research')}
-            className={`py-2 px-4 rounded-md text-sm font-medium transition-colors ${
-              viewMode === 'research'
-                ? 'bg-white text-gray-900 shadow-sm'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            Research
-          </button>
-          <button
-            onClick={() => setViewMode('marketmap')}
-            className={`py-2 px-4 rounded-md text-sm font-medium transition-colors ${
-              viewMode === 'marketmap'
-                ? 'bg-white text-gray-900 shadow-sm'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            Market Map
-          </button>
+        <div className="absolute left-1/2 transform -translate-x-1/2">
+          <div className="flex rounded-lg bg-gray-100 p-1">
+            <button
+              onClick={() => setViewMode('research')}
+              className={`py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                viewMode === 'research'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Research
+            </button>
+            <button
+              onClick={() => setViewMode('marketmap')}
+              className={`py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                viewMode === 'marketmap'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Market Map
+            </button>
+          </div>
         </div>
       )}
-      
-      {/* Right Side - Empty for balance */}
-      <div className="w-12"></div>
     </div>
   );
 
