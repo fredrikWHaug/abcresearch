@@ -1,5 +1,9 @@
-import React from 'react';
-import { Download, X, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import React, { useState } from 'react';
+import { Download, X, TrendingUp, TrendingDown, Minus, Save, Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { MarketMapService } from '@/services/marketMapService';
+import type { ClinicalTrial } from '@/services/clinicalTrialsAPI';
 import { PieChart, Pie, Cell, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 interface ChartData {
@@ -29,6 +33,8 @@ interface SlideProps {
   slideData: SlideData;
   onClose: () => void;
   query: string;
+  trials?: ClinicalTrial[];
+  onSaveSuccess?: () => void;
 }
 
 // Generate static HTML for printing
@@ -182,7 +188,11 @@ const generatePrintHTML = (slideData: SlideData, query: string) => {
   `;
 };
 
-export function Slide({ slideData, onClose, query }: SlideProps) {
+export function Slide({ slideData, onClose, query, trials = [], onSaveSuccess }: SlideProps) {
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [saveName, setSaveName] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const PHASE_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
   const STATUS_COLORS = ['#10b981', '#3b82f6', '#6b7280', '#f59e0b'];
   
@@ -225,6 +235,37 @@ export function Slide({ slideData, onClose, query }: SlideProps) {
     };
   };
 
+  const handleSaveMarketMap = async () => {
+    if (!saveName.trim()) return;
+    
+    setSaving(true);
+    setSaveError(null);
+    
+    try {
+      await MarketMapService.saveMarketMap({
+        name: saveName.trim(),
+        query,
+        trials_data: trials,
+        slide_data: slideData,
+      });
+      
+      setShowSaveDialog(false);
+      setSaveName('');
+      onSaveSuccess?.();
+    } catch (error) {
+      console.error('Error saving market map:', error);
+      setSaveError(error instanceof Error ? error.message : 'Failed to save market map');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleOpenSaveDialog = () => {
+    setSaveName(slideData.title || `Market Map - ${query}`);
+    setShowSaveDialog(true);
+    setSaveError(null);
+  };
+
   return (
     <div className="fixed inset-x-0 top-16 bottom-0 bg-gray-50 z-40 flex items-center justify-center p-4 print:inset-0 print:p-0">
       <div className="bg-white rounded-lg max-w-7xl w-full max-h-[90vh] overflow-y-auto print:max-w-none print:max-h-none print:rounded-none">
@@ -232,6 +273,13 @@ export function Slide({ slideData, onClose, query }: SlideProps) {
         <div className="flex justify-between items-center p-4 border-b print:hidden">
           <h2 className="text-lg font-semibold">Executive Market Analysis</h2>
           <div className="flex gap-2">
+            <Button
+              onClick={handleOpenSaveDialog}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
+              <Save className="h-4 w-4 mr-2" />
+              Save Map
+            </Button>
             <button
               onClick={handlePrint}
               className="flex items-center gap-2 px-3 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
@@ -449,6 +497,72 @@ export function Slide({ slideData, onClose, query }: SlideProps) {
           }
         `
       }} />
+
+      {/* Save Dialog Modal */}
+      {showSaveDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">Save Market Map</h3>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowSaveDialog(false)}
+                className="p-1"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Map Name
+                </label>
+                <Input
+                  value={saveName}
+                  onChange={(e) => setSaveName(e.target.value)}
+                  placeholder="Enter a name for your market map"
+                  className="w-full"
+                />
+              </div>
+              
+              {saveError && (
+                <div className="text-sm text-red-600">
+                  {saveError}
+                </div>
+              )}
+              
+              <div className="flex gap-3 justify-end">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowSaveDialog(false)}
+                  disabled={saving}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleSaveMarketMap}
+                  disabled={saving || !saveName.trim()}
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                >
+                  {saving ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-4 w-4 mr-2" />
+                      Save
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
