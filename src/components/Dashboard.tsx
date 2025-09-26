@@ -147,9 +147,9 @@ export function Dashboard() {
 
   // Shared header component
   const Header = () => (
-    <div className="h-16 bg-white border-b border-gray-200 z-50 flex items-center px-6 relative">
+    <div className="h-16 bg-white border-b border-gray-200 z-50 flex items-center relative">
       {/* Left Side - Hamburger Menu + Guest Banner */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 px-6">
         {/* Hamburger Menu */}
         <div className="relative menu-container">
           <button
@@ -187,7 +187,7 @@ export function Dashboard() {
       
       {/* Toggle Buttons - Absolutely positioned center */}
       {hasSearched && (
-        <div className="absolute left-1/2 transform -translate-x-1/2">
+        <div className="absolute left-1/2 transform -translate-x-1/2 z-20">
           <div className="flex rounded-lg bg-gray-100 p-1">
             <button
               onClick={() => setViewMode('research')}
@@ -212,6 +212,9 @@ export function Dashboard() {
           </div>
         </div>
       )}
+      
+      {/* Vertical center line indicator (hidden but marks the center) */}
+      <div className="absolute left-1/2 transform -translate-x-1/2 w-px h-full pointer-events-none"></div>
     </div>
   );
 
@@ -326,13 +329,14 @@ export function Dashboard() {
 
   // Research mode - split view layout
   return (
-    <div className="h-screen flex flex-col">
+    <div className="h-screen flex flex-col relative">
       <Header />
+      
+      {/* Vertical separator line - spans from header to bottom */}
+      <div className="absolute left-1/2 transform -translate-x-1/2 w-px h-full bg-gray-200 z-10 top-0 pointer-events-none"></div>
 
       {/* Split View Content */}
-      <div className="flex-1 flex overflow-hidden relative">
-        {/* Vertical separator line aligned with toggle center */}
-        <div className="absolute left-1/2 transform -translate-x-1/2 w-px h-full bg-gray-200 z-10"></div>
+      <div className="flex-1 flex overflow-hidden">
         
         {/* Left Half - Chat Interface */}
         <div className="w-1/2 bg-background flex flex-col">
