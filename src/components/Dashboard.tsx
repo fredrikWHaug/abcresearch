@@ -148,35 +148,41 @@ export function Dashboard() {
   // Shared header component
   const Header = () => (
     <div className="h-16 bg-white border-b border-gray-200 z-50 flex items-center justify-between px-6">
-      {/* Hamburger Menu - Left */}
-      <div className="relative menu-container">
-        <button
-          onClick={handleMenuToggle}
-          className="p-3 bg-white rounded-lg shadow-lg hover:shadow-xl transition-shadow border border-gray-200 hover:bg-gray-50"
-          title="Menu"
-        >
-          <Menu className="h-5 w-5 text-gray-600 hover:text-gray-800" />
-        </button>
+      {/* Left Side - Hamburger Menu + Guest Banner */}
+      <div className="flex items-center gap-3">
+        {/* Hamburger Menu */}
+        <div className="relative menu-container">
+          <button
+            onClick={handleMenuToggle}
+            className="p-3 bg-white rounded-lg shadow-lg hover:shadow-xl transition-shadow border border-gray-200 hover:bg-gray-50"
+            title="Menu"
+          >
+            <Menu className="h-5 w-5 text-gray-600 hover:text-gray-800" />
+          </button>
+          
+          {/* Dropdown Menu */}
+          {isMenuOpen && (
+            <div className="absolute top-12 left-0 bg-white rounded-lg shadow-xl border border-gray-200 py-2 min-w-[160px] z-50">
+              <button
+                onClick={handleProjects}
+                className="w-full px-4 py-3 text-left text-gray-700 hover:bg-gray-50 flex items-center gap-3 transition-colors"
+              >
+                <FolderOpen className="h-4 w-4 text-gray-500" />
+                Projects
+              </button>
+              <button
+                onClick={handleSignOut}
+                className="w-full px-4 py-3 text-left text-gray-700 hover:bg-gray-50 flex items-center gap-3 transition-colors"
+              >
+                <LogOut className="h-4 w-4 text-gray-500" />
+                Sign Out
+              </button>
+            </div>
+          )}
+        </div>
         
-        {/* Dropdown Menu */}
-        {isMenuOpen && (
-          <div className="absolute top-12 left-0 bg-white rounded-lg shadow-xl border border-gray-200 py-2 min-w-[160px] z-50">
-            <button
-              onClick={handleProjects}
-              className="w-full px-4 py-3 text-left text-gray-700 hover:bg-gray-50 flex items-center gap-3 transition-colors"
-            >
-              <FolderOpen className="h-4 w-4 text-gray-500" />
-              Projects
-            </button>
-            <button
-              onClick={handleSignOut}
-              className="w-full px-4 py-3 text-left text-gray-700 hover:bg-gray-50 flex items-center gap-3 transition-colors"
-            >
-              <LogOut className="h-4 w-4 text-gray-500" />
-              Sign Out
-            </button>
-          </div>
-        )}
+        {/* Guest Mode Indicator */}
+        <GuestModeIndicator />
       </div>
       
       {/* Toggle Buttons - Center (only show after search) */}
@@ -205,8 +211,8 @@ export function Dashboard() {
         </div>
       )}
       
-      {/* Guest Mode Indicator - Right */}
-      <GuestModeIndicator />
+      {/* Right Side - Empty for balance */}
+      <div className="w-12"></div>
     </div>
   );
 
