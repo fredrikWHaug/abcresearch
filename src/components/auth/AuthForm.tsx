@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -12,7 +12,17 @@ export function AuthForm() {
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
 
-  const { signIn, signUp, enterGuestMode } = useAuth()
+  const { signIn, signUp, enterGuestMode, user } = useAuth()
+
+  // Redirect when user is authenticated
+  useEffect(() => {
+    if (user) {
+      // Clear form and message when user is authenticated
+      setEmail('')
+      setPassword('')
+      setMessage('')
+    }
+  }, [user])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
