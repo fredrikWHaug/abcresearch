@@ -12,7 +12,11 @@ import { MarketMapService, type SavedMarketMap } from '@/services/marketMapServi
 import type { ClinicalTrial } from '@/services/clinicalTrialsAPI'
 import type { SlideData } from '@/services/slideAPI'
 
-export function Dashboard() {
+interface DashboardProps {
+  initialShowSavedMaps?: boolean;
+}
+
+export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
   const { signOut, isGuest, exitGuestMode } = useAuth()
   
   const handleSignOut = async () => {
@@ -61,7 +65,7 @@ export function Dashboard() {
   const [lastQuery, setLastQuery] = useState('')
   const [chatHistory, setChatHistory] = useState<Array<{type: 'user' | 'system', message: string}>>([])
   const [hasSearched, setHasSearched] = useState(false)
-  const [viewMode, setViewMode] = useState<'research' | 'marketmap' | 'savedmaps'>('research')
+  const [viewMode, setViewMode] = useState<'research' | 'marketmap' | 'savedmaps'>(initialShowSavedMaps ? 'savedmaps' : 'research')
   const [slideData, setSlideData] = useState<SlideData | null>(null)
   const [generatingSlide, setGeneratingSlide] = useState(false)
   const [slideError, setSlideError] = useState<string | null>(null)
@@ -295,8 +299,8 @@ export function Dashboard() {
     );
   };
 
-  if (!hasSearched) {
-    // Initial centered search bar layout
+  if (!hasSearched && viewMode !== 'savedmaps') {
+    // Initial centered search bar layout (skip if showing saved maps)
     return (
       <div className="h-screen flex items-center justify-center bg-background">
         <div className="w-full max-w-2xl px-6">
