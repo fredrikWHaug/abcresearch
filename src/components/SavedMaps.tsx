@@ -95,13 +95,13 @@ export function SavedMaps({ onLoadMap, onDeleteMap }: SavedMapsProps) {
   }
 
   return (
-    <div className="p-6">
+    <div className="p-6 max-w-4xl mx-auto">
       <div className="mb-6">
         <h2 className="text-2xl font-bold text-gray-800 mb-2">Saved Market Maps</h2>
         <p className="text-gray-600">Load a previously saved market map to continue your analysis.</p>
       </div>
 
-      <div className="grid gap-4">
+      <div className="grid gap-4 pb-6">
         {savedMaps.map((map) => (
           <Card key={map.id} className="hover:shadow-md transition-shadow">
             <CardHeader className="pb-3">
