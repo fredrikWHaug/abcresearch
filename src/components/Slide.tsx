@@ -267,8 +267,12 @@ export function Slide({ slideData, onClose, query, trials = [], onSaveSuccess }:
   };
 
   return (
-    <div className="fixed inset-x-0 top-16 bottom-0 bg-gray-50 z-40 flex items-center justify-center p-4 print:inset-0 print:p-0" style={{ backgroundColor: '#f9fafb' }}>
-      <div className="bg-white rounded-lg max-w-7xl w-full max-h-[90vh] overflow-y-auto print:max-w-none print:max-h-none print:rounded-none shadow-lg">
+    <>
+      {/* Full screen light background overlay */}
+      <div className="fixed inset-0 z-30" style={{ backgroundColor: 'rgb(249, 250, 251)' }} />
+      
+      <div className="slide-light-theme fixed inset-x-0 top-16 bottom-0 z-40 flex items-center justify-center p-4 print:inset-0 print:p-0" style={{ backgroundColor: 'rgb(249, 250, 251)' }}>
+      <div className="rounded-lg max-w-7xl w-full max-h-[90vh] overflow-y-auto print:max-w-none print:max-h-none print:rounded-none shadow-lg" style={{ backgroundColor: 'white' }}>
         {/* Header with controls */}
         <div className="flex justify-between items-center p-4 border-b print:hidden">
           <h2 className="text-lg font-semibold">Executive Market Analysis</h2>
@@ -495,13 +499,20 @@ export function Slide({ slideData, onClose, query, trials = [], onSaveSuccess }:
               page-break-inside: avoid !important;
             }
           }
+          
+          /* Force light theme for slide container */
+          .slide-light-theme {
+            --background: 0 0% 98% !important;
+            --foreground: 0 0% 15% !important;
+            background-color: rgb(249, 250, 251) !important;
+          }
         `
       }} />
 
       {/* Save Dialog Modal */}
       {showSaveDialog && (
-        <div className="fixed inset-0 bg-black bg-opacity-30 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+        <div className="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-[60]">
+          <div className="rounded-lg p-6 w-full max-w-md mx-4" style={{ backgroundColor: 'white' }}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold">Save Market Map</h3>
               <Button
@@ -564,5 +575,6 @@ export function Slide({ slideData, onClose, query, trials = [], onSaveSuccess }:
         </div>
       )}
     </div>
+    </>
   );
 }
