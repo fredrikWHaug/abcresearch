@@ -512,7 +512,7 @@ export function Slide({ slideData, onClose, query, trials = [], onSaveSuccess }:
       {/* Save Dialog Modal */}
       {showSaveDialog && (
         <div className="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-[60]">
-          <div className="rounded-lg p-6 w-full max-w-md mx-4" style={{ backgroundColor: 'white' }}>
+          <div className="rounded-lg p-6 w-full max-w-md mx-4 border shadow-lg" style={{ backgroundColor: 'white' }}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold">Save Market Map</h3>
               <Button
