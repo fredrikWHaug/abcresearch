@@ -15,21 +15,11 @@ export interface ExtractionResult {
 }
 
 export class PDFExtractionService {
-  private static readonly SUPABASE_URL = 'https://acswlqfhoqxemyxmscwp.supabase.co';
-  private static readonly LOCAL_EDGE_FUNCTION_URL = 'http://localhost:54321/functions/v1/extract-pdf-tables';
-  private static readonly PRODUCTION_EDGE_FUNCTION_URL = `${PDFExtractionService.SUPABASE_URL}/functions/v1/extract-pdf-tables`;
-  
-  private static getEdgeFunctionUrl(): string {
-    // Use local URL in development, production URL otherwise
-    return process.env.NODE_ENV === 'development' || window.location.hostname === 'localhost'
-      ? PDFExtractionService.LOCAL_EDGE_FUNCTION_URL
-      : PDFExtractionService.PRODUCTION_EDGE_FUNCTION_URL;
-  }
 
   /**
-   * Extract all tables from a PDF file using Supabase Edge Function
+   * Extract all tables from a PDF file using direct Python API
    */
-  static async extractTablesFromPDF(file: File, supabaseToken?: string): Promise<ExtractionResult> {
+  static async extractTablesFromPDF(file: File): Promise<ExtractionResult> {
     try {
       // Check if we're running locally or in production
       const isLocal = window.location.hostname === 'localhost';
@@ -126,72 +116,6 @@ export class PDFExtractionService {
     };
   }
 
-  /**
-   * Extract tables via Edge Function (for production)
-   */
-  private static async extractTablesViaEdgeFunction(file: File, supabaseToken?: string): Promise<ExtractionResult> {
-    // Create FormData for file upload
-    const formData = new FormData();
-    formData.append('file', file);
-
-    // Call Supabase Edge Function
-    const edgeFunctionUrl = PDFExtractionService.getEdgeFunctionUrl();
-    console.log('Calling Edge Function at:', edgeFunctionUrl);
-
-    // Prepare headers
-    const headers: HeadersInit = {};
-    if (supabaseToken) {
-      headers['Authorization'] = `Bearer ${supabaseToken}`;
-    }
-    
-    const response = await fetch(edgeFunctionUrl, {
-      method: 'POST',
-      headers,
-      body: formData
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-      throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
-    }
-
-    const result = await response.json();
-    
-    if (!result.success) {
-      return {
-        success: false,
-        tables: [],
-        error: result.error || 'PDF processing failed'
-      };
-    }
-
-    // Convert base64 Excel data to Blob
-    let excelBlob: Blob | undefined;
-    if (result.excel_data) {
-      const excelBytes = this.base64ToArrayBuffer(result.excel_data);
-      excelBlob = new Blob([excelBytes], { 
-        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
-      });
-    }
-
-    // Convert tables to our expected format
-    const tables: ExtractedTable[] = result.tables.map((table: any) => ({
-      data: table.data,
-      pageNumber: table.page_number,
-      tableNumber: table.table_number,
-      rows: table.rows,
-      columns: table.columns
-    }));
-
-    console.log(`Successfully extracted ${tables.length} tables from PDF`);
-
-    return {
-      success: true,
-      tables,
-      excelBlob,
-      message: result.message
-    };
-  }
   
   /**
    * Convert base64 string to ArrayBuffer
