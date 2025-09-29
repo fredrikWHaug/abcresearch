@@ -68,7 +68,11 @@ export class PDFExtractionService {
     }
     const base64 = btoa(binaryString);
 
-    const response = await fetch('http://localhost:3000/api/extract_tables', {
+    // Use environment variable for Python API URL
+    const pythonApiUrl = import.meta.env.VITE_PYTHON_API_URL || 'http://localhost:3000/api/extract_tables';
+    console.log('Using Python API URL:', pythonApiUrl);
+
+    const response = await fetch(pythonApiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
