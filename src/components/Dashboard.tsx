@@ -65,7 +65,7 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
   const [lastQuery, setLastQuery] = useState('')
   const [chatHistory, setChatHistory] = useState<Array<{type: 'user' | 'system', message: string}>>([])
   const [hasSearched, setHasSearched] = useState(false)
-  const [viewMode, setViewMode] = useState<'research' | 'marketmap' | 'savedmaps'>(initialShowSavedMaps ? 'savedmaps' : 'research')
+  const [viewMode, setViewMode] = useState<'research' | 'marketmap' | 'savedmaps' | 'dataextraction'>(initialShowSavedMaps ? 'savedmaps' : 'research')
   const [slideData, setSlideData] = useState<SlideData | null>(null)
   const [generatingSlide, setGeneratingSlide] = useState(false)
   const [slideError, setSlideError] = useState<string | null>(null)
@@ -212,10 +212,10 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
           className="absolute z-20"
           style={{ left: '50%', transform: 'translateX(-50%)' }}
         >
-          <div className="flex rounded-lg bg-gray-100 p-1 w-96">
+          <div className="flex rounded-lg bg-gray-100 p-1 w-[36rem]">
             <button
               onClick={() => setViewMode('research')}
-              className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center ${
+              className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
                 viewMode === 'research'
                   ? 'bg-white text-gray-900 shadow-sm'
                   : 'text-gray-600 hover:text-gray-900'
@@ -225,7 +225,7 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
             </button>
             <button
               onClick={() => setViewMode('marketmap')}
-              className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center ${
+              className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
                 viewMode === 'marketmap'
                   ? 'bg-white text-gray-900 shadow-sm'
                   : 'text-gray-600 hover:text-gray-900'
@@ -235,13 +235,23 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
             </button>
             <button
               onClick={() => setViewMode('savedmaps')}
-              className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center ${
+              className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
                 viewMode === 'savedmaps'
                   ? 'bg-white text-gray-900 shadow-sm'
                   : 'text-gray-600 hover:text-gray-900'
               }`}
             >
               Saved Maps
+            </button>
+            <button
+              onClick={() => setViewMode('dataextraction')}
+              className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
+                viewMode === 'dataextraction'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Data Extraction
             </button>
           </div>
         </div>
@@ -376,6 +386,27 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
               // For now, just show a success message
             }}
           />
+        </div>
+      </div>
+    );
+  }
+
+  // Data Extraction mode
+  if (viewMode === 'dataextraction') {
+    return (
+      <div className="h-screen flex flex-col overflow-hidden">
+        <Header />
+        
+        {/* Data Extraction Content */}
+        <div className="flex-1 overflow-hidden bg-gray-50 p-6">
+          <div className="max-w-4xl mx-auto">
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">Data Extraction</h2>
+            <div className="bg-white rounded-lg shadow-sm border p-6">
+              <p className="text-gray-600">
+                Data extraction functionality will be implemented here.
+              </p>
+            </div>
+          </div>
         </div>
       </div>
     );
