@@ -54,11 +54,7 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
     setPdfProcessingResult(null);
 
     try {
-      // Get Supabase session for authentication
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-      
-      const result = await PDFExtractionService.extractTablesFromPDF(selectedFile, token);
+      const result = await PDFExtractionService.extractTablesFromPDF(selectedFile);
       setPdfProcessingResult(result);
     } catch (error) {
       console.error('PDF processing error:', error);
