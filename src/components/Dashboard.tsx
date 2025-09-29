@@ -207,7 +207,7 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
       </div>
       
       {/* Toggle Buttons - Absolutely positioned center with equal widths */}
-      {(hasSearched || viewMode === 'savedmaps') && (
+      {(hasSearched || viewMode === 'savedmaps' || viewMode === 'dataextraction') && (
         <div 
           className="absolute z-20"
           style={{ left: '50%', transform: 'translateX(-50%)' }}
@@ -309,7 +309,7 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
     );
   };
 
-  if (!hasSearched && viewMode !== 'savedmaps') {
+  if (!hasSearched && viewMode !== 'savedmaps' && viewMode !== 'dataextraction') {
     // Initial centered search bar layout (skip if showing saved maps)
     return (
       <div className="h-screen flex items-center justify-center bg-background">
