@@ -65,7 +65,7 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
   const [lastQuery, setLastQuery] = useState('')
   const [chatHistory, setChatHistory] = useState<Array<{type: 'user' | 'system', message: string}>>([])
   const [hasSearched, setHasSearched] = useState(false)
-  const [viewMode, setViewMode] = useState<'research' | 'marketmap' | 'savedmaps'>(initialShowSavedMaps ? 'savedmaps' : 'research')
+  const [viewMode, setViewMode] = useState<'research' | 'marketmap' | 'savedmaps' | 'dataextraction'>(initialShowSavedMaps ? 'savedmaps' : 'research')
   const [slideData, setSlideData] = useState<SlideData | null>(null)
   const [generatingSlide, setGeneratingSlide] = useState(false)
   const [slideError, setSlideError] = useState<string | null>(null)
@@ -207,15 +207,15 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
       </div>
       
       {/* Toggle Buttons - Absolutely positioned center with equal widths */}
-      {(hasSearched || viewMode === 'savedmaps') && (
+      {(hasSearched || viewMode === 'savedmaps' || viewMode === 'dataextraction') && (
         <div 
           className="absolute z-20"
           style={{ left: '50%', transform: 'translateX(-50%)' }}
         >
-          <div className="flex rounded-lg bg-gray-100 p-1 w-96">
+          <div className="flex rounded-lg bg-gray-100 p-1 w-[36rem]">
             <button
               onClick={() => setViewMode('research')}
-              className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center ${
+              className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
                 viewMode === 'research'
                   ? 'bg-white text-gray-900 shadow-sm'
                   : 'text-gray-600 hover:text-gray-900'
@@ -225,7 +225,7 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
             </button>
             <button
               onClick={() => setViewMode('marketmap')}
-              className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center ${
+              className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
                 viewMode === 'marketmap'
                   ? 'bg-white text-gray-900 shadow-sm'
                   : 'text-gray-600 hover:text-gray-900'
@@ -235,13 +235,23 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
             </button>
             <button
               onClick={() => setViewMode('savedmaps')}
-              className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center ${
+              className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
                 viewMode === 'savedmaps'
                   ? 'bg-white text-gray-900 shadow-sm'
                   : 'text-gray-600 hover:text-gray-900'
               }`}
             >
               Saved Maps
+            </button>
+            <button
+              onClick={() => setViewMode('dataextraction')}
+              className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
+                viewMode === 'dataextraction'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Data Extraction
             </button>
           </div>
         </div>
@@ -299,7 +309,7 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
     );
   };
 
-  if (!hasSearched && viewMode !== 'savedmaps') {
+  if (!hasSearched && viewMode !== 'savedmaps' && viewMode !== 'dataextraction') {
     // Initial centered search bar layout (skip if showing saved maps)
     return (
       <div className="h-screen flex items-center justify-center bg-background">
@@ -376,6 +386,45 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
               // For now, just show a success message
             }}
           />
+        </div>
+      </div>
+    );
+  }
+
+  // Data Extraction mode
+  if (viewMode === 'dataextraction') {
+    return (
+      <div className="h-screen flex flex-col overflow-hidden">
+        <Header />
+        
+        {/* Data Extraction Content */}
+        <div className="flex-1 overflow-hidden bg-gray-50 p-6">
+          <div className="max-w-4xl mx-auto">
+            <div className="text-center mb-8">
+              <h2 className="text-3xl font-bold text-gray-900 mb-2">Data Extraction</h2>
+              <p className="text-gray-600">Upload a PDF document to extract data and insights</p>
+            </div>
+            
+            {/* Upload Area */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-12 text-center hover:border-blue-400 transition-colors cursor-pointer group">
+                <div className="mx-auto w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mb-4 group-hover:bg-blue-100 transition-colors">
+                  <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">Upload PDF Document</h3>
+                <p className="text-gray-600 mb-4">Drag and drop your PDF file here, or click to browse</p>
+                <button className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
+                  Choose File
+                </button>
+                <p className="text-xs text-gray-500 mt-3">Supports PDF files up to 10MB</p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );
