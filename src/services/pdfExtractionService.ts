@@ -31,17 +31,17 @@ export class PDFExtractionService {
    */
   static async extractTablesFromPDF(file: File, supabaseToken?: string): Promise<ExtractionResult> {
     try {
-      const edgeFunctionUrl = PDFExtractionService.getEdgeFunctionUrl();
-      const isLocal = edgeFunctionUrl.includes('localhost');
+      // Check if we're running locally or in production
+      const isLocal = window.location.hostname === 'localhost';
       
       if (isLocal) {
         // For local testing, call Python API directly
         console.log('Starting PDF table extraction via direct Python API...');
         return await this.extractTablesDirectly(file);
       } else {
-        // For production, use Edge Function
-        console.log('Starting PDF table extraction via Supabase Edge Function...');
-        return await this.extractTablesViaEdgeFunction(file, supabaseToken);
+        // For production, also use direct Python API (proof of concept)
+        console.log('Starting PDF table extraction via direct Python API...');
+        return await this.extractTablesDirectly(file);
       }
     } catch (error) {
       console.error('PDF extraction error:', error);
