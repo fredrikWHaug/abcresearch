@@ -58,8 +58,11 @@ export class PDFExtractionService {
     }
     const base64 = btoa(binaryString);
 
-    // Use environment variable for Python API URL
-    const pythonApiUrl = import.meta.env.VITE_PYTHON_API_URL || 'http://localhost:3000/api/extract_tables';
+    // Use local Python server when running locally
+    const isLocal = window.location.hostname === 'localhost';
+    const pythonApiUrl = isLocal 
+      ? 'http://localhost:3000/api/extract_tables'
+      : (import.meta.env.VITE_PYTHON_API_URL || 'https://developent.guru/api/extract_tables');
     console.log('Using Python API URL:', pythonApiUrl);
 
     const response = await fetch(pythonApiUrl, {
