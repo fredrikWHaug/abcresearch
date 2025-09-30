@@ -65,15 +65,15 @@ serve(async (req: Request) => {
     const uint8Array = new Uint8Array(arrayBuffer)
     const base64 = btoa(String.fromCharCode(...uint8Array))
 
-    // Call Vercel Python API
+    // Call Vercel Node.js API
     // Use environment variable or fallback to production URL
     const vercelApiUrl = Deno.env.get('VERCEL_PYTHON_API_URL') || 'https://abcresearch.vercel.app/api/extract_tables'
-    console.log('Calling Vercel Python API:', vercelApiUrl)
+    console.log('Calling Vercel Node.js API:', vercelApiUrl)
     
     // Get bypass token from environment variable
     const bypassToken = Deno.env.get('VERCEL_BYPASS_TOKEN')
     
-    const pythonResponse = await fetch(vercelApiUrl, {
+    const nodeResponse = await fetch(vercelApiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -85,9 +85,9 @@ serve(async (req: Request) => {
       })
     })
 
-    if (!pythonResponse.ok) {
-      const errorText = await pythonResponse.text()
-      console.error('Python API error:', errorText)
+    if (!nodeResponse.ok) {
+      const errorText = await nodeResponse.text()
+      console.error('Node.js API error:', errorText)
       return new Response(
         JSON.stringify({ 
           success: false,
@@ -101,10 +101,10 @@ serve(async (req: Request) => {
       )
     }
 
-    const result = await pythonResponse.json()
-    console.log('Python API response:', { success: result.success, tableCount: result.tables?.length || 0 })
+    const result = await nodeResponse.json()
+    console.log('Node.js API response:', { success: result.success, tableCount: result.tables?.length || 0 })
 
-    // Check if the Python API returned an error
+    // Check if the Node.js API returned an error
     if (!result.success) {
       return new Response(
         JSON.stringify({
