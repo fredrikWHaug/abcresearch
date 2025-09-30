@@ -123,16 +123,8 @@ export class PDFExtractionService {
    * Extract tables via Supabase Edge Function (for production)
    */
   private static async extractTablesViaEdgeFunction(file: File): Promise<ExtractionResult> {
-    // Get Supabase client
-    const { createClient } = await import('@supabase/supabase-js');
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-    
-    if (!supabaseUrl || !supabaseAnonKey) {
-      throw new Error('Supabase configuration missing');
-    }
-    
-    const supabase = createClient(supabaseUrl, supabaseAnonKey);
+    // Import the configured Supabase client
+    const { supabase } = await import('../lib/supabase');
     
     // Create FormData for the Edge Function
     const formData = new FormData();
