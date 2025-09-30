@@ -29,3 +29,14 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Supabase
+supabase/.temp/
+supabase/functions/*/.npmrc
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python

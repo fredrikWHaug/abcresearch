@@ -1,14 +1,16 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useAuth } from '@/contexts/AuthContext'
-import { LogOut, Send, Menu, ArrowUp } from 'lucide-react'
+import { LogOut, Send, Menu, ArrowUp, Upload, Download, CheckCircle, AlertCircle, Loader2 } from 'lucide-react'
 import { MarketMap } from '@/components/MarketMap'
 import { TrialsList } from '@/components/TrialsList'
 import { SavedMaps } from '@/components/SavedMaps'
 import { ClinicalTrialsAPI } from '@/services/clinicalTrialsAPI'
 import { EnhancedSearchAPI } from '@/services/enhancedSearchAPI'
 import { MarketMapService, type SavedMarketMap } from '@/services/marketMapService'
+import { PDFExtractionService, type ExtractionResult } from '@/services/pdfExtractionService'
+import { supabase } from '@/lib/supabase'
 import type { ClinicalTrial } from '@/services/clinicalTrialsAPI'
 import type { SlideData } from '@/services/slideAPI'
 
@@ -32,6 +34,53 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
 
   const handleMenuToggle = () => {
     setIsMenuOpen(!isMenuOpen);
+  }
+
+  // PDF processing functions
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file && file.type === 'application/pdf') {
+      setSelectedFile(file);
+      setPdfProcessingResult(null);
+    } else {
+      alert('Please select a valid PDF file.');
+    }
+  }
+
+  const handleFileUpload = async () => {
+    if (!selectedFile) return;
+
+    setIsProcessingPDF(true);
+    setPdfProcessingResult(null);
+
+    try {
+      const result = await PDFExtractionService.extractTablesFromPDF(selectedFile);
+      setPdfProcessingResult(result);
+    } catch (error) {
+      console.error('PDF processing error:', error);
+      setPdfProcessingResult({
+        success: false,
+        tables: [],
+        error: 'An unexpected error occurred while processing the PDF.'
+      });
+    } finally {
+      setIsProcessingPDF(false);
+    }
+  }
+
+  const handleDownloadExcel = () => {
+    if (pdfProcessingResult?.excelBlob) {
+      const filename = `extracted_tables_${new Date().toISOString().split('T')[0]}.xlsx`;
+      PDFExtractionService.downloadExcelFile(pdfProcessingResult.excelBlob, filename);
+    }
+  }
+
+  const handleResetUpload = () => {
+    setSelectedFile(null);
+    setPdfProcessingResult(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   }
 
   const handleLoadSavedMap = (savedMap: SavedMarketMap) => {
@@ -70,6 +119,12 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
   const [generatingSlide, setGeneratingSlide] = useState(false)
   const [slideError, setSlideError] = useState<string | null>(null)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  
+  // PDF processing state
+  const [isProcessingPDF, setIsProcessingPDF] = useState(false)
+  const [pdfProcessingResult, setPdfProcessingResult] = useState<ExtractionResult | null>(null)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -402,27 +457,116 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
           <div className="max-w-4xl mx-auto">
             <div className="text-center mb-8">
               <h2 className="text-3xl font-bold text-gray-900 mb-2">Data Extraction</h2>
-              <p className="text-gray-600">Upload a PDF document to extract data and insights</p>
+              <p className="text-gray-600">Upload a PDF document to extract tables and export to Excel</p>
             </div>
             
             {/* Upload Area */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-12 text-center hover:border-blue-400 transition-colors cursor-pointer group">
-                <div className="mx-auto w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mb-4 group-hover:bg-blue-100 transition-colors">
-                  <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                  </svg>
+              {!selectedFile ? (
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-12 text-center hover:border-blue-400 transition-colors cursor-pointer group">
+                  <div className="mx-auto w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mb-4 group-hover:bg-blue-100 transition-colors">
+                    <Upload className="w-8 h-8 text-blue-600" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Upload PDF Document</h3>
+                  <p className="text-gray-600 mb-4">Drag and drop your PDF file here, or click to browse</p>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".pdf"
+                    onChange={handleFileSelect}
+                    className="hidden"
+                  />
+                  <button 
+                    onClick={() => fileInputRef.current?.click()}
+                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                  >
+                    <Upload className="w-4 h-4 mr-2" />
+                    Choose File
+                  </button>
+                  <p className="text-xs text-gray-500 mt-3">Supports PDF files up to 10MB</p>
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Upload PDF Document</h3>
-                <p className="text-gray-600 mb-4">Drag and drop your PDF file here, or click to browse</p>
-                <button className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
-                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                  </svg>
-                  Choose File
-                </button>
-                <p className="text-xs text-gray-500 mt-3">Supports PDF files up to 10MB</p>
-              </div>
+              ) : (
+                <div className="space-y-6">
+                  {/* Selected File Info */}
+                  <div className="bg-gray-50 rounded-lg p-4 border">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center">
+                        <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center mr-3">
+                          <svg className="w-6 h-6 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
+                          </svg>
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-900">{selectedFile.name}</p>
+                          <p className="text-sm text-gray-500">{(selectedFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={handleResetUpload}
+                        className="text-gray-400 hover:text-gray-600 transition-colors"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Processing State */}
+                  {isProcessingPDF && (
+                    <div className="bg-blue-50 rounded-lg p-6 text-center">
+                      <Loader2 className="w-8 h-8 text-blue-600 animate-spin mx-auto mb-3" />
+                      <h3 className="text-lg font-semibold text-blue-900 mb-2">Processing PDF...</h3>
+                      <p className="text-blue-700">Extracting tables from your document. This may take a moment.</p>
+                    </div>
+                  )}
+
+                  {/* Results */}
+                  {pdfProcessingResult && (
+                    <div className="space-y-4">
+                      {pdfProcessingResult.success ? (
+                        <div className="bg-green-50 rounded-lg p-6">
+                          <div className="flex items-center mb-3">
+                            <CheckCircle className="w-6 h-6 text-green-600 mr-2" />
+                            <h3 className="text-lg font-semibold text-green-900">Extraction Successful!</h3>
+                          </div>
+                          <p className="text-green-700 mb-4">
+                            Found {pdfProcessingResult.tables.length} table{pdfProcessingResult.tables.length !== 1 ? 's' : ''} in your PDF.
+                          </p>
+                          <button
+                            onClick={handleDownloadExcel}
+                            className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+                          >
+                            <Download className="w-4 h-4 mr-2" />
+                            Download Excel File
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="bg-red-50 rounded-lg p-6">
+                          <div className="flex items-center mb-3">
+                            <AlertCircle className="w-6 h-6 text-red-600 mr-2" />
+                            <h3 className="text-lg font-semibold text-red-900">Extraction Failed</h3>
+                          </div>
+                          <p className="text-red-700">{pdfProcessingResult.error}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Process Button */}
+                  {!isProcessingPDF && !pdfProcessingResult && (
+                    <div className="text-center">
+                      <button
+                        onClick={handleFileUpload}
+                        className="inline-flex items-center px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                      >
+                        <Upload className="w-5 h-5 mr-2" />
+                        Extract Tables
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
