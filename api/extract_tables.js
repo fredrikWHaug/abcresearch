@@ -1,6 +1,3 @@
-import pdf from 'pdf-parse';
-import { Readable } from 'stream';
-
 export default async function handler(req, res) {
   // Set CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -23,20 +20,22 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'No PDF data provided' });
     }
 
-    // Convert base64 to buffer
-    const pdfBuffer = Buffer.from(pdf_data, 'base64');
-    
-    // Parse PDF
-    const data = await pdf(pdfBuffer);
-    
-    // For now, return basic text extraction
-    // TODO: Add table extraction logic
+    // For now, return a mock response to test the flow
+    // TODO: Implement actual PDF parsing
     const result = {
       success: true,
       message: `Successfully processed PDF: ${filename}`,
-      text: data.text.substring(0, 1000), // First 1000 chars
-      pages: data.numpages,
-      tables: [] // TODO: Implement table extraction
+      text: "Mock PDF text content",
+      pages: 1,
+      tables: [
+        {
+          data: [["Header 1", "Header 2"], ["Row 1 Col 1", "Row 1 Col 2"]],
+          page_number: 1,
+          table_number: 1,
+          rows: 2,
+          columns: 2
+        }
+      ]
     };
 
     res.status(200).json(result);
