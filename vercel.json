@@ -3,7 +3,7 @@
     "api/generate-slide.ts": {
       "maxDuration": 30
     },
-    "api/extract_tables.py": {
+    "api/extract_tables.js": {
       "maxDuration": 30
     }
   },
