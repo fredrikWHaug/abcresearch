@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx';
-import * as pdfjsLib from 'pdfjs-dist';
+import pdf from 'pdf-parse';
 
 export default async function handler(req, res) {
   // Set CORS headers
@@ -26,20 +26,10 @@ export default async function handler(req, res) {
     // Convert base64 to buffer
     const pdfBuffer = Buffer.from(pdf_data, 'base64');
     
-    // Parse PDF using pdfjs-dist
-    const loadingTask = pdfjsLib.getDocument({ data: pdfBuffer });
-    const pdf = await loadingTask.promise;
-    
-    let text = '';
-    const numPages = pdf.numPages;
-    
-    // Extract text from all pages
-    for (let i = 1; i <= numPages; i++) {
-      const page = await pdf.getPage(i);
-      const textContent = await page.getTextContent();
-      const pageText = textContent.items.map(item => item.str).join(' ');
-      text += pageText + '\n';
-    }
+    // Parse PDF using pdf-parse (lighter weight library)
+    const pdfData = await pdf(pdfBuffer);
+    const text = pdfData.text;
+    const numPages = pdfData.numpages;
     
     console.log('Extracted PDF text:', text.substring(0, 200) + '...');
     
