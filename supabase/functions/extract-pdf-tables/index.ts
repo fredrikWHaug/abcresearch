@@ -66,11 +66,9 @@ serve(async (req: Request) => {
     const base64 = btoa(String.fromCharCode(...uint8Array))
 
     // Call Vercel Python API
-    // For local testing, use: 'http://localhost:3000/api/extract_tables'
-    // For production, use: 'https://abcresearch.vercel.app/api/extract_tables'
-    const vercelApiUrl = process.env.NODE_ENV === 'development' 
-      ? 'http://localhost:3000/api/extract_tables'
-      : 'https://abcresearch.vercel.app/api/extract_tables'
+    // Use environment variable or fallback to production URL
+    const vercelApiUrl = Deno.env.get('VERCEL_PYTHON_API_URL') || 'https://abcresearch.vercel.app/api/extract_tables'
+    console.log('Calling Vercel Python API:', vercelApiUrl)
     
     const pythonResponse = await fetch(vercelApiUrl, {
       method: 'POST',
@@ -88,6 +86,7 @@ serve(async (req: Request) => {
       console.error('Python API error:', errorText)
       return new Response(
         JSON.stringify({ 
+          success: false,
           error: 'PDF processing failed', 
           details: errorText 
         }),
@@ -99,6 +98,22 @@ serve(async (req: Request) => {
     }
 
     const result = await pythonResponse.json()
+    console.log('Python API response:', { success: result.success, tableCount: result.tables?.length || 0 })
+
+    // Check if the Python API returned an error
+    if (!result.success) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: result.error || 'PDF processing failed',
+          tables: []
+        }),
+        { 
+          status: 200, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      )
+    }
 
     // Return the result from Python API
     return new Response(

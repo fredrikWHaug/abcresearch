@@ -17,7 +17,7 @@ export interface ExtractionResult {
 export class PDFExtractionService {
 
   /**
-   * Extract all tables from a PDF file using direct Python API
+   * Extract all tables from a PDF file using Supabase Edge Function as proxy
    */
   static async extractTablesFromPDF(file: File): Promise<ExtractionResult> {
     try {
@@ -29,9 +29,9 @@ export class PDFExtractionService {
         console.log('Starting PDF table extraction via direct Python API...');
         return await this.extractTablesDirectly(file);
       } else {
-        // For production, also use direct Python API (proof of concept)
-        console.log('Starting PDF table extraction via direct Python API...');
-        return await this.extractTablesDirectly(file);
+        // For production, use Supabase Edge Function as proxy
+        console.log('Starting PDF table extraction via Supabase Edge Function...');
+        return await this.extractTablesViaEdgeFunction(file);
       }
     } catch (error) {
       console.error('PDF extraction error:', error);
@@ -116,6 +116,71 @@ export class PDFExtractionService {
       tables,
       excelBlob,
       message: result.message
+    };
+  }
+
+  /**
+   * Extract tables via Supabase Edge Function (for production)
+   */
+  private static async extractTablesViaEdgeFunction(file: File): Promise<ExtractionResult> {
+    // Get Supabase client
+    const { createClient } = await import('@supabase/supabase-js');
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    
+    if (!supabaseUrl || !supabaseAnonKey) {
+      throw new Error('Supabase configuration missing');
+    }
+    
+    const supabase = createClient(supabaseUrl, supabaseAnonKey);
+    
+    // Create FormData for the Edge Function
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    console.log('Calling Supabase Edge Function...');
+    
+    const { data, error } = await supabase.functions.invoke('extract-pdf-tables', {
+      body: formData
+    });
+    
+    if (error) {
+      throw new Error(`Edge Function error: ${error.message}`);
+    }
+    
+    if (!data.success) {
+      return {
+        success: false,
+        tables: [],
+        error: data.error || 'PDF processing failed'
+      };
+    }
+    
+    // Convert base64 Excel data to Blob
+    let excelBlob: Blob | undefined;
+    if (data.excel_data) {
+      const excelBytes = this.base64ToArrayBuffer(data.excel_data);
+      excelBlob = new Blob([excelBytes], { 
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+      });
+    }
+    
+    // Convert tables to our expected format
+    const tables: ExtractedTable[] = data.tables.map((table: any) => ({
+      data: table.data,
+      pageNumber: table.page_number,
+      tableNumber: table.table_number,
+      rows: table.rows,
+      columns: table.columns
+    }));
+    
+    console.log(`Successfully extracted ${tables.length} tables from PDF`);
+    
+    return {
+      success: true,
+      tables,
+      excelBlob,
+      message: data.message
     };
   }
 
