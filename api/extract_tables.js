@@ -1,4 +1,5 @@
 import * as XLSX from 'xlsx';
+import pdf from 'pdf-parse';
 
 export default async function handler(req, res) {
   // Set CORS headers
@@ -22,40 +23,89 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'No PDF data provided' });
     }
 
-    // Create a proper Excel workbook with mock data
+    // Convert base64 to buffer
+    const pdfBuffer = Buffer.from(pdf_data, 'base64');
+    
+    // Parse PDF to extract text
+    const pdfData = await pdf(pdfBuffer);
+    const text = pdfData.text;
+    
+    console.log('Extracted PDF text:', text.substring(0, 200) + '...');
+    
+    // Simple table extraction from text
+    // Look for patterns that might be tables
+    const lines = text.split('\n').filter(line => line.trim().length > 0);
+    
+    // Try to find table-like patterns
+    const tables = [];
+    let currentTable = [];
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      
+      // Look for lines that might be table rows (contain multiple words/numbers)
+      if (line.includes(' ') && line.split(/\s+/).length >= 2) {
+        const cells = line.split(/\s+/);
+        currentTable.push(cells);
+      } else if (currentTable.length > 0) {
+        // End of table, save it
+        if (currentTable.length > 1) { // Only save tables with at least 2 rows
+          tables.push({
+            data: currentTable,
+            page_number: 1,
+            table_number: tables.length + 1,
+            rows: currentTable.length,
+            columns: currentTable[0]?.length || 0
+          });
+        }
+        currentTable = [];
+      }
+    }
+    
+    // Save the last table if it exists
+    if (currentTable.length > 1) {
+      tables.push({
+        data: currentTable,
+        page_number: 1,
+        table_number: tables.length + 1,
+        rows: currentTable.length,
+        columns: currentTable[0]?.length || 0
+      });
+    }
+    
+    // If no tables found, create a simple text-based table
+    if (tables.length === 0) {
+      const textLines = lines.slice(0, 10); // Take first 10 lines
+      const simpleTable = textLines.map(line => [line.trim()]);
+      tables.push({
+        data: simpleTable,
+        page_number: 1,
+        table_number: 1,
+        rows: simpleTable.length,
+        columns: 1
+      });
+    }
+
+    // Create Excel workbook with extracted data
     const workbook = XLSX.utils.book_new();
     
-    // Create mock table data
-    const tableData = [
-      ["Header 1", "Header 2", "Header 3"],
-      ["Row 1 Col 1", "Row 1 Col 2", "Row 1 Col 3"],
-      ["Row 2 Col 1", "Row 2 Col 2", "Row 2 Col 3"],
-      ["Row 3 Col 1", "Row 3 Col 2", "Row 3 Col 3"]
-    ];
-    
-    // Add worksheet to workbook
-    const worksheet = XLSX.utils.aoa_to_sheet(tableData);
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Extracted Tables");
+    tables.forEach((table, index) => {
+      const worksheet = XLSX.utils.aoa_to_sheet(table.data);
+      const sheetName = `Table ${index + 1}`;
+      XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+    });
     
     // Generate Excel file buffer
     const excelBuffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
     const excelBase64 = excelBuffer.toString('base64');
 
-    // Return response with proper Excel data
+    // Return response with extracted data
     const result = {
       success: true,
       message: `Successfully processed PDF: ${filename}`,
-      text: "Mock PDF text content",
-      pages: 1,
-      tables: [
-        {
-          data: tableData,
-          page_number: 1,
-          table_number: 1,
-          rows: tableData.length,
-          columns: tableData[0].length
-        }
-      ],
+      text: text.substring(0, 500), // First 500 chars
+      pages: pdfData.numpages,
+      tables: tables,
       excel_data: excelBase64
     };
 
