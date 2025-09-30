@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx';
-import pdf from 'pdf-parse';
+import pdf from 'pdf-parse/lib/pdf-parse.js';
 
 export default async function handler(req, res) {
   // Set CORS headers
