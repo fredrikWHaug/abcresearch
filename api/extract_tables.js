@@ -1,3 +1,5 @@
+import * as XLSX from 'xlsx';
+
 export default async function handler(req, res) {
   // Set CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -20,8 +22,26 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'No PDF data provided' });
     }
 
-    // For now, return a mock response to test the flow
-    // TODO: Implement actual PDF parsing
+    // Create a proper Excel workbook with mock data
+    const workbook = XLSX.utils.book_new();
+    
+    // Create mock table data
+    const tableData = [
+      ["Header 1", "Header 2", "Header 3"],
+      ["Row 1 Col 1", "Row 1 Col 2", "Row 1 Col 3"],
+      ["Row 2 Col 1", "Row 2 Col 2", "Row 2 Col 3"],
+      ["Row 3 Col 1", "Row 3 Col 2", "Row 3 Col 3"]
+    ];
+    
+    // Add worksheet to workbook
+    const worksheet = XLSX.utils.aoa_to_sheet(tableData);
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Extracted Tables");
+    
+    // Generate Excel file buffer
+    const excelBuffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+    const excelBase64 = excelBuffer.toString('base64');
+
+    // Return response with proper Excel data
     const result = {
       success: true,
       message: `Successfully processed PDF: ${filename}`,
@@ -29,14 +49,14 @@ export default async function handler(req, res) {
       pages: 1,
       tables: [
         {
-          data: [["Header 1", "Header 2"], ["Row 1 Col 1", "Row 1 Col 2"]],
+          data: tableData,
           page_number: 1,
           table_number: 1,
-          rows: 2,
-          columns: 2
+          rows: tableData.length,
+          columns: tableData[0].length
         }
       ],
-      excel_data: "UEsDBBQAAAAIAAAAIQAAAAAAABQAAAAYAAAAXwAAAF9yZWxzLy5yZWxzUEsBAhQAFAAAAAgAAAAhAAAAAAAAAAAAAAAAAAAAAAABACAAAAAAAAAAACAAAAAAAAAAX3JlbHMvLnJlbHNQSwUGAAAAAAEAAQA1AAAAOgAAAAA="
+      excel_data: excelBase64
     };
 
     res.status(200).json(result);
