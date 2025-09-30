@@ -70,10 +70,14 @@ serve(async (req: Request) => {
     const vercelApiUrl = Deno.env.get('VERCEL_PYTHON_API_URL') || 'https://abcresearch.vercel.app/api/extract_tables'
     console.log('Calling Vercel Python API:', vercelApiUrl)
     
+    // Get bypass token from environment variable
+    const bypassToken = Deno.env.get('VERCEL_BYPASS_TOKEN')
+    
     const pythonResponse = await fetch(vercelApiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...(bypassToken && { 'x-vercel-protection-bypass': bypassToken })
       },
       body: JSON.stringify({
         pdf_data: base64,
