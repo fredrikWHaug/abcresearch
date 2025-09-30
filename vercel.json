@@ -4,7 +4,8 @@
       "maxDuration": 30
     },
     "api/extract_tables.py": {
-      "maxDuration": 30
+      "maxDuration": 30,
+      "runtime": "python3.9"
     }
   },
   "headers": [
