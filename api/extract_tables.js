@@ -35,7 +35,8 @@ export default async function handler(req, res) {
           rows: 2,
           columns: 2
         }
-      ]
+      ],
+      excel_data: "UEsDBBQAAAAIAAAAIQAAAAAAABQAAAAYAAAAXwAAAF9yZWxzLy5yZWxzUEsBAhQAFAAAAAgAAAAhAAAAAAAAAAAAAAAAAAAAAAABACAAAAAAAAAAACAAAAAAAAAAX3JlbHMvLnJlbHNQSwUGAAAAAAEAAQA1AAAAOgAAAAA="
     };
 
     res.status(200).json(result);
