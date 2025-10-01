@@ -33,6 +33,13 @@ export const PapersDiscovery: React.FC<PapersDiscoveryProps> = ({ query, papers,
     return 'bg-gray-100 text-gray-800';
   };
 
+  // Sort papers by publication date (most recent first)
+  const sortedPapers = [...papers].sort((a, b) => {
+    const dateA = new Date(a.publicationDate);
+    const dateB = new Date(b.publicationDate);
+    return dateB.getTime() - dateA.getTime(); // Descending order (newest first)
+  });
+
   return (
     <div className="h-full flex flex-col">
       {/* Content - Scrollable */}
@@ -48,7 +55,7 @@ export const PapersDiscovery: React.FC<PapersDiscoveryProps> = ({ query, papers,
             )}
             
             <div className="space-y-4">
-              {papers.map((paper) => (
+              {sortedPapers.map((paper) => (
               <Card 
                 key={paper.pmid} 
                 className={`hover:shadow-lg transition-shadow cursor-pointer ${
