@@ -6,8 +6,11 @@ import { LogOut, Send, Menu, ArrowUp, Upload, Download, CheckCircle, AlertCircle
 import { MarketMap } from '@/components/MarketMap'
 import { TrialsList } from '@/components/TrialsList'
 import { SavedMaps } from '@/components/SavedMaps'
+import { PapersDiscovery } from '@/components/PapersDiscovery'
 import { ClinicalTrialsAPI } from '@/services/clinicalTrialsAPI'
 import { EnhancedSearchAPI } from '@/services/enhancedSearchAPI'
+import { pubmedAPI } from '@/services/pubmedAPI'
+import type { PubMedArticle } from '@/services/pubmedAPI'
 import { MarketMapService, type SavedMarketMap } from '@/services/marketMapService'
 import { PDFExtractionService, type ExtractionResult } from '@/services/pdfExtractionService'
 import { supabase } from '@/lib/supabase'
@@ -114,7 +117,10 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
   const [lastQuery, setLastQuery] = useState('')
   const [chatHistory, setChatHistory] = useState<Array<{type: 'user' | 'system', message: string}>>([])
   const [hasSearched, setHasSearched] = useState(false)
+  const [papers, setPapers] = useState<PubMedArticle[]>([])
+  const [papersLoading, setPapersLoading] = useState(false)
   const [viewMode, setViewMode] = useState<'research' | 'marketmap' | 'savedmaps' | 'dataextraction'>(initialShowSavedMaps ? 'savedmaps' : 'research')
+  const [researchTab, setResearchTab] = useState<'trials' | 'papers'>('trials')
   const [slideData, setSlideData] = useState<SlideData | null>(null)
   const [generatingSlide, setGeneratingSlide] = useState(false)
   const [slideError, setSlideError] = useState<string | null>(null)
@@ -174,6 +180,9 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
         type: 'system', 
         message: responseMessage
       }]);
+
+      // Automatically search for papers related to the clinical trials
+      searchPapersForQuery(userMessage);
       
     } catch (error) {
       console.error('Error fetching trials:', error);
@@ -190,6 +199,26 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSendMessage()
+    }
+  }
+
+  // Automatically search for papers related to clinical trials
+  const searchPapersForQuery = async (query: string) => {
+    try {
+      setPapersLoading(true);
+      
+      // Search for papers using the same query that was used for clinical trials
+      const papersResult = await pubmedAPI.searchPapers({
+        query: `${query} AND ("Clinical Trial"[Publication Type] OR "Randomized Controlled Trial"[Publication Type])`,
+        maxResults: 30
+      });
+      
+      setPapers(papersResult);
+    } catch (error) {
+      console.error('Error searching for papers:', error);
+      // Don't show error to user since this is background search
+    } finally {
+      setPapersLoading(false);
     }
   }
 
@@ -464,8 +493,8 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
               {!selectedFile ? (
                 <div className="border-2 border-dashed border-gray-300 rounded-lg p-12 text-center hover:border-blue-400 transition-colors cursor-pointer group">
-                  <div className="mx-auto w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mb-4 group-hover:bg-blue-100 transition-colors">
-                    <Upload className="w-8 h-8 text-blue-600" />
+                  <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4 group-hover:bg-gray-200 transition-colors">
+                    <Upload className="w-8 h-8 text-gray-800" />
                   </div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">Upload PDF Document</h3>
                   <p className="text-gray-600 mb-4">Drag and drop your PDF file here, or click to browse</p>
@@ -478,7 +507,7 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
                   />
                   <button 
                     onClick={() => fileInputRef.current?.click()}
-                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-gray-800 hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors"
                   >
                     <Upload className="w-4 h-4 mr-2" />
                     Choose File
@@ -579,6 +608,43 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
     <div className="h-screen flex flex-col relative">
       <Header />
       
+      {/* Research Tab Navigation - Flush with right panel borders */}
+      <div className="absolute z-20" style={{ left: '50%', right: '0', top: '64px' }}>
+        <div className="flex items-center justify-center gap-4 bg-white border-b border-gray-200 px-6 py-3 h-16">
+          {/* Toggle Buttons */}
+          <div className="flex rounded-lg bg-gray-100 p-1 w-[20rem]">
+            <button
+              onClick={() => setResearchTab('trials')}
+              className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
+                researchTab === 'trials'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Clinical Trials
+            </button>
+            <button
+              onClick={() => setResearchTab('papers')}
+              className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
+                researchTab === 'papers'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Research Papers
+            </button>
+          </div>
+          
+          {/* Loading Indicator for Papers */}
+          {researchTab === 'papers' && papersLoading && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600"></div>
+              Searching papers...
+            </div>
+          )}
+        </div>
+      </div>
+      
       {/* Vertical separator line - spans from header to bottom with precise centering */}
       <div 
         className="absolute w-px h-full bg-gray-200 z-10 top-0 pointer-events-none"
@@ -599,7 +665,11 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
                   className={`flex ${item.type === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
                   <div
-                    className="max-w-[80%] p-4 rounded-lg border border-gray-200 bg-gray-50 text-gray-700"
+                    className={`max-w-[80%] p-4 rounded-lg border ${
+                      item.type === 'user' 
+                        ? 'bg-gray-800 text-white border-gray-700' 
+                        : 'bg-gray-50 text-gray-700 border-gray-200'
+                    }`}
                   >
                     <div className="text-sm leading-relaxed">
                       {item.message}
@@ -635,9 +705,18 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
           </div>
         </div>
 
-        {/* Right Half - Trials List */}
-        <div className="w-1/2 bg-gray-50 overflow-hidden">
-          <TrialsList trials={trials} loading={loading} query={lastQuery} />
+        {/* Right Half - Trials List or Papers Discovery */}
+        <div className="w-1/2 bg-gray-50 overflow-hidden" style={{ paddingTop: '80px' }}>
+          {researchTab === 'trials' ? (
+            <TrialsList trials={trials} loading={loading} query={lastQuery} />
+          ) : (
+            <PapersDiscovery 
+              trials={trials} 
+              query={lastQuery} 
+              papers={papers}
+              loading={papersLoading}
+            />
+          )}
         </div>
       </div>
     </div>

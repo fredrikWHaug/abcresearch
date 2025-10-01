@@ -150,7 +150,7 @@ export function MarketMap({
           </div>
           <Button
             onClick={handleGenerateSlide}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 text-lg font-semibold rounded-lg shadow-lg hover:shadow-xl transition-all duration-200"
+            className="bg-gray-800 hover:bg-gray-900 text-white px-8 py-4 text-lg font-semibold rounded-lg shadow-lg hover:shadow-xl transition-all duration-200"
           >
             <FileText className="h-5 w-5 mr-2" />
             Generate Market Map
@@ -319,7 +319,7 @@ export function MarketMap({
                 <Button
                   onClick={handleSaveMarketMap}
                   disabled={saving || !saveName.trim()}
-                  className="bg-green-600 hover:bg-green-700 text-white"
+                  className="bg-gray-800 hover:bg-gray-900 text-white"
                 >
                   {saving ? (
                     <>
