@@ -13,7 +13,7 @@ interface PapersDiscoveryProps {
   loading: boolean;
 }
 
-export const PapersDiscovery: React.FC<PapersDiscoveryProps> = ({ papers, loading }) => {
+export const PapersDiscovery: React.FC<PapersDiscoveryProps> = ({ query, papers, loading }) => {
   const [selectedPapers, setSelectedPapers] = useState<Set<string>>(new Set());
 
 
@@ -35,24 +35,6 @@ export const PapersDiscovery: React.FC<PapersDiscoveryProps> = ({ papers, loadin
 
   return (
     <div className="h-full flex flex-col">
-      {/* Header - Fixed */}
-      <div className="flex-shrink-0 p-4 border-b bg-white">
-        <div className="flex justify-between items-center">
-          <div>
-            <h2 className="text-2xl font-bold">Related Research Papers</h2>
-            <p className="text-sm text-muted-foreground mt-1">
-              Academic papers related to your clinical trial search
-            </p>
-          </div>
-          {loading && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600"></div>
-              Searching papers...
-            </div>
-          )}
-        </div>
-      </div>
-
       {/* Content - Scrollable */}
       <div className="flex-1 overflow-y-auto p-4">
         {papers.length > 0 && (
@@ -155,11 +137,11 @@ export const PapersDiscovery: React.FC<PapersDiscoveryProps> = ({ papers, loadin
         )}
 
         {papers.length === 0 && !loading && (
-          <div className="text-center py-8">
-            <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <p className="text-muted-foreground">
-              No papers found for this search. Try a different search query.
-            </p>
+          <div className="w-full h-full flex items-center justify-center">
+            <div className="text-center">
+              <p className="text-gray-600">No papers found for: "{query}"</p>
+              <p className="text-sm text-gray-500 mt-2">Try adjusting your search terms</p>
+            </div>
           </div>
         )}
       </div>

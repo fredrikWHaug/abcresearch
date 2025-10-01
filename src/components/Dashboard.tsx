@@ -608,29 +608,40 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
     <div className="h-screen flex flex-col relative">
       <Header />
       
-      {/* Research Tab Navigation */}
-      <div className="bg-white border-b border-gray-200 px-6 py-3">
-        <div className="flex gap-1">
-          <button
-            onClick={() => setResearchTab('trials')}
-            className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-              researchTab === 'trials'
-                ? 'bg-blue-100 text-blue-700'
-                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-            }`}
-          >
-            Clinical Trials
-          </button>
-          <button
-            onClick={() => setResearchTab('papers')}
-            className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-              researchTab === 'papers'
-                ? 'bg-blue-100 text-blue-700'
-                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-            }`}
-          >
-            Research Papers
-          </button>
+      {/* Research Tab Navigation - Flush with right panel borders */}
+      <div className="absolute z-20" style={{ left: '50%', right: '0', top: '64px' }}>
+        <div className="flex items-center justify-center gap-4 bg-white border-b border-gray-200 px-6 py-3 h-16">
+          {/* Toggle Buttons */}
+          <div className="flex rounded-lg bg-gray-100 p-1 w-[20rem]">
+            <button
+              onClick={() => setResearchTab('trials')}
+              className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
+                researchTab === 'trials'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Clinical Trials
+            </button>
+            <button
+              onClick={() => setResearchTab('papers')}
+              className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
+                researchTab === 'papers'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Research Papers
+            </button>
+          </div>
+          
+          {/* Loading Indicator for Papers */}
+          {researchTab === 'papers' && papersLoading && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600"></div>
+              Searching papers...
+            </div>
+          )}
         </div>
       </div>
       
