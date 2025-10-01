@@ -39,16 +39,13 @@ export const PapersDiscovery: React.FC<PapersDiscoveryProps> = ({ query, papers,
       <div className="flex-1 overflow-y-auto p-4">
         {papers.length > 0 && (
           <div className="space-y-4">
-            <div className="flex justify-between items-center">
-              <p className="text-sm text-muted-foreground">
-                Found {papers.length} papers
-              </p>
-              {selectedPapers.size > 0 && (
+            {selectedPapers.size > 0 && (
+              <div className="flex justify-end">
                 <Button variant="outline" size="sm">
                   Export Selected ({selectedPapers.size})
                 </Button>
-              )}
-            </div>
+              </div>
+            )}
             
             <div className="space-y-4">
               {papers.map((paper) => (

@@ -665,7 +665,11 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
                   className={`flex ${item.type === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
                   <div
-                    className="max-w-[80%] p-4 rounded-lg border border-gray-200 bg-gray-50 text-gray-700"
+                    className={`max-w-[80%] p-4 rounded-lg border ${
+                      item.type === 'user' 
+                        ? 'bg-gray-800 text-white border-gray-700' 
+                        : 'bg-gray-50 text-gray-700 border-gray-200'
+                    }`}
                   >
                     <div className="text-sm leading-relaxed">
                       {item.message}
