@@ -122,7 +122,7 @@ export function SavedMaps({ onLoadMap, onDeleteMap }: SavedMapsProps) {
                 <div className="flex gap-2 ml-4">
                   <Button
                     onClick={() => onLoadMap(map)}
-                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                    className="bg-gray-800 hover:bg-gray-900 text-white"
                     size="sm"
                   >
                     Load

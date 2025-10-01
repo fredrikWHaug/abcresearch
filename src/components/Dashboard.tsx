@@ -493,8 +493,8 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
               {!selectedFile ? (
                 <div className="border-2 border-dashed border-gray-300 rounded-lg p-12 text-center hover:border-blue-400 transition-colors cursor-pointer group">
-                  <div className="mx-auto w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mb-4 group-hover:bg-blue-100 transition-colors">
-                    <Upload className="w-8 h-8 text-blue-600" />
+                  <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4 group-hover:bg-gray-200 transition-colors">
+                    <Upload className="w-8 h-8 text-gray-800" />
                   </div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">Upload PDF Document</h3>
                   <p className="text-gray-600 mb-4">Drag and drop your PDF file here, or click to browse</p>
@@ -507,7 +507,7 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
                   />
                   <button 
                     onClick={() => fileInputRef.current?.click()}
-                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-gray-800 hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors"
                   >
                     <Upload className="w-4 h-4 mr-2" />
                     Choose File
