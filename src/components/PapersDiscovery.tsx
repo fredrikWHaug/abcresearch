@@ -54,35 +54,40 @@ export const PapersDiscovery: React.FC<PapersDiscoveryProps> = ({ query }) => {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-bold">Related Research Papers</h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            Find academic papers related to your clinical trial search
-          </p>
+    <div className="h-full flex flex-col">
+      {/* Header - Fixed */}
+      <div className="flex-shrink-0 p-4 border-b bg-white">
+        <div className="flex justify-between items-center">
+          <div>
+            <h2 className="text-2xl font-bold">Related Research Papers</h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              Find academic papers related to your clinical trial search
+            </p>
+          </div>
+          <Button onClick={searchPapers} disabled={loading}>
+            <FileText className="mr-2 h-4 w-4" />
+            {loading ? 'Searching...' : 'Find Papers'}
+          </Button>
         </div>
-        <Button onClick={searchPapers} disabled={loading}>
-          <FileText className="mr-2 h-4 w-4" />
-          {loading ? 'Searching...' : 'Find Papers'}
-        </Button>
       </div>
 
-      {papers.length > 0 && (
-        <div className="space-y-4">
-          <div className="flex justify-between items-center">
-            <p className="text-sm text-muted-foreground">
-              Found {papers.length} papers
-            </p>
-            {selectedPapers.size > 0 && (
-              <Button variant="outline" size="sm">
-                Export Selected ({selectedPapers.size})
-              </Button>
-            )}
-          </div>
-          
-          <div className="grid gap-4">
-            {papers.map((paper) => (
+      {/* Content - Scrollable */}
+      <div className="flex-1 overflow-y-auto p-4">
+        {papers.length > 0 && (
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <p className="text-sm text-muted-foreground">
+                Found {papers.length} papers
+              </p>
+              {selectedPapers.size > 0 && (
+                <Button variant="outline" size="sm">
+                  Export Selected ({selectedPapers.size})
+                </Button>
+              )}
+            </div>
+            
+            <div className="space-y-4">
+              {papers.map((paper) => (
               <Card 
                 key={paper.pmid} 
                 className={`hover:shadow-lg transition-shadow cursor-pointer ${
@@ -162,19 +167,20 @@ export const PapersDiscovery: React.FC<PapersDiscoveryProps> = ({ query }) => {
                   </div>
                 </CardContent>
               </Card>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {papers.length === 0 && !loading && (
-        <div className="text-center py-8">
-          <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-          <p className="text-muted-foreground">
-            Click "Find Papers" to search for academic papers related to your clinical trials
-          </p>
-        </div>
-      )}
+        {papers.length === 0 && !loading && (
+          <div className="text-center py-8">
+            <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <p className="text-muted-foreground">
+              Click "Find Papers" to search for academic papers related to your clinical trials
+            </p>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
