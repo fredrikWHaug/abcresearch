@@ -6,6 +6,7 @@ import { LogOut, Send, Menu, ArrowUp, Upload, Download, CheckCircle, AlertCircle
 import { MarketMap } from '@/components/MarketMap'
 import { TrialsList } from '@/components/TrialsList'
 import { SavedMaps } from '@/components/SavedMaps'
+import { PapersDiscovery } from '@/components/PapersDiscovery'
 import { ClinicalTrialsAPI } from '@/services/clinicalTrialsAPI'
 import { EnhancedSearchAPI } from '@/services/enhancedSearchAPI'
 import { MarketMapService, type SavedMarketMap } from '@/services/marketMapService'
@@ -115,6 +116,7 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
   const [chatHistory, setChatHistory] = useState<Array<{type: 'user' | 'system', message: string}>>([])
   const [hasSearched, setHasSearched] = useState(false)
   const [viewMode, setViewMode] = useState<'research' | 'marketmap' | 'savedmaps' | 'dataextraction'>(initialShowSavedMaps ? 'savedmaps' : 'research')
+  const [researchTab, setResearchTab] = useState<'trials' | 'papers'>('trials')
   const [slideData, setSlideData] = useState<SlideData | null>(null)
   const [generatingSlide, setGeneratingSlide] = useState(false)
   const [slideError, setSlideError] = useState<string | null>(null)
@@ -579,6 +581,32 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
     <div className="h-screen flex flex-col relative">
       <Header />
       
+      {/* Research Tab Navigation */}
+      <div className="bg-white border-b border-gray-200 px-6 py-3">
+        <div className="flex gap-1">
+          <button
+            onClick={() => setResearchTab('trials')}
+            className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+              researchTab === 'trials'
+                ? 'bg-blue-100 text-blue-700'
+                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+            }`}
+          >
+            Clinical Trials
+          </button>
+          <button
+            onClick={() => setResearchTab('papers')}
+            className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+              researchTab === 'papers'
+                ? 'bg-blue-100 text-blue-700'
+                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+            }`}
+          >
+            Research Papers
+          </button>
+        </div>
+      </div>
+      
       {/* Vertical separator line - spans from header to bottom with precise centering */}
       <div 
         className="absolute w-px h-full bg-gray-200 z-10 top-0 pointer-events-none"
@@ -635,9 +663,13 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
           </div>
         </div>
 
-        {/* Right Half - Trials List */}
+        {/* Right Half - Trials List or Papers Discovery */}
         <div className="w-1/2 bg-gray-50 overflow-hidden">
-          <TrialsList trials={trials} loading={loading} query={lastQuery} />
+          {researchTab === 'trials' ? (
+            <TrialsList trials={trials} loading={loading} query={lastQuery} />
+          ) : (
+            <PapersDiscovery trials={trials} query={lastQuery} />
+          )}
         </div>
       </div>
     </div>
