@@ -702,7 +702,7 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
         </div>
 
         {/* Right Half - Trials List or Papers Discovery */}
-        <div className="w-1/2 bg-gray-50 overflow-hidden">
+        <div className="w-1/2 bg-gray-50 overflow-hidden" style={{ paddingTop: '80px' }}>
           {researchTab === 'trials' ? (
             <TrialsList trials={trials} loading={loading} query={lastQuery} />
           ) : (
