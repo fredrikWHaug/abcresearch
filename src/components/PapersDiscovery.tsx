@@ -9,33 +9,13 @@ import type { ClinicalTrial } from '@/services/clinicalTrialsAPI';
 interface PapersDiscoveryProps {
   trials: ClinicalTrial[];
   query: string;
+  papers: PubMedArticle[];
+  loading: boolean;
 }
 
-export const PapersDiscovery: React.FC<PapersDiscoveryProps> = ({ query }) => {
-  const [papers, setPapers] = useState<PubMedArticle[]>([]);
-  const [loading, setLoading] = useState(false);
+export const PapersDiscovery: React.FC<PapersDiscoveryProps> = ({ papers, loading }) => {
   const [selectedPapers, setSelectedPapers] = useState<Set<string>>(new Set());
 
-  const searchPapers = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch('/api/search-papers', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          query: `${query} AND ("Clinical Trial"[Publication Type] OR "Randomized Controlled Trial"[Publication Type])`,
-          maxResults: 30
-        })
-      });
-      
-      const data = await response.json();
-      setPapers(data.papers || []);
-    } catch (error) {
-      console.error('Failed to search papers:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handlePaperSelect = (pmid: string) => {
     const newSelected = new Set(selectedPapers);
@@ -61,13 +41,15 @@ export const PapersDiscovery: React.FC<PapersDiscoveryProps> = ({ query }) => {
           <div>
             <h2 className="text-2xl font-bold">Related Research Papers</h2>
             <p className="text-sm text-muted-foreground mt-1">
-              Find academic papers related to your clinical trial search
+              Academic papers related to your clinical trial search
             </p>
           </div>
-          <Button onClick={searchPapers} disabled={loading}>
-            <FileText className="mr-2 h-4 w-4" />
-            {loading ? 'Searching...' : 'Find Papers'}
-          </Button>
+          {loading && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600"></div>
+              Searching papers...
+            </div>
+          )}
         </div>
       </div>
 
@@ -176,7 +158,7 @@ export const PapersDiscovery: React.FC<PapersDiscoveryProps> = ({ query }) => {
           <div className="text-center py-8">
             <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <p className="text-muted-foreground">
-              Click "Find Papers" to search for academic papers related to your clinical trials
+              No papers found for this search. Try a different search query.
             </p>
           </div>
         )}

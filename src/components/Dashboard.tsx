@@ -9,6 +9,8 @@ import { SavedMaps } from '@/components/SavedMaps'
 import { PapersDiscovery } from '@/components/PapersDiscovery'
 import { ClinicalTrialsAPI } from '@/services/clinicalTrialsAPI'
 import { EnhancedSearchAPI } from '@/services/enhancedSearchAPI'
+import { pubmedAPI } from '@/services/pubmedAPI'
+import type { PubMedArticle } from '@/services/pubmedAPI'
 import { MarketMapService, type SavedMarketMap } from '@/services/marketMapService'
 import { PDFExtractionService, type ExtractionResult } from '@/services/pdfExtractionService'
 import { supabase } from '@/lib/supabase'
@@ -115,6 +117,8 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
   const [lastQuery, setLastQuery] = useState('')
   const [chatHistory, setChatHistory] = useState<Array<{type: 'user' | 'system', message: string}>>([])
   const [hasSearched, setHasSearched] = useState(false)
+  const [papers, setPapers] = useState<PubMedArticle[]>([])
+  const [papersLoading, setPapersLoading] = useState(false)
   const [viewMode, setViewMode] = useState<'research' | 'marketmap' | 'savedmaps' | 'dataextraction'>(initialShowSavedMaps ? 'savedmaps' : 'research')
   const [researchTab, setResearchTab] = useState<'trials' | 'papers'>('trials')
   const [slideData, setSlideData] = useState<SlideData | null>(null)
@@ -176,6 +180,9 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
         type: 'system', 
         message: responseMessage
       }]);
+
+      // Automatically search for papers related to the clinical trials
+      searchPapersForQuery(userMessage);
       
     } catch (error) {
       console.error('Error fetching trials:', error);
@@ -192,6 +199,26 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSendMessage()
+    }
+  }
+
+  // Automatically search for papers related to clinical trials
+  const searchPapersForQuery = async (query: string) => {
+    try {
+      setPapersLoading(true);
+      
+      // Search for papers using the same query that was used for clinical trials
+      const papersResult = await pubmedAPI.searchPapers({
+        query: `${query} AND ("Clinical Trial"[Publication Type] OR "Randomized Controlled Trial"[Publication Type])`,
+        maxResults: 30
+      });
+      
+      setPapers(papersResult);
+    } catch (error) {
+      console.error('Error searching for papers:', error);
+      // Don't show error to user since this is background search
+    } finally {
+      setPapersLoading(false);
     }
   }
 
@@ -668,7 +695,12 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
           {researchTab === 'trials' ? (
             <TrialsList trials={trials} loading={loading} query={lastQuery} />
           ) : (
-            <PapersDiscovery trials={trials} query={lastQuery} />
+            <PapersDiscovery 
+              trials={trials} 
+              query={lastQuery} 
+              papers={papers}
+              loading={papersLoading}
+            />
           )}
         </div>
       </div>
