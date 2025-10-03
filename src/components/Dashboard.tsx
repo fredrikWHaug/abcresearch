@@ -173,7 +173,7 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
       setTrials(result.trials);
       
       // Generate a natural, informative response based on the results
-      const responseMessage = generateSearchResponse(result, userMessage);
+      const responseMessage = await generateSearchResponse(result, userMessage);
       
       // Add system response to chat history
       setChatHistory(prev => [...prev, { 
@@ -222,37 +222,44 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
     }
   }
 
-  const generateSearchResponse = (result: any, userQuery: string): string => {
-    const { trials, searchStrategies } = result;
-    const totalTrials = trials.length;
-    
-    if (totalTrials === 0) {
-      return `I couldn't find any clinical trials matching "${userQuery}". Try using different keywords or broader terms like "cancer", "diabetes", or "Phase 2 trials".`;
+  const generateSearchResponse = async (result: any, userQuery: string): Promise<string> => {
+    try {
+      // Prepare search results data for the AI
+      const searchResults = {
+        trials: result.trials,
+        papers: papers, // Use the papers state from the component
+        totalCount: result.trials.length,
+        searchStrategies: result.searchStrategies
+      };
+
+      const response = await fetch('/api/generate-response', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userQuery,
+          searchResults
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`API request failed: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      return data.response;
+    } catch (error) {
+      console.error('Error generating AI response:', error);
+      
+      // Fallback to a simple response if AI fails
+      const totalTrials = result.trials.length;
+      if (totalTrials === 0) {
+        return `I couldn't find any clinical trials matching "${userQuery}". Try using different keywords or broader terms like "cancer", "diabetes", or "Phase 2 trials".`;
+      }
+      
+      return `I found ${totalTrials} clinical trials and ${papers.length} research papers for "${userQuery}". The results are displayed in the Research and Market Map tabs.`;
     }
-    
-    // Analyze the results
-    const recruitingCount = trials.filter((t: any) => t.overallStatus === 'RECRUITING').length;
-    const phase3Count = trials.filter((t: any) => t.phase?.some((p: string) => p.includes('3'))).length;
-    const topSponsors = [...new Set(trials.map((t: any) => t.sponsors?.lead).filter(Boolean))].slice(0, 3);
-    
-    // Generate natural response
-    let response = `Great! I found ${totalTrials} clinical trials for "${userQuery}". `;
-    
-    if (recruitingCount > 0) {
-      response += `${recruitingCount} are currently recruiting participants. `;
-    }
-    
-    if (phase3Count > 0) {
-      response += `${phase3Count} are in Phase 3 (late-stage trials). `;
-    }
-    
-    if (topSponsors.length > 0) {
-      response += `Key sponsors include ${topSponsors.join(', ')}. `;
-    }
-    
-    response += `The results are ranked by relevance and displayed in the Market Map. You can also view them in the Research tab.`;
-    
-    return response;
   }
 
   // Shared header component
