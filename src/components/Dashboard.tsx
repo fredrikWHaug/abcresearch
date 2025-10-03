@@ -161,6 +161,8 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
     try {
       setLoading(true);
       
+      console.log('Sending request to generate-response API with query:', userMessage);
+      
       // First, get intent classification and response
       const response = await fetch('/api/generate-response', {
         method: 'POST',
@@ -172,11 +174,17 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
         })
       });
 
+      console.log('Response status:', response.status);
+      console.log('Response headers:', response.headers);
+
       if (!response.ok) {
-        throw new Error(`API request failed: ${response.statusText}`);
+        const errorText = await response.text();
+        console.error('API error response:', errorText);
+        throw new Error(`API request failed: ${response.status} - ${errorText}`);
       }
 
       const data = await response.json();
+      console.log('API response data:', data);
       
       // Add AI response to chat history
       setChatHistory(prev => [...prev, { 
