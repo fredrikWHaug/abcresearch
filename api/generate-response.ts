@@ -19,6 +19,12 @@ interface GenerateResponseResponse {
   response: string;
   shouldSearch: boolean;
   searchQuery?: string;
+  searchSuggestions?: Array<{
+    id: string;
+    label: string;
+    query: string;
+    description?: string;
+  }>;
   intent: 'greeting' | 'search_request' | 'follow_up' | 'clarification' | 'general_question';
 }
 
@@ -81,6 +87,14 @@ Return ONLY a JSON object with this exact structure:
   "intent": "greeting|search_request|follow_up|clarification|general_question",
   "shouldSearch": true|false,
   "searchQuery": "extracted search terms or null",
+  "searchSuggestions": [
+    {
+      "id": "unique_id",
+      "label": "Button text",
+      "query": "search terms",
+      "description": "optional description"
+    }
+  ],
   "responseType": "conversational|search_suggestion|clarification_request"
 }`;
 
@@ -250,6 +264,7 @@ Keep it conversational, helpful, and professional. 1-2 sentences max.`;
       response: conversationalResult,
       shouldSearch: intentResult.shouldSearch,
       searchQuery: intentResult.searchQuery,
+      searchSuggestions: intentResult.searchSuggestions || [],
       intent: intentResult.intent
     });
 
