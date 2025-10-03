@@ -120,7 +120,7 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
   const [papers, setPapers] = useState<PubMedArticle[]>([])
   const [papersLoading, setPapersLoading] = useState(false)
   const [viewMode, setViewMode] = useState<'research' | 'marketmap' | 'savedmaps' | 'dataextraction'>(initialShowSavedMaps ? 'savedmaps' : 'research')
-  const [researchTab, setResearchTab] = useState<'trials' | 'papers'>('trials')
+  const [researchTab, setResearchTab] = useState<'trials' | 'papers'>('papers')
   const [slideData, setSlideData] = useState<SlideData | null>(null)
   const [generatingSlide, setGeneratingSlide] = useState(false)
   const [slideError, setSlideError] = useState<string | null>(null)
@@ -636,16 +636,6 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
           {/* Toggle Buttons */}
           <div className="flex rounded-lg bg-gray-100 p-1 w-[20rem]">
             <button
-              onClick={() => setResearchTab('trials')}
-              className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
-                researchTab === 'trials'
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              Clinical Trials
-            </button>
-            <button
               onClick={() => setResearchTab('papers')}
               className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
                 researchTab === 'papers'
@@ -654,6 +644,16 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
               }`}
             >
               Research Papers
+            </button>
+            <button
+              onClick={() => setResearchTab('trials')}
+              className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
+                researchTab === 'trials'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Clinical Trials
             </button>
           </div>
           
@@ -750,17 +750,17 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
           </div>
         </div>
 
-        {/* Right Half - Trials List or Papers Discovery */}
+        {/* Right Half - Papers Discovery or Trials List */}
         <div className="w-1/2 bg-gray-50 overflow-hidden" style={{ paddingTop: '80px' }}>
-          {researchTab === 'trials' ? (
-            <TrialsList trials={trials} loading={loading} query={lastQuery} />
-          ) : (
+          {researchTab === 'papers' ? (
             <PapersDiscovery 
               trials={trials} 
               query={lastQuery} 
               papers={papers}
               loading={papersLoading}
             />
+          ) : (
+            <TrialsList trials={trials} loading={loading} query={lastQuery} />
           )}
         </div>
       </div>
