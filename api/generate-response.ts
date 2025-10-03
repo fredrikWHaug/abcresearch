@@ -23,22 +23,42 @@ interface GenerateResponseResponse {
 }
 
 export default async function handler(req: any, res: any) {
+  console.log('API endpoint called with method:', req.method);
+  console.log('Request body:', req.body);
+  
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
     const { userQuery, searchResults }: GenerateResponseRequest = req.body;
+    console.log('Parsed userQuery:', userQuery);
+    console.log('Parsed searchResults:', searchResults);
 
     if (!userQuery) {
+      console.log('No userQuery provided');
       return res.status(400).json({ error: 'User query is required' });
     }
 
     const geminiApiKey = process.env.GOOGLE_GEMINI_API_KEY;
+    console.log('Gemini API key exists:', !!geminiApiKey);
     if (!geminiApiKey) {
       return res.status(500).json({ error: 'Google Gemini API key not configured' });
     }
 
+    // Temporary test response to verify API is working
+    if (userQuery === 'test') {
+      console.log('Returning test response');
+      return res.status(200).json({
+        success: true,
+        response: 'Test response working!',
+        shouldSearch: false,
+        searchQuery: null,
+        intent: 'general_question'
+      });
+    }
+
+    console.log('Starting intent classification...');
     // First, classify the user's intent
     const intentPrompt = `You are a medical research assistant. Classify the user's message and determine if they want to search for research.
 
