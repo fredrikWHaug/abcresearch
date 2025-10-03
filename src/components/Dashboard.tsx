@@ -154,8 +154,6 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
     
     const userMessage = message.trim();
     setMessage('');
-    setLastQuery(userMessage);
-    setHasSearched(true);
     
     // Add user message to chat history
     setChatHistory(prev => [...prev, { type: 'user', message: userMessage }]);
@@ -163,32 +161,37 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
     try {
       setLoading(true);
       
-      // Reset slide data when performing a new search
-      setSlideData(null);
-      setSlideError(null);
+      // First, get intent classification and response
+      const response = await fetch('/api/generate-response', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userQuery: userMessage
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`API request failed: ${response.statusText}`);
+      }
+
+      const data = await response.json();
       
-      // Use enhanced search with AI-powered query expansion
-      const result = await EnhancedSearchAPI.searchWithEnhancement(userMessage);
-      
-      setTrials(result.trials);
-      
-      // Generate a natural, informative response based on the results
-      const responseMessage = await generateSearchResponse(result, userMessage);
-      
-      // Add system response to chat history
+      // Add AI response to chat history
       setChatHistory(prev => [...prev, { 
         type: 'system', 
-        message: responseMessage
+        message: data.response
       }]);
 
-      // Automatically search for papers related to the clinical trials
-      searchPapersForQuery(userMessage);
+      // If the AI suggests a search, we'll handle that in the next phase
+      // For now, we'll just show the conversational response
       
     } catch (error) {
-      console.error('Error fetching trials:', error);
+      console.error('Error getting AI response:', error);
       setChatHistory(prev => [...prev, { 
         type: 'system', 
-        message: 'Sorry, there was an error fetching the clinical trials. Please try again.' 
+        message: 'Sorry, there was an error processing your message. Please try again.' 
       }]);
     } finally {
       setLoading(false);
@@ -222,45 +225,6 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
     }
   }
 
-  const generateSearchResponse = async (result: any, userQuery: string): Promise<string> => {
-    try {
-      // Prepare search results data for the AI
-      const searchResults = {
-        trials: result.trials,
-        papers: papers, // Use the papers state from the component
-        totalCount: result.trials.length,
-        searchStrategies: result.searchStrategies
-      };
-
-      const response = await fetch('/api/generate-response', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          userQuery,
-          searchResults
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(`API request failed: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      return data.response;
-    } catch (error) {
-      console.error('Error generating AI response:', error);
-      
-      // Fallback to a simple response if AI fails
-      const totalTrials = result.trials.length;
-      if (totalTrials === 0) {
-        return `I couldn't find any clinical trials matching "${userQuery}". Try using different keywords or broader terms like "cancer", "diabetes", or "Phase 2 trials".`;
-      }
-      
-      return `I found ${totalTrials} clinical trials and ${papers.length} research papers for "${userQuery}". The results are displayed in the Research and Market Map tabs.`;
-    }
-  }
 
   // Shared header component
   const Header = () => (
