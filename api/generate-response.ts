@@ -117,7 +117,9 @@ Return ONLY a JSON object with this exact structure:
     });
 
     if (!intentResponse.ok) {
-      throw new Error('Failed to classify intent');
+      const errorText = await intentResponse.text();
+      console.error('Gemini API error:', intentResponse.status, errorText);
+      throw new Error(`Failed to classify intent: ${intentResponse.status} - ${errorText}`);
     }
 
     const intentData = await intentResponse.json();
