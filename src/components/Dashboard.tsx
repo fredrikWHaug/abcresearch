@@ -187,10 +187,15 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
       console.log('API response data:', data);
       
       // Add AI response to chat history
-      setChatHistory(prev => [...prev, { 
-        type: 'system', 
-        message: data.response
-      }]);
+      console.log('Adding response to chat history:', data.response);
+      setChatHistory(prev => {
+        const newHistory = [...prev, { 
+          type: 'system' as const, 
+          message: data.response
+        }];
+        console.log('New chat history:', newHistory);
+        return newHistory;
+      });
 
       // If the AI suggests a search, we'll handle that in the next phase
       // For now, we'll just show the conversational response
