@@ -115,7 +115,7 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
   const [trials, setTrials] = useState<ClinicalTrial[]>([])
   const [loading, setLoading] = useState(false)
   const [lastQuery, setLastQuery] = useState('')
-  const [chatHistory, setChatHistory] = useState<Array<{type: 'user' | 'system', message: string}>>([])
+  const [chatHistory, setChatHistory] = useState<Array<{type: 'user' | 'system', message: string, searchSuggestions?: Array<{id: string, label: string, query: string, description?: string}>}>>([])
   const [hasSearched, setHasSearched] = useState(false)
   const [papers, setPapers] = useState<PubMedArticle[]>([])
   const [papersLoading, setPapersLoading] = useState(false)
@@ -189,10 +189,12 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
       
       // Add AI response to chat history
       console.log('Adding response to chat history:', data.response);
+      console.log('Search suggestions:', data.searchSuggestions);
       setChatHistory(prev => {
         const newHistory = [...prev, { 
           type: 'system' as const, 
-          message: data.response
+          message: data.response,
+          searchSuggestions: data.searchSuggestions || []
         }];
         console.log('New chat history:', newHistory);
         return newHistory;
@@ -217,6 +219,40 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSendMessage()
+    }
+  }
+
+  const handleSearchSuggestion = async (suggestion: {id: string, label: string, query: string, description?: string}) => {
+    console.log('Search suggestion clicked:', suggestion);
+    
+    try {
+      setLoading(true);
+      setLastQuery(suggestion.query);
+      
+      // Use enhanced search with AI-powered query expansion
+      const result = await EnhancedSearchAPI.searchWithEnhancement(suggestion.query);
+      
+      setTrials(result.trials);
+      
+      // Search for papers related to the clinical trials
+      await searchPapersForQuery(suggestion.query);
+      
+      // Add search execution message to chat
+      setChatHistory(prev => [...prev, { 
+        type: 'system' as const, 
+        message: `I've conducted a search for "${suggestion.query}" and found ${result.trials.length} clinical trials and ${papers.length} research papers. The results are displayed in the Research and Market Map tabs.`,
+        searchSuggestions: []
+      }]);
+      
+    } catch (error) {
+      console.error('Error executing search suggestion:', error);
+      setChatHistory(prev => [...prev, { 
+        type: 'system' as const, 
+        message: 'Sorry, there was an error conducting the search. Please try again.',
+        searchSuggestions: []
+      }]);
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -660,6 +696,29 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
                     <div className="text-sm leading-relaxed">
                       {item.message}
                     </div>
+                    
+                    {/* Search Suggestions */}
+                    {item.searchSuggestions && item.searchSuggestions.length > 0 && (
+                      <div className="mt-3 space-y-2">
+                        {item.searchSuggestions.map((suggestion) => (
+                          <button
+                            key={suggestion.id}
+                            onClick={() => handleSearchSuggestion(suggestion)}
+                            className="w-full text-left p-3 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors"
+                          >
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                              <span className="font-medium text-blue-900">{suggestion.label}</span>
+                            </div>
+                            {suggestion.description && (
+                              <div className="text-xs text-blue-700 mt-1 ml-4">
+                                {suggestion.description}
+                              </div>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
