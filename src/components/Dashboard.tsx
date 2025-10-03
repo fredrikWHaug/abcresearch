@@ -154,6 +154,7 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
     
     const userMessage = message.trim();
     setMessage('');
+    setHasSearched(true);
     
     // Add user message to chat history
     setChatHistory(prev => [...prev, { type: 'user', message: userMessage }]);
