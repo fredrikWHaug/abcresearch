@@ -253,7 +253,9 @@ Keep it conversational, helpful, and professional. 1-2 sentences max.`;
     });
 
     if (!conversationalResponse.ok) {
-      throw new Error('Failed to generate conversational response');
+      const errorText = await conversationalResponse.text();
+      console.error('Conversational response API error:', conversationalResponse.status, errorText);
+      throw new Error(`Failed to generate conversational response: ${conversationalResponse.status} - ${errorText}`);
     }
 
     const conversationalData = await conversationalResponse.json();
