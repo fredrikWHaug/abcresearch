@@ -189,9 +189,10 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
       
     } catch (error) {
       console.error('Error getting AI response:', error);
+      
       setChatHistory(prev => [...prev, { 
         type: 'system', 
-        message: 'Sorry, there was an error processing your message. Please try again.' 
+        message: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` 
       }]);
     } finally {
       setLoading(false);

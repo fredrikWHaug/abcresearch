@@ -87,7 +87,33 @@ Return ONLY a JSON object with this exact structure:
     }
 
     const intentData = await intentResponse.json();
-    const intentResult = JSON.parse(intentData.candidates[0].content.parts[0].text);
+    console.log('Intent API response:', intentData);
+    
+    let intentResult;
+    try {
+      const rawText = intentData.candidates[0].content.parts[0].text;
+      console.log('Raw intent text:', rawText);
+      
+      // Clean the response - remove any markdown formatting
+      let cleanedText = rawText.trim();
+      if (cleanedText.startsWith('```json')) {
+        cleanedText = cleanedText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+      } else if (cleanedText.startsWith('```')) {
+        cleanedText = cleanedText.replace(/^```\s*/, '').replace(/\s*```$/, '');
+      }
+      
+      // Find JSON object in the response
+      const jsonMatch = cleanedText.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        cleanedText = jsonMatch[0];
+      }
+      
+      intentResult = JSON.parse(cleanedText);
+    } catch (parseError) {
+      console.error('Failed to parse intent response:', parseError);
+      console.error('Raw response:', intentData.candidates[0].content.parts[0].text);
+      throw new Error(`Failed to parse intent response: ${parseError.message}`);
+    }
 
     // If we have search results, generate a response about them
     if (searchResults) {
@@ -195,6 +221,8 @@ Keep it conversational, helpful, and professional. 1-2 sentences max.`;
     }
 
     const conversationalData = await conversationalResponse.json();
+    console.log('Conversational API response:', conversationalData);
+    
     const conversationalResult = conversationalData.candidates[0].content.parts[0].text;
 
     return res.status(200).json({
@@ -207,6 +235,9 @@ Keep it conversational, helpful, and professional. 1-2 sentences max.`;
 
   } catch (error) {
     console.error('Error generating response:', error);
-    return res.status(500).json({ error: 'Failed to generate response' });
+    return res.status(500).json({ 
+      error: 'Failed to generate response',
+      details: error.message 
+    });
   }
 }
