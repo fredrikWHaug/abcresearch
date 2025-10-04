@@ -46,10 +46,10 @@ export default async function handler(req: any, res: any) {
       return res.status(400).json({ error: 'User query is required' });
     }
 
-    const geminiApiKey = process.env.GOOGLE_GEMINI_API_KEY;
-    console.log('Gemini API key exists:', !!geminiApiKey);
-    if (!geminiApiKey) {
-      return res.status(500).json({ error: 'Google Gemini API key not configured' });
+    const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
+    console.log('Anthropic API key exists:', !!anthropicApiKey);
+    if (!anthropicApiKey) {
+      return res.status(500).json({ error: 'Anthropic API key not configured' });
     }
 
     // Temporary test response to verify API is working
@@ -98,27 +98,29 @@ Return ONLY a JSON object with this exact structure:
   "responseType": "conversational|search_suggestion|clarification_request"
 }`;
 
-    const intentResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${geminiApiKey}`, {
+    const intentResponse = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'x-api-key': anthropicApiKey,
+        'anthropic-version': '2023-06-01'
       },
       body: JSON.stringify({
-        contents: [{
-          parts: [{
-            text: intentPrompt
-          }]
-        }],
-        generationConfig: {
-          temperature: 0.3,
-          maxOutputTokens: 300,
-        }
+        model: 'claude-3-haiku-20240307',
+        max_tokens: 300,
+        temperature: 0.3,
+        messages: [
+          {
+            role: 'user',
+            content: intentPrompt
+          }
+        ]
       })
     });
 
     if (!intentResponse.ok) {
       const errorText = await intentResponse.text();
-      console.error('Gemini API error:', intentResponse.status, errorText);
+      console.error('Anthropic API error:', intentResponse.status, errorText);
       throw new Error(`Failed to classify intent: ${intentResponse.status} - ${errorText}`);
     }
 
@@ -127,7 +129,7 @@ Return ONLY a JSON object with this exact structure:
     
     let intentResult;
     try {
-      const rawText = intentData.candidates[0].content.parts[0].text;
+      const rawText = intentData.content[0].text;
       console.log('Raw intent text:', rawText);
       
       // Clean the response - remove any markdown formatting
@@ -147,7 +149,7 @@ Return ONLY a JSON object with this exact structure:
       intentResult = JSON.parse(cleanedText);
     } catch (parseError) {
       console.error('Failed to parse intent response:', parseError);
-      console.error('Raw response:', intentData.candidates[0].content.parts[0].text);
+      console.error('Raw response:', intentData.content[0].text);
       throw new Error(`Failed to parse intent response: ${parseError.message}`);
     }
 
@@ -186,21 +188,23 @@ Generate a natural, conversational response that:
 
 Keep the response concise (2-3 sentences) and natural. Don't use bullet points or lists.`;
 
-      const searchResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${geminiApiKey}`, {
+      const searchResponse = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'x-api-key': anthropicApiKey,
+          'anthropic-version': '2023-06-01'
         },
         body: JSON.stringify({
-          contents: [{
-            parts: [{
-              text: searchResultsPrompt
-            }]
-          }],
-          generationConfig: {
-            temperature: 0.7,
-            maxOutputTokens: 500,
-          }
+          model: 'claude-3-haiku-20240307',
+          max_tokens: 500,
+          temperature: 0.7,
+          messages: [
+            {
+              role: 'user',
+              content: searchResultsPrompt
+            }
+          ]
         })
       });
 
@@ -209,7 +213,7 @@ Keep the response concise (2-3 sentences) and natural. Don't use bullet points o
       }
 
       const searchData = await searchResponse.json();
-      const searchResult = searchData.candidates[0].content.parts[0].text;
+      const searchResult = searchData.content[0].text;
 
       return res.status(200).json({
         success: true,
@@ -234,21 +238,23 @@ Generate an appropriate response:
 
 Keep it conversational, helpful, and professional. 1-2 sentences max.`;
 
-    const conversationalResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${geminiApiKey}`, {
+    const conversationalResponse = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'x-api-key': anthropicApiKey,
+        'anthropic-version': '2023-06-01'
       },
       body: JSON.stringify({
-        contents: [{
-          parts: [{
-            text: conversationalPrompt
-          }]
-        }],
-        generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 300,
-        }
+        model: 'claude-3-haiku-20240307',
+        max_tokens: 300,
+        temperature: 0.7,
+        messages: [
+          {
+            role: 'user',
+            content: conversationalPrompt
+          }
+        ]
       })
     });
 
@@ -261,7 +267,7 @@ Keep it conversational, helpful, and professional. 1-2 sentences max.`;
     const conversationalData = await conversationalResponse.json();
     console.log('Conversational API response:', conversationalData);
     
-    const conversationalResult = conversationalData.candidates[0].content.parts[0].text;
+    const conversationalResult = conversationalData.content[0].text;
 
     return res.status(200).json({
       success: true,
