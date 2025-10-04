@@ -115,12 +115,12 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
   const [trials, setTrials] = useState<ClinicalTrial[]>([])
   const [loading, setLoading] = useState(false)
   const [lastQuery, setLastQuery] = useState('')
-  const [chatHistory, setChatHistory] = useState<Array<{type: 'user' | 'system', message: string}>>([])
+  const [chatHistory, setChatHistory] = useState<Array<{type: 'user' | 'system', message: string, searchSuggestions?: Array<{id: string, label: string, query: string, description?: string}>}>>([])
   const [hasSearched, setHasSearched] = useState(false)
   const [papers, setPapers] = useState<PubMedArticle[]>([])
   const [papersLoading, setPapersLoading] = useState(false)
   const [viewMode, setViewMode] = useState<'research' | 'marketmap' | 'savedmaps' | 'dataextraction'>(initialShowSavedMaps ? 'savedmaps' : 'research')
-  const [researchTab, setResearchTab] = useState<'trials' | 'papers'>('trials')
+  const [researchTab, setResearchTab] = useState<'trials' | 'papers'>('papers')
   const [slideData, setSlideData] = useState<SlideData | null>(null)
   const [generatingSlide, setGeneratingSlide] = useState(false)
   const [slideError, setSlideError] = useState<string | null>(null)
@@ -154,7 +154,6 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
     
     const userMessage = message.trim();
     setMessage('');
-    setLastQuery(userMessage);
     setHasSearched(true);
     
     // Add user message to chat history
@@ -163,32 +162,53 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
     try {
       setLoading(true);
       
-      // Reset slide data when performing a new search
-      setSlideData(null);
-      setSlideError(null);
+      console.log('Sending request to generate-response API with query:', userMessage);
       
-      // Use enhanced search with AI-powered query expansion
-      const result = await EnhancedSearchAPI.searchWithEnhancement(userMessage);
-      
-      setTrials(result.trials);
-      
-      // Generate a natural, informative response based on the results
-      const responseMessage = generateSearchResponse(result, userMessage);
-      
-      // Add system response to chat history
-      setChatHistory(prev => [...prev, { 
-        type: 'system', 
-        message: responseMessage
-      }]);
+      // First, get intent classification and response
+      const response = await fetch('/api/generate-response', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userQuery: userMessage
+        })
+      });
 
-      // Automatically search for papers related to the clinical trials
-      searchPapersForQuery(userMessage);
+      console.log('Response status:', response.status);
+      console.log('Response headers:', response.headers);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('API error response:', errorText);
+        throw new Error(`API request failed: ${response.status} - ${errorText}`);
+      }
+
+      const data = await response.json();
+      console.log('API response data:', data);
+      
+      // Add AI response to chat history
+      console.log('Adding response to chat history:', data.response);
+      console.log('Search suggestions:', data.searchSuggestions);
+      setChatHistory(prev => {
+        const newHistory = [...prev, { 
+          type: 'system' as const, 
+          message: data.response,
+          searchSuggestions: data.searchSuggestions || []
+        }];
+        console.log('New chat history:', newHistory);
+        return newHistory;
+      });
+
+      // If the AI suggests a search, we'll handle that in the next phase
+      // For now, we'll just show the conversational response
       
     } catch (error) {
-      console.error('Error fetching trials:', error);
+      console.error('Error getting AI response:', error);
+      
       setChatHistory(prev => [...prev, { 
         type: 'system', 
-        message: 'Sorry, there was an error fetching the clinical trials. Please try again.' 
+        message: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` 
       }]);
     } finally {
       setLoading(false);
@@ -199,6 +219,40 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSendMessage()
+    }
+  }
+
+  const handleSearchSuggestion = async (suggestion: {id: string, label: string, query: string, description?: string}) => {
+    console.log('Search suggestion clicked:', suggestion);
+    
+    try {
+      setLoading(true);
+      setLastQuery(suggestion.query);
+      
+      // Use enhanced search with AI-powered query expansion
+      const result = await EnhancedSearchAPI.searchWithEnhancement(suggestion.query);
+      
+      setTrials(result.trials);
+      
+      // Search for papers related to the clinical trials
+      await searchPapersForQuery(suggestion.query);
+      
+      // Add search execution message to chat
+      setChatHistory(prev => [...prev, { 
+        type: 'system' as const, 
+        message: `I've conducted a search for "${suggestion.query}" and found ${result.trials.length} clinical trials and ${papers.length} research papers. The results are displayed in the Research and Market Map tabs.`,
+        searchSuggestions: []
+      }]);
+      
+    } catch (error) {
+      console.error('Error executing search suggestion:', error);
+      setChatHistory(prev => [...prev, { 
+        type: 'system' as const, 
+        message: 'Sorry, there was an error conducting the search. Please try again.',
+        searchSuggestions: []
+      }]);
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -222,38 +276,6 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
     }
   }
 
-  const generateSearchResponse = (result: any, userQuery: string): string => {
-    const { trials, searchStrategies } = result;
-    const totalTrials = trials.length;
-    
-    if (totalTrials === 0) {
-      return `I couldn't find any clinical trials matching "${userQuery}". Try using different keywords or broader terms like "cancer", "diabetes", or "Phase 2 trials".`;
-    }
-    
-    // Analyze the results
-    const recruitingCount = trials.filter((t: any) => t.overallStatus === 'RECRUITING').length;
-    const phase3Count = trials.filter((t: any) => t.phase?.some((p: string) => p.includes('3'))).length;
-    const topSponsors = [...new Set(trials.map((t: any) => t.sponsors?.lead).filter(Boolean))].slice(0, 3);
-    
-    // Generate natural response
-    let response = `Great! I found ${totalTrials} clinical trials for "${userQuery}". `;
-    
-    if (recruitingCount > 0) {
-      response += `${recruitingCount} are currently recruiting participants. `;
-    }
-    
-    if (phase3Count > 0) {
-      response += `${phase3Count} are in Phase 3 (late-stage trials). `;
-    }
-    
-    if (topSponsors.length > 0) {
-      response += `Key sponsors include ${topSponsors.join(', ')}. `;
-    }
-    
-    response += `The results are ranked by relevance and displayed in the Market Map. You can also view them in the Research tab.`;
-    
-    return response;
-  }
 
   // Shared header component
   const Header = () => (
@@ -614,16 +636,6 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
           {/* Toggle Buttons */}
           <div className="flex rounded-lg bg-gray-100 p-1 w-[20rem]">
             <button
-              onClick={() => setResearchTab('trials')}
-              className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
-                researchTab === 'trials'
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              Clinical Trials
-            </button>
-            <button
               onClick={() => setResearchTab('papers')}
               className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
                 researchTab === 'papers'
@@ -632,6 +644,16 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
               }`}
             >
               Research Papers
+            </button>
+            <button
+              onClick={() => setResearchTab('trials')}
+              className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
+                researchTab === 'trials'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Clinical Trials
             </button>
           </div>
           
@@ -674,6 +696,29 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
                     <div className="text-sm leading-relaxed">
                       {item.message}
                     </div>
+                    
+                    {/* Search Suggestions */}
+                    {item.searchSuggestions && item.searchSuggestions.length > 0 && (
+                      <div className="mt-3 space-y-2">
+                        {item.searchSuggestions.map((suggestion) => (
+                          <button
+                            key={suggestion.id}
+                            onClick={() => handleSearchSuggestion(suggestion)}
+                            className="w-full text-left p-3 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors"
+                          >
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                              <span className="font-medium text-blue-900">{suggestion.label}</span>
+                            </div>
+                            {suggestion.description && (
+                              <div className="text-xs text-blue-700 mt-1 ml-4">
+                                {suggestion.description}
+                              </div>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
@@ -705,17 +750,17 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
           </div>
         </div>
 
-        {/* Right Half - Trials List or Papers Discovery */}
+        {/* Right Half - Papers Discovery or Trials List */}
         <div className="w-1/2 bg-gray-50 overflow-hidden" style={{ paddingTop: '80px' }}>
-          {researchTab === 'trials' ? (
-            <TrialsList trials={trials} loading={loading} query={lastQuery} />
-          ) : (
+          {researchTab === 'papers' ? (
             <PapersDiscovery 
               trials={trials} 
               query={lastQuery} 
               papers={papers}
               loading={papersLoading}
             />
+          ) : (
+            <TrialsList trials={trials} loading={loading} query={lastQuery} />
           )}
         </div>
       </div>
