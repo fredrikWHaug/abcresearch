@@ -21,6 +21,7 @@ interface MarketMapProps {
   slideError: string | null;
   setSlideError: (error: string | null) => void;
   onSaveSuccess?: () => void;
+  onNavigateToResearch?: () => void;
 }
 
 export function MarketMap({ 
@@ -33,7 +34,8 @@ export function MarketMap({
   setGeneratingSlide,
   slideError,
   setSlideError,
-  onSaveSuccess
+  onSaveSuccess,
+  onNavigateToResearch
 }: MarketMapProps) {
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [saveName, setSaveName] = useState('');
@@ -107,10 +109,15 @@ export function MarketMap({
     return (
       <div className="w-full h-full flex items-center justify-center min-h-0">
         <div className="text-center text-gray-500">
-          <Activity className="h-16 w-16 mx-auto mb-4 text-gray-300" />
-          <h2 className="text-2xl font-semibold mb-2">Clinical Trials Market Map</h2>
-          <p>Enter a search query to explore clinical trials data</p>
-          <p className="text-sm mt-2">Try: "Phase 2 oncology trials by Pfizer"</p>
+          <p className="mb-6">The market map generator will be available when a search has been completed.</p>
+          {onNavigateToResearch && (
+            <Button
+              onClick={onNavigateToResearch}
+              className="bg-gray-800 hover:bg-gray-900 text-white px-6 py-3 text-lg font-semibold rounded-lg shadow-lg hover:shadow-xl transition-all duration-200"
+            >
+              Start Research
+            </Button>
+          )}
         </div>
       </div>
     );
