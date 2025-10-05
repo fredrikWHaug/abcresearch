@@ -491,6 +491,7 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
               // If we're viewing saved maps, we could refresh the list here
               // For now, just show a success message
             }}
+            onNavigateToResearch={() => setViewMode('research')}
           />
         </div>
       </div>
