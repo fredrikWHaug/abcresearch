@@ -86,10 +86,10 @@ export function SavedMaps({ onLoadMap, onDeleteMap }: SavedMapsProps) {
 
   if (savedMaps.length === 0) {
     return (
-      <div className="p-8 text-center text-gray-500">
-        <FileText className="h-16 w-16 mx-auto mb-4 text-gray-300" />
-        <h3 className="text-lg font-semibold mb-2">No saved market maps</h3>
-        <p className="text-sm">Generate and save your first market map to see it here.</p>
+      <div className="w-full h-full flex items-center justify-center min-h-0">
+        <div className="text-center text-gray-500">
+          <p>Generate and save your first market map to see it here.</p>
+        </div>
       </div>
     );
   }
