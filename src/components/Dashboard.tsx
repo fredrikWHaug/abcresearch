@@ -87,6 +87,10 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
   }
 
   const handleLoadSavedMap = (savedMap: SavedMarketMap) => {
+    console.log('Loading saved map:', savedMap);
+    console.log('Chat history from saved map:', savedMap.chat_history);
+    console.log('Papers data from saved map:', savedMap.papers_data);
+    
     // Load the saved map data
     setTrials(savedMap.trials_data);
     setSlideData(savedMap.slide_data);
@@ -96,9 +100,11 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
     
     // Restore chat history and papers data
     if (savedMap.chat_history) {
+      console.log('Setting chat history:', savedMap.chat_history);
       setChatHistory(savedMap.chat_history);
     }
     if (savedMap.papers_data) {
+      console.log('Setting papers data:', savedMap.papers_data);
       setPapers(savedMap.papers_data);
     }
     

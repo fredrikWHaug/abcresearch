@@ -75,6 +75,17 @@ export function MarketMap({
     setSaveError(null);
     
     try {
+      console.log('Saving market map with data:', {
+        name: saveName.trim(),
+        query,
+        trials_count: trials.length,
+        slide_data: slideData,
+        chat_history_count: chatHistory.length,
+        papers_count: papers.length,
+        chat_history: chatHistory,
+        papers_data: papers,
+      });
+      
       await MarketMapService.saveMarketMap({
         name: saveName.trim(),
         query,
