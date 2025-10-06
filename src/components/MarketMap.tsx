@@ -325,6 +325,8 @@ export function MarketMap({
           onClose={handleCloseSlide}
           query={query}
           trials={trials}
+          chatHistory={chatHistory}
+          papers={papers}
           onSaveSuccess={onSaveSuccess}
         />
       )}
