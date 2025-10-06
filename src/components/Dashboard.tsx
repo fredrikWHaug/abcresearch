@@ -94,6 +94,14 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
     setHasSearched(true);
     setViewMode('marketmap');
     
+    // Restore chat history and papers data
+    if (savedMap.chat_history) {
+      setChatHistory(savedMap.chat_history);
+    }
+    if (savedMap.papers_data) {
+      setPapers(savedMap.papers_data);
+    }
+    
     // Clear any errors
     setSlideError(null);
   }
@@ -491,6 +499,8 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
             setGeneratingSlide={setGeneratingSlide}
             slideError={slideError}
             setSlideError={setSlideError}
+            chatHistory={chatHistory}
+            papers={papers}
             onSaveSuccess={() => {
               console.log('Market map saved successfully!');
               // If we're viewing saved maps, we could refresh the list here

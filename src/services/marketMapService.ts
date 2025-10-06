@@ -9,6 +9,8 @@ export interface SavedMarketMap {
   query: string;
   trials_data: ClinicalTrial[];
   slide_data: SlideData;
+  chat_history: Array<{type: 'user' | 'system', message: string, searchSuggestions?: Array<{id: string, label: string, query: string, description?: string}>}>;
+  papers_data: any[]; // PubMed articles
   created_at: string;
   updated_at: string;
 }
@@ -18,6 +20,8 @@ export interface CreateMarketMapData {
   query: string;
   trials_data: ClinicalTrial[];
   slide_data: SlideData;
+  chat_history: Array<{type: 'user' | 'system', message: string, searchSuggestions?: Array<{id: string, label: string, query: string, description?: string}>}>;
+  papers_data: any[]; // PubMed articles
 }
 
 export class MarketMapService {
@@ -40,6 +44,8 @@ export class MarketMapService {
         query: data.query,
         trials_data: data.trials_data,
         slide_data: data.slide_data,
+        chat_history: data.chat_history,
+        papers_data: data.papers_data,
       })
       .select()
       .single();

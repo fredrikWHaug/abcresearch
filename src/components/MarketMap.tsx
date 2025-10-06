@@ -20,6 +20,8 @@ interface MarketMapProps {
   setGeneratingSlide: (generating: boolean) => void;
   slideError: string | null;
   setSlideError: (error: string | null) => void;
+  chatHistory: Array<{type: 'user' | 'system', message: string, searchSuggestions?: Array<{id: string, label: string, query: string, description?: string}>}>;
+  papers: any[];
   onSaveSuccess?: () => void;
   onNavigateToResearch?: () => void;
 }
@@ -34,6 +36,8 @@ export function MarketMap({
   setGeneratingSlide,
   slideError,
   setSlideError,
+  chatHistory,
+  papers,
   onSaveSuccess,
   onNavigateToResearch
 }: MarketMapProps) {
@@ -76,6 +80,8 @@ export function MarketMap({
         query,
         trials_data: trials,
         slide_data: slideData,
+        chat_history: chatHistory,
+        papers_data: papers,
       });
       
       setShowSaveDialog(false);
