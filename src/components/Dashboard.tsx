@@ -515,7 +515,7 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
             {/* Upload Area */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
               {!selectedFile ? (
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-12 text-center hover:border-blue-400 transition-colors cursor-pointer group">
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-12 text-center hover:border-gray-800 transition-colors cursor-pointer group">
                   <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4 group-hover:bg-gray-200 transition-colors">
                     <Upload className="w-8 h-8 text-gray-800" />
                   </div>
