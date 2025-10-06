@@ -119,7 +119,7 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
     
     // Clear any errors
     setSlideError(null);
-    setSlideData(null); // Clear any existing slide data
+    setSlideData(savedMap.slide_data); // Restore the saved slide data
     setGeneratingSlide(false);
   }
 
