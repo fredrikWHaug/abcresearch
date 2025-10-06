@@ -91,42 +91,62 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
     console.log('Chat history from saved map:', savedMap.chat_history);
     console.log('Papers data from saved map:', savedMap.papers_data);
     
-    // Load the saved map data
+    // COMPLETELY REPLACE all current state with the loaded project's state
+    setCurrentProjectId(savedMap.id);
     setTrials(savedMap.trials_data);
     setSlideData(savedMap.slide_data);
     setLastQuery(savedMap.query);
     setHasSearched(true);
     setViewMode('marketmap');
     
-    // Restore chat history and papers data
+    // Restore chat history (replace current chat history completely)
     if (savedMap.chat_history && Array.isArray(savedMap.chat_history) && savedMap.chat_history.length > 0) {
       console.log('Setting chat history:', savedMap.chat_history);
       setChatHistory(savedMap.chat_history);
     } else {
-      console.log('No chat history to restore');
+      console.log('No chat history to restore - clearing current chat history');
+      setChatHistory([]); // Clear current chat history
     }
+    
+    // Restore papers data (replace current papers completely)
     if (savedMap.papers_data && Array.isArray(savedMap.papers_data) && savedMap.papers_data.length > 0) {
       console.log('Setting papers data:', savedMap.papers_data);
       setPapers(savedMap.papers_data);
     } else {
-      console.log('No papers data to restore');
+      console.log('No papers data to restore - clearing current papers');
+      setPapers([]); // Clear current papers
     }
     
     // Clear any errors
     setSlideError(null);
+    setSlideData(null); // Clear any existing slide data
+    setGeneratingSlide(false);
+  }
+
+  const clearCurrentSession = () => {
+    console.log('Clearing current session');
+    setCurrentProjectId(null);
+    setTrials([]);
+    setSlideData(null);
+    setLastQuery('');
+    setHasSearched(false);
+    setChatHistory([]);
+    setPapers([]);
+    setSlideError(null);
+    setGeneratingSlide(false);
+    setViewMode('research');
   }
 
   const handleDeleteSavedMap = (_id: number) => {
     // If we're currently viewing the deleted map, clear the view
-    if (slideData && trials.length > 0) {
-      // Check if this is the currently loaded map by comparing some key data
-      // For now, we'll just clear the view if any map is deleted
-      setTrials([]);
-      setSlideData(null);
-      setLastQuery('');
-      setHasSearched(false);
-      setViewMode('research');
+    if (currentProjectId === _id) {
+      clearCurrentSession();
     }
+  }
+
+  const handleStartNewProject = () => {
+    console.log('Starting new project - clearing current session');
+    clearCurrentSession();
   }
 
   const [message, setMessage] = useState('')
@@ -143,6 +163,7 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
   const [generatingSlide, setGeneratingSlide] = useState(false)
   const [slideError, setSlideError] = useState<string | null>(null)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const [currentProjectId, setCurrentProjectId] = useState<number | null>(null)
   
   // PDF processing state
   const [isProcessingPDF, setIsProcessingPDF] = useState(false)
@@ -300,7 +321,7 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
 
 
   // Shared header component
-  const Header = () => (
+  const Header = ({ onStartNewProject, currentProjectId }: { onStartNewProject?: () => void, currentProjectId?: number | null } = {}) => (
     <div className="h-16 bg-white border-b border-gray-200 z-50 flex items-center relative">
       {/* Left Side - Hamburger Menu (only for authenticated users) + Guest Banner */}
       <div className="flex items-center gap-3 px-6">
@@ -382,6 +403,18 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
               Data Extraction
             </button>
           </div>
+        </div>
+      )}
+      
+      {/* Right Side - New Project Button */}
+      {currentProjectId && onStartNewProject && (
+        <div className="absolute right-6 top-1/2 transform -translate-y-1/2">
+          <button
+            onClick={onStartNewProject}
+            className="px-3 py-1.5 text-sm bg-gray-800 text-white rounded-md hover:bg-gray-900 transition-colors"
+          >
+            New Project
+          </button>
         </div>
       )}
       
@@ -469,7 +502,7 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
 
         {/* Header with centered buttons */}
         <div className="fixed top-0 left-0 right-0 z-50">
-          <Header />
+          <Header onStartNewProject={handleStartNewProject} currentProjectId={currentProjectId} />
         </div>
       </div>
     );
@@ -479,7 +512,7 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
   if (viewMode === 'savedmaps') {
     return (
       <div className="h-screen flex flex-col overflow-hidden">
-        <Header />
+        <Header onStartNewProject={handleStartNewProject} currentProjectId={currentProjectId} />
         <div className="flex-1 overflow-y-auto bg-gray-50">
           <SavedMaps 
             onLoadMap={handleLoadSavedMap}
@@ -495,7 +528,7 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
     // Full screen market map view
     return (
       <div className="h-screen flex flex-col overflow-hidden">
-        <Header />
+        <Header onStartNewProject={handleStartNewProject} currentProjectId={currentProjectId} />
         
         {/* Full Screen Market Map */}
         <div className="flex-1 overflow-hidden bg-gray-50">
@@ -511,6 +544,7 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
             setSlideError={setSlideError}
             chatHistory={chatHistory}
             papers={papers}
+            currentProjectId={currentProjectId}
             onSaveSuccess={() => {
               console.log('Market map saved successfully!');
               // If we're viewing saved maps, we could refresh the list here
@@ -527,7 +561,7 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
   if (viewMode === 'dataextraction') {
     return (
       <div className="h-screen flex flex-col overflow-hidden">
-        <Header />
+        <Header onStartNewProject={handleStartNewProject} currentProjectId={currentProjectId} />
         
         {/* Data Extraction Content */}
         <div className="flex-1 overflow-hidden bg-gray-50 p-6">

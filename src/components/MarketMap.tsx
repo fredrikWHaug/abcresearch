@@ -22,6 +22,7 @@ interface MarketMapProps {
   setSlideError: (error: string | null) => void;
   chatHistory: Array<{type: 'user' | 'system', message: string, searchSuggestions?: Array<{id: string, label: string, query: string, description?: string}>}>;
   papers: any[];
+  currentProjectId: number | null;
   onSaveSuccess?: () => void;
   onNavigateToResearch?: () => void;
 }
@@ -38,6 +39,7 @@ export function MarketMap({
   setSlideError,
   chatHistory,
   papers,
+  currentProjectId,
   onSaveSuccess,
   onNavigateToResearch
 }: MarketMapProps) {
@@ -86,14 +88,28 @@ export function MarketMap({
         papers_data: papers,
       });
       
-      await MarketMapService.saveMarketMap({
-        name: saveName.trim(),
-        query,
-        trials_data: trials,
-        slide_data: slideData,
-        chat_history: chatHistory,
-        papers_data: papers,
-      });
+      // If we're working on an existing project, update it instead of creating new
+      if (currentProjectId) {
+        console.log('Updating existing project:', currentProjectId);
+        await MarketMapService.updateMarketMap(currentProjectId, {
+          name: saveName.trim(),
+          query,
+          trials_data: trials,
+          slide_data: slideData,
+          chat_history: chatHistory,
+          papers_data: papers,
+        });
+      } else {
+        console.log('Creating new project');
+        await MarketMapService.saveMarketMap({
+          name: saveName.trim(),
+          query,
+          trials_data: trials,
+          slide_data: slideData,
+          chat_history: chatHistory,
+          papers_data: papers,
+        });
+      }
       
       setShowSaveDialog(false);
       setSaveName('');
