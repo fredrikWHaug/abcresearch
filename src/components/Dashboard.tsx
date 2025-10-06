@@ -188,6 +188,20 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
     };
   }, [isMenuOpen]);
 
+  // Debug logging for MarketMap props
+  useEffect(() => {
+    if (viewMode === 'marketmap') {
+      console.log('Dashboard passing to MarketMap:', {
+        chatHistory,
+        papers,
+        chatHistoryLength: chatHistory?.length,
+        papersLength: papers?.length,
+        chatHistoryType: typeof chatHistory,
+        papersType: typeof papers
+      });
+    }
+  }, [viewMode, chatHistory, papers]);
+
   const handleSendMessage = async () => {
     if (!message.trim()) return;
     

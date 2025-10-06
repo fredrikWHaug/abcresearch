@@ -43,6 +43,14 @@ export function MarketMap({
   onSaveSuccess,
   onNavigateToResearch
 }: MarketMapProps) {
+  console.log('MarketMap component received props:', {
+    chatHistory,
+    papers,
+    chatHistoryLength: chatHistory?.length,
+    papersLength: papers?.length,
+    chatHistoryType: typeof chatHistory,
+    papersType: typeof papers
+  });
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [saveName, setSaveName] = useState('');
   const [saving, setSaving] = useState(false);
