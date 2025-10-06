@@ -85,13 +85,21 @@ export function MarketMap({
     setSaveError(null);
     
     try {
+      console.log('=== SAVE FUNCTION DEBUG ===');
+      console.log('chatHistory prop:', chatHistory);
+      console.log('papers prop:', papers);
+      console.log('chatHistory type:', typeof chatHistory);
+      console.log('papers type:', typeof papers);
+      console.log('chatHistory length:', chatHistory?.length);
+      console.log('papers length:', papers?.length);
+      
       console.log('Saving market map with data:', {
         name: saveName.trim(),
         query,
         trials_count: trials.length,
         slide_data: slideData,
-        chat_history_count: chatHistory.length,
-        papers_count: papers.length,
+        chat_history_count: chatHistory?.length || 0,
+        papers_count: papers?.length || 0,
         chat_history: chatHistory,
         papers_data: papers,
       });
