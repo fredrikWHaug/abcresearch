@@ -9,8 +9,8 @@ export interface SavedMarketMap {
   query: string;
   trials_data: ClinicalTrial[];
   slide_data: SlideData;
-  chat_history: Array<{type: 'user' | 'system', message: string, searchSuggestions?: Array<{id: string, label: string, query: string, description?: string}>}>;
-  papers_data: any[]; // PubMed articles
+  chat_history: Array<{type: 'user' | 'system', message: string, searchSuggestions?: Array<{id: string, label: string, query: string, description?: string}>}> | null;
+  papers_data: any[] | null; // PubMed articles
   created_at: string;
   updated_at: string;
 }
@@ -36,6 +36,13 @@ export class MarketMapService {
       throw new Error('User must be authenticated to save market maps');
     }
 
+    console.log('Saving to database:', {
+      chat_history: data.chat_history,
+      papers_data: data.papers_data,
+      chat_history_length: data.chat_history?.length || 0,
+      papers_data_length: data.papers_data?.length || 0
+    });
+
     const { data: result, error } = await supabase
       .from('market_maps')
       .insert({
@@ -44,8 +51,8 @@ export class MarketMapService {
         query: data.query,
         trials_data: data.trials_data,
         slide_data: data.slide_data,
-        chat_history: data.chat_history || [],
-        papers_data: data.papers_data || [],
+        chat_history: data.chat_history || null,
+        papers_data: data.papers_data || null,
       })
       .select()
       .single();

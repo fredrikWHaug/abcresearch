@@ -99,13 +99,17 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
     setViewMode('marketmap');
     
     // Restore chat history and papers data
-    if (savedMap.chat_history) {
+    if (savedMap.chat_history && Array.isArray(savedMap.chat_history) && savedMap.chat_history.length > 0) {
       console.log('Setting chat history:', savedMap.chat_history);
       setChatHistory(savedMap.chat_history);
+    } else {
+      console.log('No chat history to restore');
     }
-    if (savedMap.papers_data) {
+    if (savedMap.papers_data && Array.isArray(savedMap.papers_data) && savedMap.papers_data.length > 0) {
       console.log('Setting papers data:', savedMap.papers_data);
       setPapers(savedMap.papers_data);
+    } else {
+      console.log('No papers data to restore');
     }
     
     // Clear any errors
