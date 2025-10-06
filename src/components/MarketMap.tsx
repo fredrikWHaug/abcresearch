@@ -20,6 +20,9 @@ interface MarketMapProps {
   setGeneratingSlide: (generating: boolean) => void;
   slideError: string | null;
   setSlideError: (error: string | null) => void;
+  chatHistory: Array<{type: 'user' | 'system', message: string, searchSuggestions?: Array<{id: string, label: string, query: string, description?: string}>}>;
+  papers: any[];
+  currentProjectId: number | null;
   onSaveSuccess?: () => void;
   onNavigateToResearch?: () => void;
 }
@@ -34,9 +37,20 @@ export function MarketMap({
   setGeneratingSlide,
   slideError,
   setSlideError,
+  chatHistory,
+  papers,
+  currentProjectId,
   onSaveSuccess,
   onNavigateToResearch
 }: MarketMapProps) {
+  console.log('MarketMap component received props:', {
+    chatHistory,
+    papers,
+    chatHistoryLength: chatHistory?.length,
+    papersLength: papers?.length,
+    chatHistoryType: typeof chatHistory,
+    papersType: typeof papers
+  });
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [saveName, setSaveName] = useState('');
   const [saving, setSaving] = useState(false);
@@ -71,12 +85,47 @@ export function MarketMap({
     setSaveError(null);
     
     try {
-      await MarketMapService.saveMarketMap({
+      console.log('=== SAVE FUNCTION DEBUG ===');
+      console.log('chatHistory prop:', chatHistory);
+      console.log('papers prop:', papers);
+      console.log('chatHistory type:', typeof chatHistory);
+      console.log('papers type:', typeof papers);
+      console.log('chatHistory length:', chatHistory?.length);
+      console.log('papers length:', papers?.length);
+      
+      console.log('Saving market map with data:', {
         name: saveName.trim(),
         query,
-        trials_data: trials,
+        trials_count: trials.length,
         slide_data: slideData,
+        chat_history_count: chatHistory?.length || 0,
+        papers_count: papers?.length || 0,
+        chat_history: chatHistory,
+        papers_data: papers,
       });
+      
+      // If we're working on an existing project, update it instead of creating new
+      if (currentProjectId) {
+        console.log('Updating existing project:', currentProjectId);
+        await MarketMapService.updateMarketMap(currentProjectId, {
+          name: saveName.trim(),
+          query,
+          trials_data: trials,
+          slide_data: slideData,
+          chat_history: chatHistory,
+          papers_data: papers,
+        });
+      } else {
+        console.log('Creating new project');
+        await MarketMapService.saveMarketMap({
+          name: saveName.trim(),
+          query,
+          trials_data: trials,
+          slide_data: slideData,
+          chat_history: chatHistory,
+          papers_data: papers,
+        });
+      }
       
       setShowSaveDialog(false);
       setSaveName('');
@@ -276,6 +325,8 @@ export function MarketMap({
           onClose={handleCloseSlide}
           query={query}
           trials={trials}
+          chatHistory={chatHistory}
+          papers={papers}
           onSaveSuccess={onSaveSuccess}
         />
       )}

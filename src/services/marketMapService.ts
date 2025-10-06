@@ -9,6 +9,8 @@ export interface SavedMarketMap {
   query: string;
   trials_data: ClinicalTrial[];
   slide_data: SlideData;
+  chat_history: Array<{type: 'user' | 'system', message: string, searchSuggestions?: Array<{id: string, label: string, query: string, description?: string}>}> | null;
+  papers_data: any[] | null; // PubMed articles
   created_at: string;
   updated_at: string;
 }
@@ -18,6 +20,8 @@ export interface CreateMarketMapData {
   query: string;
   trials_data: ClinicalTrial[];
   slide_data: SlideData;
+  chat_history?: Array<{type: 'user' | 'system', message: string, searchSuggestions?: Array<{id: string, label: string, query: string, description?: string}>}>;
+  papers_data?: any[]; // PubMed articles
 }
 
 export class MarketMapService {
@@ -32,15 +36,30 @@ export class MarketMapService {
       throw new Error('User must be authenticated to save market maps');
     }
 
+    console.log('Saving to database:', {
+      chat_history: data.chat_history,
+      papers_data: data.papers_data,
+      chat_history_length: data.chat_history?.length || 0,
+      papers_data_length: data.papers_data?.length || 0
+    });
+
+    const insertData = {
+      user_id: user.id,
+      name: data.name,
+      query: data.query,
+      trials_data: data.trials_data,
+      slide_data: data.slide_data,
+      chat_history: data.chat_history || null,
+      papers_data: data.papers_data || null,
+    };
+
+    console.log('Insert data being sent to database:', insertData);
+    console.log('Chat history type:', typeof insertData.chat_history);
+    console.log('Papers data type:', typeof insertData.papers_data);
+
     const { data: result, error } = await supabase
       .from('market_maps')
-      .insert({
-        user_id: user.id,
-        name: data.name,
-        query: data.query,
-        trials_data: data.trials_data,
-        slide_data: data.slide_data,
-      })
+      .insert(insertData)
       .select()
       .single();
 
@@ -48,6 +67,8 @@ export class MarketMapService {
       console.error('Error saving market map:', error);
       throw new Error(`Failed to save market map: ${error.message}`);
     }
+
+    console.log('Successfully saved to database. Result:', result);
 
     return result;
   }
@@ -84,6 +105,12 @@ export class MarketMapService {
       throw new Error(`Failed to fetch market map: ${error.message}`);
     }
 
+    console.log('Fetched market map from database:', data);
+    console.log('Chat history from database:', data.chat_history);
+    console.log('Papers data from database:', data.papers_data);
+    console.log('Chat history type:', typeof data.chat_history);
+    console.log('Papers data type:', typeof data.papers_data);
+
     return data;
   }
 
@@ -91,12 +118,18 @@ export class MarketMapService {
    * Update a market map
    */
   static async updateMarketMap(id: number, data: Partial<CreateMarketMapData>): Promise<SavedMarketMap> {
+    const updateData = {
+      ...data,
+      updated_at: new Date().toISOString(),
+    };
+
+    console.log('Updating market map with data:', updateData);
+    console.log('Chat history type:', typeof updateData.chat_history);
+    console.log('Papers data type:', typeof updateData.papers_data);
+
     const { data: result, error } = await supabase
       .from('market_maps')
-      .update({
-        ...data,
-        updated_at: new Date().toISOString(),
-      })
+      .update(updateData)
       .eq('id', id)
       .select()
       .single();
@@ -106,6 +139,7 @@ export class MarketMapService {
       throw new Error(`Failed to update market map: ${error.message}`);
     }
 
+    console.log('Successfully updated market map. Result:', result);
     return result;
   }
 
