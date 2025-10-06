@@ -189,6 +189,9 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
       // Add AI response to chat history
       console.log('Adding response to chat history:', data.response);
       console.log('Search suggestions:', data.searchSuggestions);
+      console.log('shouldSearch:', data.shouldSearch);
+      console.log('searchQuery:', data.searchQuery);
+      
       setChatHistory(prev => {
         const newHistory = [...prev, { 
           type: 'system' as const, 
@@ -417,6 +420,7 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
 
   if (!hasSearched && viewMode !== 'savedmaps' && viewMode !== 'dataextraction') {
     // Initial centered search bar layout (skip if showing saved maps)
+    console.log('Rendering initial centered search. hasSearched:', hasSearched, 'viewMode:', viewMode);
     return (
       <div className="h-screen flex items-center justify-center bg-background">
         <div className="w-full max-w-2xl px-6">
@@ -627,7 +631,9 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
   }
 
   // Research mode - split view layout (only when hasSearched is true and we have search results)
+  console.log('Checking split screen condition. hasSearched:', hasSearched, 'trials:', trials.length, 'papers:', papers.length);
   if (hasSearched && (trials.length > 0 || papers.length > 0)) {
+    console.log('Rendering split screen');
     return (
     <div className="h-screen flex flex-col relative">
       <Header />
@@ -770,35 +776,16 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
   )
   }
 
-  // Fallback: hasSearched is true but no results yet - show centered chat
+  // Wide screen chat interface - when hasSearched is true but no search results yet
+  console.log('Rendering wide screen chat interface. hasSearched:', hasSearched, 'trials:', trials.length, 'papers:', papers.length);
   return (
-    <div className="h-screen flex items-center justify-center bg-background">
-      <div className="w-full max-w-2xl px-6">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-semibold text-gray-800 mb-2">Welcome back</h1>
-        </div>
-        <div className="relative">
-          <input
-            type="text"
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            onKeyPress={handleKeyPress}
-            placeholder="Respond to ABCresearch's agent..."
-            className="flex h-[60px] w-full rounded-md border border-gray-300 bg-white pl-4 pr-16 py-2 text-lg ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={loading}
-            autoFocus
-          />
-          <button
-            onClick={handleSendMessage}
-            disabled={!message.trim() || loading}
-            className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-gray-800 hover:bg-gray-900 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
-          >
-            <ArrowUp className="h-4 w-4 text-white" />
-          </button>
-        </div>
-
+    <div className="h-screen flex flex-col">
+      <Header />
+      
+      {/* Wide Screen Chat Interface */}
+      <div className="flex-1 flex flex-col max-w-4xl mx-auto w-full px-6 py-8">
         {/* Chat Messages Area */}
-        <div className="mt-8 max-h-96 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto mb-6">
           {chatHistory.map((item, index) => (
             <div key={index} className={`mb-4 p-4 rounded-lg border ${
               item.type === 'user' 
@@ -831,6 +818,27 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
               )}
             </div>
           ))}
+        </div>
+
+        {/* Message Input */}
+        <div className="relative">
+          <input
+            type="text"
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            onKeyPress={handleKeyPress}
+            placeholder="Respond to ABCresearch's agent..."
+            className="flex h-[60px] w-full rounded-md border border-gray-300 bg-white pl-4 pr-16 py-2 text-lg ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={loading}
+            autoFocus
+          />
+          <button
+            onClick={handleSendMessage}
+            disabled={!message.trim() || loading}
+            className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-gray-800 hover:bg-gray-900 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
+          >
+            <ArrowUp className="h-4 w-4 text-white" />
+          </button>
         </div>
       </div>
     </div>
