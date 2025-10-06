@@ -154,7 +154,6 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
     
     const userMessage = message.trim();
     setMessage('');
-    setHasSearched(true);
     
     // Add user message to chat history
     setChatHistory(prev => [...prev, { type: 'user', message: userMessage }]);
@@ -227,6 +226,7 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
     
     try {
       setLoading(true);
+      setHasSearched(true); // Only set to true when actual search is conducted
       setLastQuery(suggestion.query);
       
       // Use enhanced search with AI-powered query expansion
@@ -626,8 +626,9 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
     );
   }
 
-  // Research mode - split view layout
-  return (
+  // Research mode - split view layout (only when hasSearched is true and we have search results)
+  if (hasSearched && (trials.length > 0 || papers.length > 0)) {
+    return (
     <div className="h-screen flex flex-col relative">
       <Header />
       
@@ -763,6 +764,73 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
           ) : (
             <TrialsList trials={trials} loading={loading} query={lastQuery} />
           )}
+        </div>
+      </div>
+    </div>
+  )
+  }
+
+  // Fallback: hasSearched is true but no results yet - show centered chat
+  return (
+    <div className="h-screen flex items-center justify-center bg-background">
+      <div className="w-full max-w-2xl px-6">
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-semibold text-gray-800 mb-2">Welcome back</h1>
+        </div>
+        <div className="relative">
+          <input
+            type="text"
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            onKeyPress={handleKeyPress}
+            placeholder="Respond to ABCresearch's agent..."
+            className="flex h-[60px] w-full rounded-md border border-gray-300 bg-white pl-4 pr-16 py-2 text-lg ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={loading}
+            autoFocus
+          />
+          <button
+            onClick={handleSendMessage}
+            disabled={!message.trim() || loading}
+            className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-gray-800 hover:bg-gray-900 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
+          >
+            <ArrowUp className="h-4 w-4 text-white" />
+          </button>
+        </div>
+
+        {/* Chat Messages Area */}
+        <div className="mt-8 max-h-96 overflow-y-auto">
+          {chatHistory.map((item, index) => (
+            <div key={index} className={`mb-4 p-4 rounded-lg border ${
+              item.type === 'user' 
+                ? 'bg-gray-800 text-white border-gray-700' 
+                : 'bg-gray-50 text-gray-700 border-gray-200'
+            }`}>
+              <div className="text-sm leading-relaxed">
+                {item.message}
+              </div>
+              
+              {/* Search Suggestions */}
+              {item.searchSuggestions && item.searchSuggestions.length > 0 && (
+                <div className="mt-3 space-y-2">
+                  {item.searchSuggestions.map((suggestion) => (
+                    <button
+                      key={suggestion.id}
+                      onClick={() => handleSearchSuggestion(suggestion)}
+                      className="w-full text-left p-3 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors"
+                    >
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                        <span className="font-medium text-blue-900">{suggestion.label}</span>
+                      </div>
+                      {suggestion.description && (
+                        <p className="text-sm text-blue-700 mt-1">{suggestion.description}</p>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       </div>
     </div>
