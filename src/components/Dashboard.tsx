@@ -7,8 +7,10 @@ import { MarketMap } from '@/components/MarketMap'
 import { TrialsList } from '@/components/TrialsList'
 import { SavedMaps } from '@/components/SavedMaps'
 import { PapersDiscovery } from '@/components/PapersDiscovery'
+import { GroupedResults } from '@/components/GroupedResults'
 import { ClinicalTrialsAPI } from '@/services/clinicalTrialsAPI'
 import { EnhancedSearchAPI } from '@/services/enhancedSearchAPI'
+import { EnhancedSearchWithDrugsService } from '@/services/enhancedSearchWithDrugs'
 import { pubmedAPI } from '@/services/pubmedAPI'
 import type { PubMedArticle } from '@/services/pubmedAPI'
 import { MarketMapService, type SavedMarketMap } from '@/services/marketMapService'
@@ -135,6 +137,8 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
     setSlideError(null);
     setGeneratingSlide(false);
     setViewMode('research');
+    setGroupedResults(null);
+    setGroupedResultsLoading(false);
   }
 
   const handleDeleteSavedMap = (_id: number) => {
@@ -158,12 +162,16 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
   const [papers, setPapers] = useState<PubMedArticle[]>([])
   const [papersLoading, setPapersLoading] = useState(false)
   const [viewMode, setViewMode] = useState<'research' | 'marketmap' | 'savedmaps' | 'dataextraction'>(initialShowSavedMaps ? 'savedmaps' : 'research')
-  const [researchTab, setResearchTab] = useState<'trials' | 'papers'>('papers')
+  const [researchTab, setResearchTab] = useState<'trials' | 'papers' | 'grouped'>('papers')
   const [slideData, setSlideData] = useState<SlideData | null>(null)
   const [generatingSlide, setGeneratingSlide] = useState(false)
   const [slideError, setSlideError] = useState<string | null>(null)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [currentProjectId, setCurrentProjectId] = useState<number | null>(null)
+  
+  // Grouped results state
+  const [groupedResults, setGroupedResults] = useState<any>(null)
+  const [groupedResultsLoading, setGroupedResultsLoading] = useState(false)
   
   // PDF processing state
   const [isProcessingPDF, setIsProcessingPDF] = useState(false)
@@ -284,30 +292,54 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
     try {
       console.log('⏳ Setting loading state...');
       setLoading(true);
+      setGroupedResultsLoading(true);
       setHasSearched(true); // Only set to true when actual search is conducted
       setLastQuery(suggestion.query);
       
-      console.log('🚀 Starting enhanced search with query:', suggestion.query);
-      // Use enhanced search with AI-powered query expansion
-      const result = await EnhancedSearchAPI.searchWithEnhancement(suggestion.query);
-      
-      console.log('✅ Enhanced search completed. Results:', {
-        trialsCount: result.trials.length,
-        totalCount: result.totalCount,
-        searchStrategies: result.searchStrategies
+      console.log('🔄 Current state before search:', {
+        hasSearched,
+        lastQuery,
+        groupedResults: !!groupedResults,
+        researchTab
       });
       
-      setTrials(result.trials);
+      console.log('🚀 Starting enhanced search with drug grouping for query:', suggestion.query);
+      // Use enhanced search with drug extraction and grouping
+      const result = await EnhancedSearchWithDrugsService.searchWithDrugGrouping(suggestion.query);
       
-      console.log('📚 Searching for papers related to clinical trials...');
-      // Search for papers related to the clinical trials
-      await searchPapersForQuery(suggestion.query);
+      console.log('✅ Enhanced search with drug grouping completed. Results:', {
+        drugGroups: result.groupedResults.drugGroups.length,
+        totalTrials: result.groupedResults.totalTrials,
+        totalPapers: result.groupedResults.totalPapers
+      });
+      
+      // Set the grouped results
+      console.log('🔍 Setting grouped results:', result.groupedResults);
+      setGroupedResults(result.groupedResults);
+      
+      // Switch to grouped tab if we have grouped results
+      if (result.groupedResults && result.groupedResults.drugGroups.length > 0) {
+        setResearchTab('grouped');
+      }
+      
+      // Also set individual trials and papers for backward compatibility
+      const allTrials = [
+        ...result.groupedResults.drugGroups.flatMap(group => group.trials),
+        ...result.groupedResults.ungroupedTrials
+      ];
+      const allPapers = [
+        ...result.groupedResults.drugGroups.flatMap(group => group.papers),
+        ...result.groupedResults.ungroupedPapers
+      ];
+      
+      setTrials(allTrials);
+      setPapers(allPapers);
       
       console.log('💬 Adding search execution message to chat...');
       // Add search execution message to chat
       setChatHistory(prev => [...prev, { 
         type: 'system' as const, 
-        message: `I've conducted a search for "${suggestion.query}" and found ${result.trials.length} clinical trials and ${papers.length} research papers. The results are displayed in the Research and Market Map tabs.`,
+        message: `I've conducted an enhanced search for "${suggestion.query}" and found ${result.groupedResults.totalDrugs} drug groups with ${result.groupedResults.totalTrials} clinical trials and ${result.groupedResults.totalPapers} research papers. The results are grouped by drug interventions for easier analysis.`,
         searchSuggestions: []
       }]);
       
@@ -320,14 +352,30 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
         stack: error instanceof Error ? error.stack : 'No stack trace'
       });
       
-      setChatHistory(prev => [...prev, { 
-        type: 'system' as const, 
-        message: `Sorry, there was an error conducting the search: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`,
-        searchSuggestions: []
-      }]);
+      // Fallback to regular enhanced search if drug grouping fails
+      console.log('🔄 Falling back to regular enhanced search...');
+      try {
+        const fallbackResult = await EnhancedSearchAPI.searchWithEnhancement(suggestion.query);
+        setTrials(fallbackResult.trials);
+        await searchPapersForQuery(suggestion.query);
+        
+        setChatHistory(prev => [...prev, { 
+          type: 'system' as const, 
+          message: `I've conducted a search for "${suggestion.query}" and found ${fallbackResult.trials.length} clinical trials and ${papers.length} research papers. The results are displayed in the Research and Market Map tabs.`,
+          searchSuggestions: []
+        }]);
+      } catch (fallbackError) {
+        console.error('❌ Fallback search also failed:', fallbackError);
+        setChatHistory(prev => [...prev, { 
+          type: 'system' as const, 
+          message: `Sorry, there was an error conducting the search: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`,
+          searchSuggestions: []
+        }]);
+      }
     } finally {
       console.log('🏁 Clearing loading state...');
       setLoading(false);
+      setGroupedResultsLoading(false);
     }
   }
 
@@ -729,7 +777,17 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
       <div className="absolute z-20" style={{ left: '50%', right: '0', top: '64px' }}>
         <div className="flex items-center justify-center gap-4 bg-white border-b border-gray-200 px-6 py-3 h-16">
           {/* Toggle Buttons */}
-          <div className="flex rounded-lg bg-gray-100 p-1 w-[20rem]">
+          <div className="flex rounded-lg bg-gray-100 p-1 w-[28rem]">
+            <button
+              onClick={() => setResearchTab('grouped')}
+              className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
+                researchTab === 'grouped'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Drug Groups
+            </button>
             <button
               onClick={() => setResearchTab('papers')}
               className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
@@ -752,7 +810,13 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
             </button>
           </div>
           
-          {/* Loading Indicator for Papers */}
+          {/* Loading Indicators */}
+          {researchTab === 'grouped' && groupedResultsLoading && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600"></div>
+              Grouping by drugs...
+            </div>
+          )}
           {researchTab === 'papers' && papersLoading && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600"></div>
@@ -845,9 +909,24 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
           </div>
         </div>
 
-        {/* Right Half - Papers Discovery or Trials List */}
+        {/* Right Half - Papers Discovery, Trials List, or Grouped Results */}
         <div className="w-1/2 bg-gray-50 overflow-hidden" style={{ paddingTop: '80px' }}>
-          {researchTab === 'papers' ? (
+          {researchTab === 'grouped' ? (
+            groupedResults ? (
+              <GroupedResults 
+                groupedResults={groupedResults}
+                userQuery={lastQuery}
+                loading={groupedResultsLoading}
+              />
+            ) : (
+              <div className="h-full flex items-center justify-center">
+                <div className="text-center">
+                  <p className="text-gray-600">No grouped results available</p>
+                  <p className="text-sm text-gray-500 mt-2">Try performing a search to see drug-grouped results</p>
+                </div>
+              </div>
+            )
+          ) : researchTab === 'papers' ? (
             <PapersDiscovery 
               trials={trials} 
               query={lastQuery} 
