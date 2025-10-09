@@ -4,7 +4,9 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "VITE_ENV=local vite",
+    "dev:staging": "VITE_ENV=staging vite",
+    "dev:production": "VITE_ENV=production vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"
@@ -16,6 +18,9 @@
     "@supabase/supabase-js": "^2.57.4",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
     "lucide-react": "^0.544.0",
     "pdf-parse": "^1.1.1",
     "pdfjs-dist": "^5.4.149",

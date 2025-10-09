@@ -4,9 +4,19 @@
  * This allows you to test the API endpoints during development
  */
 
-const express = require('express');
-const cors = require('cors');
-const path = require('path');
+import express from 'express';
+import cors from 'cors';
+import path from 'path';
+import dotenv from 'dotenv';
+
+// Load environment variables from .env.local
+dotenv.config({ path: '.env.local' });
+
+// Log environment variable status
+console.log('🔑 Environment variables loaded:');
+console.log('  ANTHROPIC_API_KEY:', process.env.ANTHROPIC_API_KEY ? '✅ Set' : '❌ Missing');
+console.log('  OPENAI_API_KEY:', process.env.OPENAI_API_KEY ? '✅ Set' : '❌ Missing');
+console.log('  PUBMED_API_KEY:', process.env.PUBMED_API_KEY ? '✅ Set' : '❌ Missing');
 
 const app = express();
 const PORT = 3001;
@@ -16,10 +26,10 @@ app.use(cors());
 app.use(express.json());
 
 // Import the API handlers
-const enhanceSearchHandler = require('./api/enhance-search.ts');
-const generateResponseHandler = require('./api/generate-response.ts');
-const generateSlideHandler = require('./api/generate-slide.ts');
-const searchPapersHandler = require('./api/search-papers.ts');
+import enhanceSearchHandler from './api/enhance-search.ts';
+import generateResponseHandler from './api/generate-response.ts';
+import generateSlideHandler from './api/generate-slide.ts';
+import searchPapersHandler from './api/search-papers.ts';
 
 // Mock Vercel request/response objects
 function createMockReqRes(req, res) {
@@ -45,25 +55,25 @@ function createMockReqRes(req, res) {
 app.post('/api/enhance-search', async (req, res) => {
   console.log('🔍 Local API: enhance-search called');
   const { req: mockReq, res: mockRes } = createMockReqRes(req, res);
-  await enhanceSearchHandler.default(mockReq, mockRes);
+  await enhanceSearchHandler(mockReq, mockRes);
 });
 
 app.post('/api/generate-response', async (req, res) => {
   console.log('💬 Local API: generate-response called');
   const { req: mockReq, res: mockRes } = createMockReqRes(req, res);
-  await generateResponseHandler.default(mockReq, mockRes);
+  await generateResponseHandler(mockReq, mockRes);
 });
 
 app.post('/api/generate-slide', async (req, res) => {
   console.log('📊 Local API: generate-slide called');
   const { req: mockReq, res: mockRes } = createMockReqRes(req, res);
-  await generateSlideHandler.default(mockReq, mockRes);
+  await generateSlideHandler(mockReq, mockRes);
 });
 
 app.post('/api/search-papers', async (req, res) => {
   console.log('📚 Local API: search-papers called');
   const { req: mockReq, res: mockRes } = createMockReqRes(req, res);
-  await searchPapersHandler.default(mockReq, mockRes);
+  await searchPapersHandler(mockReq, mockRes);
 });
 
 // Health check
@@ -83,4 +93,4 @@ app.listen(PORT, () => {
   console.log(`\n💡 Update your .env.local to use: VITE_API_TARGET=http://localhost:${PORT}`);
 });
 
-module.exports = app;
+// Server is started below

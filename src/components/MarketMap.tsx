@@ -300,6 +300,53 @@ export function MarketMap({
                         {trial.briefTitle}
                       </CardTitle>
                     </a>
+                    
+                    {/* Trial metadata */}
+                    <div className="mt-2 space-y-1">
+                      {/* Status and Phase badges */}
+                      <div className="flex flex-wrap gap-1">
+                        <Badge variant="outline" className="text-xs">
+                          {trial.overallStatus}
+                        </Badge>
+                        {trial.phase && trial.phase.length > 0 && (
+                          <Badge variant="secondary" className="text-xs">
+                            {trial.phase.join(', ')}
+                          </Badge>
+                        )}
+                        {trial.enrollment && (
+                          <Badge variant="outline" className="text-xs">
+                            N={trial.enrollment}
+                          </Badge>
+                        )}
+                      </div>
+                      
+                      {/* Study dates and sponsor */}
+                      <div className="text-xs text-gray-600 space-y-1">
+                        {trial.startDate && (
+                          <div>
+                            <span className="font-medium">Start:</span> {new Date(trial.startDate).toLocaleDateString()}
+                          </div>
+                        )}
+                        {trial.completionDate && (
+                          <div>
+                            <span className="font-medium">Completion:</span> {new Date(trial.completionDate).toLocaleDateString()}
+                          </div>
+                        )}
+                        {trial.sponsors?.lead && (
+                          <div>
+                            <span className="font-medium">Sponsor:</span> {trial.sponsors.lead}
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* Conditions */}
+                      {trial.conditions && trial.conditions.length > 0 && (
+                        <div className="text-xs text-gray-500">
+                          {trial.conditions.join(', ')}
+                        </div>
+                      )}
+                    </div>
+                    
                     {trial.rankReasons && trial.rankReasons.length > 0 && (
                       <div className="flex gap-2 mt-2">
                         {trial.rankReasons.map((reason: string, idx: number) => (
