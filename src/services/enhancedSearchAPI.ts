@@ -17,31 +17,62 @@ export class EnhancedSearchAPI {
    * Enhance a user query using AI and return multiple search strategies
    */
   static async enhanceQuery(userQuery: string): Promise<EnhancedQueries> {
+    console.log('🔍 EnhancedSearchAPI.enhanceQuery called with:', userQuery);
+    
     try {
+      const requestBody = { query: userQuery };
+      console.log('📤 Sending request to /api/enhance-search:', requestBody);
+      
       const response = await fetch('/api/enhance-search', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          query: userQuery
-        })
+        body: JSON.stringify(requestBody)
       });
 
+      console.log('📥 Response status:', response.status);
+      console.log('📥 Response ok:', response.ok);
+      console.log('📥 Response headers:', Object.fromEntries(response.headers.entries()));
+
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
+        const errorText = await response.text();
+        console.error('❌ Response not ok. Error text:', errorText);
+        
+        let errorData;
+        try {
+          errorData = JSON.parse(errorText);
+        } catch (parseError) {
+          console.error('❌ Failed to parse error response as JSON');
+          errorData = { error: errorText };
+        }
+        
+        console.error('❌ Error data:', errorData);
         throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
       }
 
-      const data: EnhancedSearchResponse = await response.json();
+      const responseText = await response.text();
+      console.log('📥 Raw response text:', responseText);
+      
+      let data: EnhancedSearchResponse;
+      try {
+        data = JSON.parse(responseText);
+        console.log('📥 Parsed response data:', data);
+      } catch (parseError) {
+        console.error('❌ Failed to parse response as JSON:', parseError);
+        throw new Error('Invalid JSON response from server');
+      }
       
       if (!data.success) {
+        console.error('❌ Response indicates failure:', data);
         throw new Error('Failed to enhance search query');
       }
 
+      console.log('✅ Successfully enhanced queries:', data.enhancedQueries);
       return data.enhancedQueries;
     } catch (error) {
-      console.error('Error enhancing search query:', error);
+      console.error('❌ Error enhancing search query:', error);
+      console.error('❌ Error stack:', error instanceof Error ? error.stack : 'No stack trace');
       throw error;
     }
   }
@@ -58,9 +89,13 @@ export class EnhancedSearchAPI {
       broad: { count: number; trials: ClinicalTrial[] };
     };
   }> {
+    console.log('🚀 EnhancedSearchAPI.searchWithEnhancement called with:', userQuery);
+    
     try {
       // Get enhanced queries from AI
+      console.log('🤖 Getting enhanced queries from AI...');
       const enhancedQueries = await this.enhanceQuery(userQuery);
+      console.log('✅ Received enhanced queries:', enhancedQueries);
       
       // Clean up the enhanced queries to ensure they're valid
       const cleanQuery = (params: SearchParams): SearchParams => {
