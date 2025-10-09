@@ -7,6 +7,16 @@
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
+import dotenv from 'dotenv';
+
+// Load environment variables from .env.local
+dotenv.config({ path: '.env.local' });
+
+// Log environment variable status
+console.log('🔑 Environment variables loaded:');
+console.log('  ANTHROPIC_API_KEY:', process.env.ANTHROPIC_API_KEY ? '✅ Set' : '❌ Missing');
+console.log('  OPENAI_API_KEY:', process.env.OPENAI_API_KEY ? '✅ Set' : '❌ Missing');
+console.log('  PUBMED_API_KEY:', process.env.PUBMED_API_KEY ? '✅ Set' : '❌ Missing');
 
 const app = express();
 const PORT = 3001;

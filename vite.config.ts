@@ -21,6 +21,9 @@ function getApiTarget() {
   }
 }
 
+// Vercel bypass token for staging deployment
+const VERCEL_BYPASS_TOKEN = 'rUZzhIfpOAcFhBixM8vybkXxsThYBQGe'
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
@@ -40,8 +43,17 @@ export default defineConfig({
           proxy.on('error', (err, _req, _res) => {
             console.log('🚨 API Proxy Error:', err);
           });
-          proxy.on('proxyReq', (_proxyReq, req, _res) => {
+          proxy.on('proxyReq', (proxyReq, req, _res) => {
             console.log('📤 API Request:', req.method, req.url);
+            
+            // Add Vercel bypass token for staging environment
+            const environment = process.env.VITE_ENV || 'local';
+            if (environment === 'staging') {
+              const url = new URL(proxyReq.path, getApiTarget());
+              url.searchParams.set('x-vercel-protection-bypass', VERCEL_BYPASS_TOKEN);
+              proxyReq.path = url.pathname + url.search;
+              console.log('🔑 Added Vercel bypass token for staging request');
+            }
           });
           proxy.on('proxyRes', (proxyRes, req, _res) => {
             console.log('📥 API Response:', proxyRes.statusCode, req.url);

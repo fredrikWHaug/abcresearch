@@ -60,9 +60,17 @@ export class PDFExtractionService {
 
     // Use local Python server when running locally
     const isLocal = window.location.hostname === 'localhost';
-    const pythonApiUrl = isLocal 
+    let pythonApiUrl = isLocal 
       ? 'http://localhost:3000/api/extract_tables'
       : (import.meta.env.VITE_PYTHON_API_URL || 'https://developent.guru/api/extract_tables');
+    
+    // Add Vercel bypass token for staging deployment
+    if (!isLocal && pythonApiUrl.includes('developent.guru')) {
+      const url = new URL(pythonApiUrl);
+      url.searchParams.set('x-vercel-protection-bypass', 'rUZzhIfpOAcFhBixM8vybkXxsThYBQGe');
+      pythonApiUrl = url.toString();
+    }
+    
     console.log('Using Python API URL:', pythonApiUrl);
 
     const response = await fetch(pythonApiUrl, {
