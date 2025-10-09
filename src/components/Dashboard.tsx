@@ -279,21 +279,31 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
   }
 
   const handleSearchSuggestion = async (suggestion: {id: string, label: string, query: string, description?: string}) => {
-    console.log('Search suggestion clicked:', suggestion);
+    console.log('🔍 Search suggestion clicked:', suggestion);
     
     try {
+      console.log('⏳ Setting loading state...');
       setLoading(true);
       setHasSearched(true); // Only set to true when actual search is conducted
       setLastQuery(suggestion.query);
       
+      console.log('🚀 Starting enhanced search with query:', suggestion.query);
       // Use enhanced search with AI-powered query expansion
       const result = await EnhancedSearchAPI.searchWithEnhancement(suggestion.query);
       
+      console.log('✅ Enhanced search completed. Results:', {
+        trialsCount: result.trials.length,
+        totalCount: result.totalCount,
+        searchStrategies: result.searchStrategies
+      });
+      
       setTrials(result.trials);
       
+      console.log('📚 Searching for papers related to clinical trials...');
       // Search for papers related to the clinical trials
       await searchPapersForQuery(suggestion.query);
       
+      console.log('💬 Adding search execution message to chat...');
       // Add search execution message to chat
       setChatHistory(prev => [...prev, { 
         type: 'system' as const, 
@@ -301,14 +311,22 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
         searchSuggestions: []
       }]);
       
+      console.log('✅ Search suggestion handling completed successfully');
+      
     } catch (error) {
-      console.error('Error executing search suggestion:', error);
+      console.error('❌ Error executing search suggestion:', error);
+      console.error('❌ Error details:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : 'No stack trace'
+      });
+      
       setChatHistory(prev => [...prev, { 
         type: 'system' as const, 
-        message: 'Sorry, there was an error conducting the search. Please try again.',
+        message: `Sorry, there was an error conducting the search: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`,
         searchSuggestions: []
       }]);
     } finally {
+      console.log('🏁 Clearing loading state...');
       setLoading(false);
     }
   }

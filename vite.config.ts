@@ -10,4 +10,25 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  server: {
+    proxy: {
+      // Proxy API calls to the deployed Vercel functions
+      '/api': {
+        target: process.env.VITE_API_TARGET || 'https://abcresearch.vercel.app',
+        changeOrigin: true,
+        secure: true,
+        configure: (proxy, _options) => {
+          proxy.on('error', (err, _req, _res) => {
+            console.log('🚨 API Proxy Error:', err);
+          });
+          proxy.on('proxyReq', (proxyReq, req, _res) => {
+            console.log('📤 API Request:', req.method, req.url);
+          });
+          proxy.on('proxyRes', (proxyRes, req, _res) => {
+            console.log('📥 API Response:', proxyRes.statusCode, req.url);
+          });
+        },
+      }
+    }
+  }
 })
