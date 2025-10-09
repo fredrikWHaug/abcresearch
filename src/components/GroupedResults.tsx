@@ -185,6 +185,26 @@ export const GroupedResults: React.FC<GroupedResultsProps> = ({
                                         </Badge>
                                       )}
                                     </div>
+                                    
+                                    {/* Study dates and sponsor */}
+                                    <div className="text-xs text-gray-600 space-y-1 mb-2">
+                                      {trial.startDate && (
+                                        <div>
+                                          <span className="font-medium">Start:</span> {new Date(trial.startDate).toLocaleDateString()}
+                                        </div>
+                                      )}
+                                      {trial.completionDate && (
+                                        <div>
+                                          <span className="font-medium">Completion:</span> {new Date(trial.completionDate).toLocaleDateString()}
+                                        </div>
+                                      )}
+                                      {trial.sponsors?.lead && (
+                                        <div>
+                                          <span className="font-medium">Sponsor:</span> {trial.sponsors.lead}
+                                        </div>
+                                      )}
+                                    </div>
+                                    
                                     <p className="text-xs text-gray-600 line-clamp-2">
                                       {trial.conditions?.join(', ')}
                                     </p>
