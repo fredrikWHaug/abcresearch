@@ -17,7 +17,7 @@ function getApiTarget() {
     case 'production':
       return 'https://abcresearch.vercel.app'
     default:
-      return 'http://localhost:3001'
+      return 'https://abcresearch.vercel.app'
   }
 }
 
