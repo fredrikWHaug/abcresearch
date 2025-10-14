@@ -7,14 +7,12 @@ import { MarketMap } from '@/components/MarketMap'
 import { TrialsList } from '@/components/TrialsList'
 import { SavedMaps } from '@/components/SavedMaps'
 import { PapersDiscovery } from '@/components/PapersDiscovery'
-import { ClinicalTrialsAPI } from '@/services/clinicalTrialsAPI'
-import { EnhancedSearchAPI } from '@/services/enhancedSearchAPI'
-import { pubmedAPI } from '@/services/pubmedAPI'
+import { GatherSearchResultsService } from '@/services/gatherSearchResults'
 import type { PubMedArticle } from '@/services/pubmedAPI'
 import { MarketMapService, type SavedMarketMap } from '@/services/marketMapService'
 import { PDFExtractionService, type ExtractionResult } from '@/services/pdfExtractionService'
 import { supabase } from '@/lib/supabase'
-import type { ClinicalTrial } from '@/services/clinicalTrialsAPI'
+import type { ClinicalTrial } from '@/types/trials'
 import type { SlideData } from '@/services/slideAPI'
 
 interface DashboardProps {
@@ -283,21 +281,20 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
     
     try {
       setLoading(true);
+      setPapersLoading(true);
       setHasSearched(true); // Only set to true when actual search is conducted
       setLastQuery(suggestion.query);
       
-      // Use enhanced search with AI-powered query expansion
-      const result = await EnhancedSearchAPI.searchWithEnhancement(suggestion.query);
+      // Use new gatherSearchResults service that orchestrates all searches
+      const result = await GatherSearchResultsService.gatherSearchResults(suggestion.query);
       
       setTrials(result.trials);
-      
-      // Search for papers related to the clinical trials
-      await searchPapersForQuery(suggestion.query);
+      setPapers(result.papers);
       
       // Add search execution message to chat
       setChatHistory(prev => [...prev, { 
         type: 'system' as const, 
-        message: `I've conducted a search for "${suggestion.query}" and found ${result.trials.length} clinical trials and ${papers.length} research papers. The results are displayed in the Research and Market Map tabs.`,
+        message: `I've conducted a search for "${suggestion.query}" and found ${result.trials.length} clinical trials and ${result.papers.length} research papers. The results are displayed in the Research and Market Map tabs.`,
         searchSuggestions: []
       }]);
       
@@ -310,29 +307,9 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
       }]);
     } finally {
       setLoading(false);
-    }
-  }
-
-  // Automatically search for papers related to clinical trials
-  const searchPapersForQuery = async (query: string) => {
-    try {
-      setPapersLoading(true);
-      
-      // Search for papers using the same query that was used for clinical trials
-      const papersResult = await pubmedAPI.searchPapers({
-        query: `${query} AND ("Clinical Trial"[Publication Type] OR "Randomized Controlled Trial"[Publication Type])`,
-        maxResults: 30
-      });
-      
-      setPapers(papersResult);
-    } catch (error) {
-      console.error('Error searching for papers:', error);
-      // Don't show error to user since this is background search
-    } finally {
       setPapersLoading(false);
     }
   }
-
 
   // Shared header component
   const Header = ({ onStartNewProject, currentProjectId }: { onStartNewProject?: () => void, currentProjectId?: number | null } = {}) => (

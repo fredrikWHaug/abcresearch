@@ -1,7 +1,7 @@
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import type { ClinicalTrial } from '@/services/clinicalTrialsAPI';
+import type { ClinicalTrial } from '@/types/trials';
 
 interface TrialsListProps {
   trials: ClinicalTrial[];
