@@ -7,6 +7,7 @@ import { MarketMap } from '@/components/MarketMap'
 import { TrialsList } from '@/components/TrialsList'
 import { SavedMaps } from '@/components/SavedMaps'
 import { PapersDiscovery } from '@/components/PapersDiscovery'
+import { ConversationalSearch } from '@/components/ConversationalSearch'
 import { ClinicalTrialsAPI } from '@/services/clinicalTrialsAPI'
 import { EnhancedSearchAPI } from '@/services/enhancedSearchAPI'
 import { pubmedAPI } from '@/services/pubmedAPI'
@@ -157,7 +158,7 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
   const [hasSearched, setHasSearched] = useState(false)
   const [papers, setPapers] = useState<PubMedArticle[]>([])
   const [papersLoading, setPapersLoading] = useState(false)
-  const [viewMode, setViewMode] = useState<'research' | 'marketmap' | 'savedmaps' | 'dataextraction'>(initialShowSavedMaps ? 'savedmaps' : 'research')
+  const [viewMode, setViewMode] = useState<'research' | 'marketmap' | 'savedmaps' | 'dataextraction' | 'drugdiscovery'>(initialShowSavedMaps ? 'savedmaps' : 'research')
   const [researchTab, setResearchTab] = useState<'trials' | 'papers'>('papers')
   const [slideData, setSlideData] = useState<SlideData | null>(null)
   const [generatingSlide, setGeneratingSlide] = useState(false)
@@ -370,15 +371,25 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
       </div>
       
       {/* Toggle Buttons - Absolutely positioned center with equal widths */}
-      {(hasSearched || viewMode === 'savedmaps' || viewMode === 'dataextraction') && (
+      {(hasSearched || viewMode === 'savedmaps' || viewMode === 'dataextraction' || viewMode === 'drugdiscovery') && (
         <div 
           className="absolute z-20"
           style={{ left: '50%', transform: 'translateX(-50%)' }}
         >
-          <div className="flex rounded-lg bg-gray-100 p-1 w-[36rem]">
+          <div className="flex rounded-lg bg-gray-100 p-1 w-[48rem]">
+            <button
+              onClick={() => setViewMode('drugdiscovery')}
+              className={`py-2 px-3 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
+                viewMode === 'drugdiscovery'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Drug Discovery
+            </button>
             <button
               onClick={() => setViewMode('research')}
-              className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
+              className={`py-2 px-3 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
                 viewMode === 'research'
                   ? 'bg-white text-gray-900 shadow-sm'
                   : 'text-gray-600 hover:text-gray-900'
@@ -388,7 +399,7 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
             </button>
             <button
               onClick={() => setViewMode('marketmap')}
-              className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
+              className={`py-2 px-3 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
                 viewMode === 'marketmap'
                   ? 'bg-white text-gray-900 shadow-sm'
                   : 'text-gray-600 hover:text-gray-900'
@@ -398,7 +409,7 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
             </button>
             <button
               onClick={() => setViewMode('savedmaps')}
-              className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
+              className={`py-2 px-3 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
                 viewMode === 'savedmaps'
                   ? 'bg-white text-gray-900 shadow-sm'
                   : 'text-gray-600 hover:text-gray-900'
@@ -408,7 +419,7 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
             </button>
             <button
               onClick={() => setViewMode('dataextraction')}
-              className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
+              className={`py-2 px-3 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
                 viewMode === 'dataextraction'
                   ? 'bg-white text-gray-900 shadow-sm'
                   : 'text-gray-600 hover:text-gray-900'
@@ -484,8 +495,8 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
     );
   };
 
-  if (!hasSearched && viewMode !== 'savedmaps' && viewMode !== 'dataextraction') {
-    // Initial centered search bar layout (skip if showing saved maps)
+  if (!hasSearched && viewMode !== 'savedmaps' && viewMode !== 'dataextraction' && viewMode !== 'drugdiscovery') {
+    // Initial centered search bar layout (skip if showing saved maps or drug discovery)
     console.log('Rendering initial centered search. hasSearched:', hasSearched, 'viewMode:', viewMode);
     return (
       <div className="h-screen flex items-center justify-center bg-background">
@@ -512,6 +523,30 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
               <ArrowUp className="h-4 w-4 text-white" />
             </button>
           </div>
+          
+          {/* Quick Access Links */}
+          <div className="mt-6 flex items-center justify-center gap-4">
+            <button
+              onClick={() => setViewMode('drugdiscovery')}
+              className="text-sm text-blue-600 hover:text-blue-700 font-medium underline"
+            >
+              Try Drug Discovery Search
+            </button>
+            <span className="text-gray-400">•</span>
+            <button
+              onClick={() => setViewMode('savedmaps')}
+              className="text-sm text-blue-600 hover:text-blue-700 font-medium underline"
+            >
+              View Saved Maps
+            </button>
+            <span className="text-gray-400">•</span>
+            <button
+              onClick={() => setViewMode('dataextraction')}
+              className="text-sm text-blue-600 hover:text-blue-700 font-medium underline"
+            >
+              Extract PDF Data
+            </button>
+          </div>
         </div>
 
         {/* Header with centered buttons */}
@@ -531,6 +566,23 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
           <SavedMaps 
             onLoadMap={handleLoadSavedMap}
             onDeleteMap={handleDeleteSavedMap}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // Show drug discovery conversational search
+  if (viewMode === 'drugdiscovery') {
+    return (
+      <div className="h-screen flex flex-col overflow-hidden">
+        <Header onStartNewProject={handleStartNewProject} currentProjectId={currentProjectId} />
+        <div className="flex-1 overflow-hidden">
+          <ConversationalSearch
+            onSearchComplete={(drugs, trials) => {
+              console.log('Drug search completed:', drugs, trials);
+              // Optionally store results or navigate somewhere
+            }}
           />
         </div>
       </div>
