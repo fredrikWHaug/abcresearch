@@ -7,12 +7,15 @@ import { MarketMap } from '@/components/MarketMap'
 import { TrialsList } from '@/components/TrialsList'
 import { SavedMaps } from '@/components/SavedMaps'
 import { PapersDiscovery } from '@/components/PapersDiscovery'
+import { DrugGroupedResults } from '@/components/DrugGroupedResults'
+import { DrugGroupedPanel } from '@/components/DrugGroupedPanel'
 import { ClinicalTrialsAPI } from '@/services/clinicalTrialsAPI'
 import { EnhancedSearchAPI } from '@/services/enhancedSearchAPI'
 import { pubmedAPI } from '@/services/pubmedAPI'
 import type { PubMedArticle } from '@/services/pubmedAPI'
 import { MarketMapService, type SavedMarketMap } from '@/services/marketMapService'
 import { PDFExtractionService, type ExtractionResult } from '@/services/pdfExtractionService'
+import { DrugGroupingService, type GroupedResults } from '@/services/drugGroupingService'
 import { supabase } from '@/lib/supabase'
 import type { ClinicalTrial } from '@/services/clinicalTrialsAPI'
 import type { SlideData } from '@/services/slideAPI'
@@ -149,6 +152,12 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
     clearCurrentSession();
   }
 
+  const handleCloseDrugGrouping = () => {
+    setShowDrugGrouping(false);
+    setViewMode('research');
+    setResearchTab('drugs');
+  }
+
   const [message, setMessage] = useState('')
   const [trials, setTrials] = useState<ClinicalTrial[]>([])
   const [loading, setLoading] = useState(false)
@@ -158,7 +167,7 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
   const [papers, setPapers] = useState<PubMedArticle[]>([])
   const [papersLoading, setPapersLoading] = useState(false)
   const [viewMode, setViewMode] = useState<'research' | 'marketmap' | 'savedmaps' | 'dataextraction'>(initialShowSavedMaps ? 'savedmaps' : 'research')
-  const [researchTab, setResearchTab] = useState<'trials' | 'papers'>('papers')
+  const [researchTab, setResearchTab] = useState<'trials' | 'papers' | 'drugs'>('papers')
   const [slideData, setSlideData] = useState<SlideData | null>(null)
   const [generatingSlide, setGeneratingSlide] = useState(false)
   const [slideError, setSlideError] = useState<string | null>(null)
@@ -170,6 +179,10 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
   const [pdfProcessingResult, setPdfProcessingResult] = useState<ExtractionResult | null>(null)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  
+  // Drug grouping state
+  const [showDrugGrouping, setShowDrugGrouping] = useState(false)
+  const [drugGroupedResults, setDrugGroupedResults] = useState<GroupedResults | null>(null)
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -292,12 +305,19 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
       setTrials(result.trials);
       
       // Search for papers related to the clinical trials
-      await searchPapersForQuery(suggestion.query);
+      const papersResult = await searchPapersForQuery(suggestion.query);
+      
+      // Group results by drug
+      const groupedResults = DrugGroupingService.groupByDrug(result.trials, papersResult);
+      console.log('Drug grouped results:', groupedResults);
+      
+      setDrugGroupedResults(groupedResults);
+      setShowDrugGrouping(true); // Show popup automatically
       
       // Add search execution message to chat
       setChatHistory(prev => [...prev, { 
         type: 'system' as const, 
-        message: `I've conducted a search for "${suggestion.query}" and found ${result.trials.length} clinical trials and ${papers.length} research papers. The results are displayed in the Research and Market Map tabs.`,
+        message: `I've conducted a search for "${suggestion.query}" and found ${result.trials.length} clinical trials and ${papersResult.length} research papers. The results are grouped by ${groupedResults.totalDrugs} specific drugs.`,
         searchSuggestions: []
       }]);
       
@@ -314,7 +334,7 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
   }
 
   // Automatically search for papers related to clinical trials
-  const searchPapersForQuery = async (query: string) => {
+  const searchPapersForQuery = async (query: string): Promise<PubMedArticle[]> => {
     try {
       setPapersLoading(true);
       
@@ -325,8 +345,11 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
       });
       
       setPapers(papersResult);
+      return papersResult;
     } catch (error) {
       console.error('Error searching for papers:', error);
+      setPapers([]);
+      return [];
       // Don't show error to user since this is background search
     } finally {
       setPapersLoading(false);
@@ -518,6 +541,15 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
         <div className="fixed top-0 left-0 right-0 z-50">
           <Header onStartNewProject={handleStartNewProject} currentProjectId={currentProjectId} />
         </div>
+
+        {/* Drug Grouping Popup - Shows over any view */}
+        {showDrugGrouping && drugGroupedResults && (
+          <DrugGroupedResults
+            groupedResults={drugGroupedResults}
+            onClose={handleCloseDrugGrouping}
+            query={lastQuery}
+          />
+        )}
       </div>
     );
   }
@@ -533,6 +565,15 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
             onDeleteMap={handleDeleteSavedMap}
           />
         </div>
+
+        {/* Drug Grouping Popup - Shows over any view */}
+        {showDrugGrouping && drugGroupedResults && (
+          <DrugGroupedResults
+            groupedResults={drugGroupedResults}
+            onClose={handleCloseDrugGrouping}
+            query={lastQuery}
+          />
+        )}
       </div>
     );
   }
@@ -567,6 +608,15 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
             onNavigateToResearch={() => setViewMode('research')}
           />
         </div>
+
+        {/* Drug Grouping Popup - Shows over any view */}
+        {showDrugGrouping && drugGroupedResults && (
+          <DrugGroupedResults
+            groupedResults={drugGroupedResults}
+            onClose={handleCloseDrugGrouping}
+            query={lastQuery}
+          />
+        )}
       </div>
     );
   }
@@ -695,6 +745,15 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
             </div>
           </div>
         </div>
+
+        {/* Drug Grouping Popup - Shows over any view */}
+        {showDrugGrouping && drugGroupedResults && (
+          <DrugGroupedResults
+            groupedResults={drugGroupedResults}
+            onClose={handleCloseDrugGrouping}
+            query={lastQuery}
+          />
+        )}
       </div>
     );
   }
@@ -711,26 +770,39 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
       <div className="absolute z-20" style={{ left: '50%', right: '0', top: '64px' }}>
         <div className="flex items-center justify-center gap-4 bg-white border-b border-gray-200 px-6 py-3 h-16">
           {/* Toggle Buttons */}
-          <div className="flex rounded-lg bg-gray-100 p-1 w-[20rem]">
+          <div className="flex rounded-lg bg-gray-100 p-1 w-[28rem]">
             <button
               onClick={() => setResearchTab('papers')}
-              className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
+              className={`py-2 px-3 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
                 researchTab === 'papers'
                   ? 'bg-white text-gray-900 shadow-sm'
                   : 'text-gray-600 hover:text-gray-900'
               }`}
             >
-              Research Papers
+              Papers
             </button>
             <button
               onClick={() => setResearchTab('trials')}
-              className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
+              className={`py-2 px-3 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
                 researchTab === 'trials'
                   ? 'bg-white text-gray-900 shadow-sm'
                   : 'text-gray-600 hover:text-gray-900'
               }`}
             >
-              Clinical Trials
+              Trials
+            </button>
+            <button
+              onClick={() => setResearchTab('drugs')}
+              className={`py-2 px-3 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
+                researchTab === 'drugs'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : drugGroupedResults
+                  ? 'text-gray-600 hover:text-gray-900'
+                  : 'text-gray-400 cursor-not-allowed'
+              }`}
+              disabled={!drugGroupedResults}
+            >
+              By Drug
             </button>
           </div>
           
@@ -827,7 +899,7 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
           </div>
         </div>
 
-        {/* Right Half - Papers Discovery or Trials List */}
+        {/* Right Half - Papers Discovery, Trials List, or Drug Grouped View */}
         <div className="w-1/2 bg-gray-50 overflow-hidden" style={{ paddingTop: '80px' }}>
           {researchTab === 'papers' ? (
             <PapersDiscovery 
@@ -836,11 +908,27 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
               papers={papers}
               loading={papersLoading}
             />
-          ) : (
+          ) : researchTab === 'trials' ? (
             <TrialsList trials={trials} loading={loading} query={lastQuery} />
-          )}
+          ) : researchTab === 'drugs' && drugGroupedResults ? (
+            <DrugGroupedPanel
+              groupedResults={drugGroupedResults}
+              onExpandFullScreen={() => setShowDrugGrouping(true)}
+              query={lastQuery}
+              loading={loading}
+            />
+          ) : null}
         </div>
       </div>
+
+      {/* Drug Grouping Popup - Shows over any view */}
+      {showDrugGrouping && drugGroupedResults && (
+        <DrugGroupedResults
+          groupedResults={drugGroupedResults}
+          onClose={handleCloseDrugGrouping}
+          query={lastQuery}
+        />
+      )}
     </div>
   )
   }
@@ -910,6 +998,15 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
           </button>
         </div>
       </div>
+
+      {/* Drug Grouping Popup - Shows over any view */}
+      {showDrugGrouping && drugGroupedResults && (
+        <DrugGroupedResults
+          groupedResults={drugGroupedResults}
+          onClose={handleCloseDrugGrouping}
+          query={lastQuery}
+        />
+      )}
     </div>
   )
 }
