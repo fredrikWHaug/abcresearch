@@ -2,6 +2,10 @@
 
 interface GenerateResponseRequest {
   userQuery: string;
+  chatHistory?: Array<{
+    type: 'user' | 'system';
+    message: string;
+  }>;
   searchResults?: {
     trials: any[];
     papers: any[];
@@ -37,8 +41,9 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    const { userQuery, searchResults }: GenerateResponseRequest = req.body;
+    const { userQuery, chatHistory, searchResults }: GenerateResponseRequest = req.body;
     console.log('Parsed userQuery:', userQuery);
+    console.log('Parsed chatHistory:', chatHistory);
     console.log('Parsed searchResults:', searchResults);
 
     if (!userQuery) {
@@ -160,7 +165,7 @@ Return ONLY a JSON object with this exact structure:
       // Analyze the results for the AI
       const recruitingCount = trials.filter((t: any) => t.overallStatus === 'RECRUITING').length;
       const phase3Count = trials.filter((t: any) => t.phase?.some((p: string) => p.includes('3'))).length;
-      const topSponsors = [...new Set(trials.map((t: any) => t.sponsors?.lead).filter(Boolean))].slice(0, 3);
+      const topSponsors = Array.from(new Set(trials.map((t: any) => t.sponsors?.lead).filter(Boolean))).slice(0, 3);
       const recentPapers = papers.filter((p: any) => {
         const year = new Date(p.publicationDate).getFullYear();
         return year >= new Date().getFullYear() - 2;
@@ -223,20 +228,45 @@ Keep the response concise (2-3 sentences) and natural. Don't use bullet points o
       });
     }
 
-    // Generate conversational response based on intent
-    const conversationalPrompt = `You are a helpful medical research assistant. The user said: "${userQuery}"
+    // Build conversation context for more insightful responses
+    let conversationContext = '';
+    if (chatHistory && chatHistory.length > 0) {
+      conversationContext = '\n\nConversation so far:\n' + 
+        chatHistory.slice(-6).map(msg => `${msg.type === 'user' ? 'User' : 'Assistant'}: ${msg.message}`).join('\n');
+    }
 
-Intent: ${intentResult.intent}
-Response type: ${intentResult.responseType}
+    // Generate conversational response with context awareness
+    const conversationalPrompt = `You are a thoughtful medical research consultant having a natural conversation with a user. Your goal is to LISTEN and respond naturally to what they're actually saying.
 
-Generate an appropriate response:
-- If greeting: Be friendly and explain what you can help with
-- If search_request: Acknowledge their request and suggest conducting a search
-- If follow_up: Respond to their follow-up question
-- If clarification: Ask for clarification about what they want to search for
-- If general_question: Answer their question about your capabilities
+Current user message: "${userQuery}"
+${conversationContext}
 
-Keep it conversational, helpful, and professional. 1-2 sentences max.`;
+CRITICAL RULES:
+1. ACTUALLY READ what the user just said - respond to their ACTUAL message, not what you assume they want
+2. If they ask you a question, ANSWER IT directly first before asking anything else
+3. If they challenge you or seem frustrated, acknowledge it and adjust your approach
+4. If they're just greeting you casually, have a normal conversation - DON'T assume they want research help unless they indicate it
+5. If they tell you something, BUILD ON IT naturally - don't just pivot to your agenda
+6. Be conversational and human-like, not robotic or formulaic
+7. Only ask about research specifics when they've clearly expressed interest in searching for trials/papers
+
+Response approach based on situation:
+- If they're GREETING you casually: Respond warmly and naturally. Ask what brings them here TODAY (not assumptions about research)
+- If they ASK YOU A QUESTION: Answer it directly and thoughtfully
+- If they CHALLENGE or CRITICIZE you: Acknowledge their point, apologize if needed, adjust your approach
+- If they EXPRESS INTEREST in a topic: THEN ask a thoughtful follow-up question to help refine it
+- If they seem FRUSTRATED: Back off the questioning, be more conversational
+
+When asking questions (only when appropriate):
+- Make it feel like a colleague brainstorming together, not an interrogation
+- Ask about aspects they might not have considered: patient populations, trial phases, outcome measures, geographic regions, time horizons, safety vs efficacy
+- But ONLY if they've shown interest in research - don't force it
+
+Tone: Natural, conversational, genuinely helpful. Like a smart colleague, not a scripted chatbot.
+
+IMPORTANT: Write ONLY the actual words you would say. Do NOT include stage directions like "*smiles*", "*responds warmly*", or any actions in asterisks or brackets. Just write natural dialogue.
+
+Generate your response now (respond to what they ACTUALLY said):`;
 
     const conversationalResponse = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -247,7 +277,7 @@ Keep it conversational, helpful, and professional. 1-2 sentences max.`;
       },
       body: JSON.stringify({
         model: 'claude-3-haiku-20240307',
-        max_tokens: 300,
+        max_tokens: 500,
         temperature: 0.7,
         messages: [
           {
@@ -267,7 +297,14 @@ Keep it conversational, helpful, and professional. 1-2 sentences max.`;
     const conversationalData = await conversationalResponse.json();
     console.log('Conversational API response:', conversationalData);
     
-    const conversationalResult = conversationalData.content[0].text;
+    let conversationalResult = conversationalData.content[0].text;
+    
+    // Clean up any stage directions or action notations (e.g., "*responds warmly*", "*smiles*")
+    conversationalResult = conversationalResult
+      .replace(/\*[^*]+\*/g, '') // Remove anything between asterisks
+      .replace(/\[[^\]]+\]/g, '') // Remove anything between brackets
+      .replace(/^\s+/, '') // Remove leading whitespace
+      .trim();
 
     return res.status(200).json({
       success: true,

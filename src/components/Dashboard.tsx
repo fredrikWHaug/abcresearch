@@ -7,12 +7,15 @@ import { MarketMap } from '@/components/MarketMap'
 import { TrialsList } from '@/components/TrialsList'
 import { SavedMaps } from '@/components/SavedMaps'
 import { PapersDiscovery } from '@/components/PapersDiscovery'
+import { DrugGroupedResults } from '@/components/DrugGroupedResults'
+import { DrugGroupedPanel } from '@/components/DrugGroupedPanel'
 import { ClinicalTrialsAPI } from '@/services/clinicalTrialsAPI'
 import { EnhancedSearchAPI } from '@/services/enhancedSearchAPI'
 import { pubmedAPI } from '@/services/pubmedAPI'
 import type { PubMedArticle } from '@/services/pubmedAPI'
 import { MarketMapService, type SavedMarketMap } from '@/services/marketMapService'
 import { PDFExtractionService, type ExtractionResult } from '@/services/pdfExtractionService'
+import { DrugGroupingService, type GroupedResults } from '@/services/drugGroupingService'
 import { supabase } from '@/lib/supabase'
 import type { ClinicalTrial } from '@/services/clinicalTrialsAPI'
 import type { SlideData } from '@/services/slideAPI'
@@ -149,6 +152,12 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
     clearCurrentSession();
   }
 
+  const handleCloseDrugGrouping = () => {
+    setShowDrugGrouping(false);
+    setViewMode('research');
+    setResearchTab('drugs');
+  }
+
   const [message, setMessage] = useState('')
   const [trials, setTrials] = useState<ClinicalTrial[]>([])
   const [loading, setLoading] = useState(false)
@@ -158,7 +167,11 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
   const [papers, setPapers] = useState<PubMedArticle[]>([])
   const [papersLoading, setPapersLoading] = useState(false)
   const [viewMode, setViewMode] = useState<'research' | 'marketmap' | 'savedmaps' | 'dataextraction'>(initialShowSavedMaps ? 'savedmaps' : 'research')
-  const [researchTab, setResearchTab] = useState<'trials' | 'papers'>('papers')
+  const [researchTab, setResearchTab] = useState<'trials' | 'papers' | 'drugs'>('papers')
+  
+  // Drug grouping state
+  const [showDrugGrouping, setShowDrugGrouping] = useState(false)
+  const [drugGroupedResults, setDrugGroupedResults] = useState<GroupedResults | null>(null)
   const [slideData, setSlideData] = useState<SlideData | null>(null)
   const [generatingSlide, setGeneratingSlide] = useState(false)
   const [slideError, setSlideError] = useState<string | null>(null)
@@ -216,15 +229,17 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
       setLoading(true);
       
       console.log('Sending request to generate-response API with query:', userMessage);
+      console.log('Chat history being sent:', chatHistory);
       
-      // First, get intent classification and response
+      // First, get intent classification and response with conversation context
       const response = await fetch('/api/generate-response', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          userQuery: userMessage
+          userQuery: userMessage,
+          chatHistory: chatHistory
         })
       });
 
@@ -292,12 +307,19 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
       setTrials(result.trials);
       
       // Search for papers related to the clinical trials
-      await searchPapersForQuery(suggestion.query);
+      const papersResult = await searchPapersForQuery(suggestion.query);
+      
+      // Group results by drug
+      const groupedResults = DrugGroupingService.groupByDrug(result.trials, papersResult);
+      console.log('Drug grouped results:', groupedResults);
+      
+      setDrugGroupedResults(groupedResults);
+      setResearchTab('drugs'); // Auto-switch to drugs tab
       
       // Add search execution message to chat
       setChatHistory(prev => [...prev, { 
         type: 'system' as const, 
-        message: `I've conducted a search for "${suggestion.query}" and found ${result.trials.length} clinical trials and ${papers.length} research papers. The results are displayed in the Research and Market Map tabs.`,
+        message: `I've conducted a search for "${suggestion.query}" and found ${result.trials.length} clinical trials and ${papersResult.length} research papers, grouped by ${groupedResults.totalDrugs} specific drugs.`,
         searchSuggestions: []
       }]);
       
@@ -314,7 +336,7 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
   }
 
   // Automatically search for papers related to clinical trials
-  const searchPapersForQuery = async (query: string) => {
+  const searchPapersForQuery = async (query: string): Promise<PubMedArticle[]> => {
     try {
       setPapersLoading(true);
       
@@ -325,9 +347,11 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
       });
       
       setPapers(papersResult);
+      return papersResult;
     } catch (error) {
       console.error('Error searching for papers:', error);
-      // Don't show error to user since this is background search
+      setPapers([]);
+      return [];
     } finally {
       setPapersLoading(false);
     }
@@ -711,26 +735,36 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
       <div className="absolute z-20" style={{ left: '50%', right: '0', top: '64px' }}>
         <div className="flex items-center justify-center gap-4 bg-white border-b border-gray-200 px-6 py-3 h-16">
           {/* Toggle Buttons */}
-          <div className="flex rounded-lg bg-gray-100 p-1 w-[20rem]">
+          <div className="flex rounded-lg bg-gray-100 p-1 w-[28rem]">
+            <button
+              onClick={() => setResearchTab('drugs')}
+              className={`py-2 px-3 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
+                researchTab === 'drugs'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              By Drug
+            </button>
             <button
               onClick={() => setResearchTab('papers')}
-              className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
+              className={`py-2 px-3 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
                 researchTab === 'papers'
                   ? 'bg-white text-gray-900 shadow-sm'
                   : 'text-gray-600 hover:text-gray-900'
               }`}
             >
-              Research Papers
+              Papers
             </button>
             <button
               onClick={() => setResearchTab('trials')}
-              className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
+              className={`py-2 px-3 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
                 researchTab === 'trials'
                   ? 'bg-white text-gray-900 shadow-sm'
                   : 'text-gray-600 hover:text-gray-900'
               }`}
             >
-              Clinical Trials
+              Trials
             </button>
           </div>
           
@@ -758,7 +792,19 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
           {/* Chat Messages Area */}
           <div className="flex-1 p-6 overflow-y-auto min-h-0 max-h-full">
             <div className="max-w-2xl mx-auto space-y-4">
-              {chatHistory.map((item, index) => (
+              {chatHistory.map((item, index) => {
+                // Only highlight as "consultant question" if it's a strategic research question
+                const isStrategicQuestion = item.type === 'system' && 
+                  item.message.includes('?') && 
+                  index > 2 && // Not in initial greetings
+                  (item.message.toLowerCase().includes('phase') ||
+                   item.message.toLowerCase().includes('population') ||
+                   item.message.toLowerCase().includes('outcome') ||
+                   item.message.toLowerCase().includes('trial') ||
+                   item.message.toLowerCase().includes('geographic') ||
+                   item.message.toLowerCase().includes('interested in'));
+                
+                return (
                 <div
                   key={index}
                   className={`flex ${item.type === 'user' ? 'justify-end' : 'justify-start'}`}
@@ -767,9 +813,19 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
                     className={`max-w-[80%] p-4 rounded-lg border ${
                       item.type === 'user' 
                         ? 'bg-gray-800 text-white border-gray-700' 
-                        : 'bg-gray-50 text-gray-700 border-gray-200'
+                        : isStrategicQuestion
+                          ? 'bg-blue-50 text-gray-800 border-blue-200 shadow-sm'
+                          : 'bg-gray-50 text-gray-700 border-gray-200'
                     }`}
                   >
+                    {isStrategicQuestion && (
+                      <div className="flex items-center gap-2 mb-2 text-xs font-medium text-blue-700">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span>Research Consultant Question</span>
+                      </div>
+                    )}
                     <div className="text-sm leading-relaxed">
                       {item.message}
                     </div>
@@ -798,7 +854,8 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
                     )}
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
@@ -827,9 +884,16 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
           </div>
         </div>
 
-        {/* Right Half - Papers Discovery or Trials List */}
+        {/* Right Half - Papers Discovery, Trials List, or Drug Grouping */}
         <div className="w-1/2 bg-gray-50 overflow-hidden" style={{ paddingTop: '80px' }}>
-          {researchTab === 'papers' ? (
+          {researchTab === 'drugs' && drugGroupedResults ? (
+            <DrugGroupedPanel 
+              groupedResults={drugGroupedResults}
+              onExpandFullScreen={() => setShowDrugGrouping(true)}
+              query={lastQuery}
+              loading={loading || papersLoading}
+            />
+          ) : researchTab === 'papers' ? (
             <PapersDiscovery 
               trials={trials} 
               query={lastQuery} 
@@ -841,6 +905,15 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
           )}
         </div>
       </div>
+      
+      {/* Full-screen drug grouping overlay */}
+      {showDrugGrouping && drugGroupedResults && (
+        <DrugGroupedResults 
+          groupedResults={drugGroupedResults}
+          onClose={handleCloseDrugGrouping}
+          query={lastQuery}
+        />
+      )}
     </div>
   )
   }
@@ -855,12 +928,34 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
       <div className="flex-1 flex flex-col max-w-4xl mx-auto w-full px-6 py-8">
         {/* Chat Messages Area */}
         <div className="flex-1 overflow-y-auto mb-6">
-          {chatHistory.map((item, index) => (
+          {chatHistory.map((item, index) => {
+            // Only highlight as "consultant question" if it's a strategic research question
+            const isStrategicQuestion = item.type === 'system' && 
+              item.message.includes('?') && 
+              index > 2 && // Not in initial greetings
+              (item.message.toLowerCase().includes('phase') ||
+               item.message.toLowerCase().includes('population') ||
+               item.message.toLowerCase().includes('outcome') ||
+               item.message.toLowerCase().includes('trial') ||
+               item.message.toLowerCase().includes('geographic') ||
+               item.message.toLowerCase().includes('interested in'));
+            
+            return (
             <div key={index} className={`mb-4 p-4 rounded-lg border ${
               item.type === 'user' 
                 ? 'bg-gray-800 text-white border-gray-700' 
-                : 'bg-gray-50 text-gray-700 border-gray-200'
+                : isStrategicQuestion
+                  ? 'bg-blue-50 text-gray-800 border-blue-200 shadow-sm'
+                  : 'bg-gray-50 text-gray-700 border-gray-200'
             }`}>
+              {isStrategicQuestion && (
+                <div className="flex items-center gap-2 mb-2 text-xs font-medium text-blue-700">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span>Research Consultant Question</span>
+                </div>
+              )}
               <div className="text-sm leading-relaxed">
                 {item.message}
               </div>
@@ -886,7 +981,8 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
                 </div>
               )}
             </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* Message Input */}
