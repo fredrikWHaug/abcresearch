@@ -3,7 +3,7 @@
 
 import { pubmedAPI } from './pubmedAPI';
 import type { PubMedArticle } from './pubmedAPI';
-import type { ClinicalTrial } from './clinicalTrialsAPI';
+import type { ClinicalTrial } from '@/types/trials';
 
 export interface PaperTrialLink {
   trial: ClinicalTrial;
