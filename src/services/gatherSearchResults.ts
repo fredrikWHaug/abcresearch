@@ -3,7 +3,8 @@
 // Contains business logic for searching across multiple data sources
 
 import type { ClinicalTrial, SearchParams } from '@/types/trials';
-import { pubmedAPI, type PubMedArticle } from './pubmedAPI';
+import type { PubMedArticle } from '@/types/papers';
+import { pubmedAPI } from './pubmedAPI';
 import { TrialRankingService } from './trialRankingService';
 
 interface EnhancedQueries {

@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { FileText, ExternalLink, Star, Users } from 'lucide-react';
-import type { PubMedArticle } from '@/services/pubmedAPI';
+import type { PubMedArticle } from '@/types/papers';
 import type { ClinicalTrial } from '@/types/trials';
 
 interface PapersDiscoveryProps {

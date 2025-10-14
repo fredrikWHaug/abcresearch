@@ -3,7 +3,7 @@
 // Calls extract-drug-names API proxy
 
 import type { ClinicalTrial } from '@/types/trials';
-import type { PubMedArticle } from './pubmedAPI';
+import type { PubMedArticle } from '@/types/papers';
 
 export interface DrugInfo {
   name: string;
