@@ -40,6 +40,12 @@ Centralized type definitions shared across the application.
    - Used across 11+ files in the codebase
    - **Commit message**: `feat: create centralized types file for clinical trials`
 
+2. **`src/types/papers.ts`** ✨ NEW
+   - Contains `PubMedArticle` and `PubMedSearchParams` interfaces
+   - Centralized type definitions for research papers data
+   - Used across 6+ files in the codebase
+   - **Commit message**: `feat: create centralized types file for research papers`
+
 ---
 
 ### Services (Client-Side) - `/src/services/` folder
@@ -194,9 +200,12 @@ git commit -m "feat: add drug names extraction API proxy"
 
 # 🧪 TEST: npm run build && npm run dev (verify app still works)
 
-# Step 2: Create types file and orchestration service (SAFE - new files only)
+# Step 2: Create types files and orchestration service (SAFE - new files only)
 git add src/types/trials.ts
 git commit -m "feat: create centralized types file for clinical trials"
+
+git add src/types/papers.ts
+git commit -m "feat: create centralized types file for research papers"
 
 git add src/services/gatherSearchResults.ts
 git commit -m "feat: add gatherSearchResults service to orchestrate all searches"
@@ -210,7 +219,7 @@ git commit -m "feat: add extractDrugNames service for drug extraction logic"
 # 🧪 TEST: npm run build
 
 # Step 4: Update all services to use new types (TypeScript protected)
-git add src/services/trialRankingService.ts src/services/slideAPI.ts src/services/paperLinkingService.ts src/services/marketMapService.ts
+git add src/services/pubmedAPI.ts src/services/trialRankingService.ts src/services/slideAPI.ts src/services/paperLinkingService.ts src/services/marketMapService.ts src/services/gatherSearchResults.ts src/services/extractDrugNames.ts
 git commit -m "refactor: update services to use centralized types"
 
 # 🧪 TEST: npm run build (TypeScript will catch any import errors)
@@ -308,6 +317,7 @@ marketMapService.ts ← Market map operations
 paperLinkingService.ts ← Paper-trial linking
 pdfExtractionService.ts ← PDF extraction logic
 
+
 ## Data Flow Before vs After
 
 ### Before:
@@ -401,7 +411,8 @@ If you encounter any issues during testing:
 ### Created Files:
 - ✅ `api/search-clinical-trials.ts` - ClinicalTrials.gov API proxy
 - ✅ `api/extract-drug-names.ts` - Gemini drug extraction API proxy
-- ✅ `src/types/trials.ts` - Centralized type definitions
+- ✅ `src/types/trials.ts` - Centralized clinical trials type definitions
+- ✅ `src/types/papers.ts` - Centralized research papers type definitions
 - ✅ `src/services/gatherSearchResults.ts` - Search orchestration service
 - ✅ `src/services/extractDrugNames.ts` - Drug extraction business logic
 
@@ -409,16 +420,19 @@ If you encounter any issues during testing:
 - ❌ `src/services/clinicalTrialsAPI.ts` - Merged into gatherSearchResults
 - ❌ `src/services/enhancedSearchAPI.ts` - Merged into gatherSearchResults
 
-### Modified Files (11 files):
-- 🔄 `src/services/trialRankingService.ts` - Updated imports
-- 🔄 `src/services/slideAPI.ts` - Updated imports
-- 🔄 `src/services/paperLinkingService.ts` - Updated imports
-- 🔄 `src/services/marketMapService.ts` - Updated imports
-- 🔄 `src/components/Dashboard.tsx` - Uses gatherSearchResults, updated imports
-- 🔄 `src/components/TrialsList.tsx` - Updated imports
-- 🔄 `src/components/Slide.tsx` - Updated imports
-- 🔄 `src/components/PapersDiscovery.tsx` - Updated imports
-- 🔄 `src/components/MarketMap.tsx` - Updated imports
+### Modified Files (12 files):
+- 🔄 `src/services/pubmedAPI.ts` - Updated to use centralized paper types
+- 🔄 `src/services/trialRankingService.ts` - Updated to use centralized trial types
+- 🔄 `src/services/slideAPI.ts` - Updated to use centralized trial types
+- 🔄 `src/services/paperLinkingService.ts` - Updated to use centralized types
+- 🔄 `src/services/marketMapService.ts` - Updated to use centralized trial types
+- 🔄 `src/services/gatherSearchResults.ts` - Updated to use centralized types
+- 🔄 `src/services/extractDrugNames.ts` - Updated to use centralized types
+- 🔄 `src/components/Dashboard.tsx` - Uses gatherSearchResults, updated to use centralized types
+- 🔄 `src/components/TrialsList.tsx` - Updated to use centralized trial types
+- 🔄 `src/components/Slide.tsx` - Updated to use centralized trial types
+- 🔄 `src/components/PapersDiscovery.tsx` - Updated to use centralized types
+- 🔄 `src/components/MarketMap.tsx` - Updated to use centralized trial types
 
 ### Architecture Principles Achieved:
 1. ✅ **APIs are pure proxies** - No business logic, just external API communication

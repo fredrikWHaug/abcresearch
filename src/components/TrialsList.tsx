@@ -1,6 +1,7 @@
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Building2, Calendar, TestTube, PlayCircle, CheckCircle } from 'lucide-react';
 import type { ClinicalTrial } from '@/types/trials';
 
 interface TrialsListProps {
@@ -71,11 +72,81 @@ export function TrialsList({ trials, loading, query }: TrialsListProps) {
                           {trial.briefTitle}
                         </div>
                       </a>
-                      {trial.rankScore && (
-                        <div className="text-xs text-gray-500 mt-1">
-                          Match score: {trial.rankScore}%
-                        </div>
-                      )}
+                      
+                      {/* Trial metadata */}
+                      <div className="mt-3 flex flex-wrap gap-4 text-sm">
+                        {/* Sponsor */}
+                        {trial.sponsors?.lead && (
+                          <div className="flex items-center gap-1.5 text-gray-600">
+                            <Building2 className="h-4 w-4 flex-shrink-0" />
+                            <span className="font-medium">{trial.sponsors.lead}</span>
+                          </div>
+                        )}
+                        
+                        {/* Phase */}
+                        {trial.phase && trial.phase.length > 0 && (
+                          <div className="flex items-center gap-1.5">
+                            <TestTube className="h-4 w-4 flex-shrink-0 text-purple-600" />
+                            <Badge variant="outline" className="text-xs">
+                              {trial.phase.join(', ')}
+                            </Badge>
+                          </div>
+                        )}
+                        
+                        {/* Start Date */}
+                        {trial.startDate && (
+                          <div className="flex items-center gap-1.5 text-gray-600">
+                            <PlayCircle className="h-4 w-4 flex-shrink-0 text-green-600" />
+                            <span className="text-xs">
+                              Started: {new Date(trial.startDate).toLocaleDateString('en-US', { 
+                                year: 'numeric', 
+                                month: 'short',
+                                day: 'numeric'
+                              })}
+                            </span>
+                          </div>
+                        )}
+                        
+                        {/* Completion Date */}
+                        {trial.completionDate && (
+                          <div className="flex items-center gap-1.5 text-gray-600">
+                            <CheckCircle className="h-4 w-4 flex-shrink-0 text-blue-600" />
+                            <span className="text-xs">
+                              {trial.overallStatus === 'COMPLETED' ? 'Completed' : 'Expected'}: {new Date(trial.completionDate).toLocaleDateString('en-US', { 
+                                year: 'numeric', 
+                                month: 'short',
+                                day: 'numeric'
+                              })}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* Rank score and status badge */}
+                      <div className="mt-2 flex items-center gap-2 flex-wrap">
+                        {trial.rankScore && (
+                          <Badge variant="secondary" className="text-xs">
+                            Match: {trial.rankScore}%
+                          </Badge>
+                        )}
+                        {trial.overallStatus && (
+                          <Badge 
+                            variant={
+                              trial.overallStatus === 'RECRUITING' ? 'default' : 
+                              trial.overallStatus === 'COMPLETED' ? 'secondary' : 
+                              'outline'
+                            }
+                            className="text-xs"
+                          >
+                            {trial.overallStatus.replace(/_/g, ' ')}
+                          </Badge>
+                        )}
+                        {trial.nctId && (
+                          <span className="text-xs text-gray-500 font-mono">
+                            {trial.nctId}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </CardContent>
