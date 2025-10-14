@@ -1,4 +1,4 @@
-import type { ClinicalTrial } from './clinicalTrialsAPI';
+import type { ClinicalTrial } from '@/types/trials';
 
 interface ChartData {
   phaseChart: Array<{ name: string; value: number }>;

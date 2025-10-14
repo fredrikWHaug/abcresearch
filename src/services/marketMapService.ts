@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import type { ClinicalTrial } from './clinicalTrialsAPI';
+import type { ClinicalTrial } from '@/types/trials';
 import type { SlideData } from './slideAPI';
 
 export interface SavedMarketMap {

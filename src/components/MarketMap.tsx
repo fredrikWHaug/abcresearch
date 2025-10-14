@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import type { ClinicalTrial } from '@/services/clinicalTrialsAPI';
+import type { ClinicalTrial } from '@/types/trials';
 import { SlideAPI } from '@/services/slideAPI';
 import type { SlideData } from '@/services/slideAPI';
 import { MarketMapService } from '@/services/marketMapService';
