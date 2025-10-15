@@ -10,14 +10,12 @@ import type { PubMedArticle } from '@/services/pubmedAPI';
 interface DrugGroupedPanelProps {
   groupedResults: GroupedResults;
   onExpandFullScreen: () => void;
-  query: string;
   loading: boolean;
 }
 
 export const DrugGroupedPanel: React.FC<DrugGroupedPanelProps> = ({ 
   groupedResults, 
   onExpandFullScreen,
-  query,
   loading
 }) => {
   const [expandedDrugs, setExpandedDrugs] = useState<Set<string>>(new Set([

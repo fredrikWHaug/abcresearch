@@ -890,7 +890,6 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
             <DrugGroupedPanel 
               groupedResults={drugGroupedResults}
               onExpandFullScreen={() => setShowDrugGrouping(true)}
-              query={lastQuery}
               loading={loading || papersLoading}
             />
           ) : researchTab === 'papers' ? (
