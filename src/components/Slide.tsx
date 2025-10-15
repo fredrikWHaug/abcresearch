@@ -3,7 +3,7 @@ import { Download, X, TrendingUp, TrendingDown, Minus, Save, Loader2 } from 'luc
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { MarketMapService } from '@/services/marketMapService';
-import type { ClinicalTrial } from '@/services/clinicalTrialsAPI';
+import type { ClinicalTrial } from '@/types/trials';
 import { PieChart, Pie, Cell, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 interface ChartData {

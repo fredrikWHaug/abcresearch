@@ -1,4 +1,4 @@
-import type { ClinicalTrial } from './clinicalTrialsAPI';
+import type { ClinicalTrial } from '@/types/trials';
 
 interface RankedTrial extends ClinicalTrial {
   rankScore: number;
