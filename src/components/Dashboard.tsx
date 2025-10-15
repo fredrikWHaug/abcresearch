@@ -7,10 +7,14 @@ import { MarketMap } from '@/components/MarketMap'
 import { TrialsList } from '@/components/TrialsList'
 import { SavedMaps } from '@/components/SavedMaps'
 import { PapersDiscovery } from '@/components/PapersDiscovery'
+import { DrugsList } from '@/components/DrugsList'
+import { DrugDetail } from '@/components/DrugDetail'
+import { DrugDetailModal } from '@/components/DrugDetailModal'
 import { GatherSearchResultsService } from '@/services/gatherSearchResults'
 import type { PubMedArticle } from '@/types/papers'
 import { MarketMapService, type SavedMarketMap } from '@/services/marketMapService'
 import { PDFExtractionService, type ExtractionResult } from '@/services/pdfExtractionService'
+import { DrugGroupingService, type DrugGroup } from '@/services/drugGroupingService'
 import { supabase } from '@/lib/supabase'
 import type { ClinicalTrial } from '@/types/trials'
 import type { SlideData } from '@/services/slideAPI'
@@ -133,6 +137,9 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
     setSlideError(null);
     setGeneratingSlide(false);
     setViewMode('research');
+    setDrugGroups([]);
+    setSelectedDrug(null);
+    setShowDrugModal(false);
   }
 
   const handleDeleteSavedMap = (_id: number) => {
@@ -162,6 +169,11 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
   const [slideError, setSlideError] = useState<string | null>(null)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [currentProjectId, setCurrentProjectId] = useState<number | null>(null)
+  
+  // Drug grouping state
+  const [drugGroups, setDrugGroups] = useState<DrugGroup[]>([])
+  const [selectedDrug, setSelectedDrug] = useState<DrugGroup | null>(null)
+  const [showDrugModal, setShowDrugModal] = useState(false)
   
   // PDF processing state
   const [isProcessingPDF, setIsProcessingPDF] = useState(false)
@@ -291,10 +303,14 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
       setTrials(result.trials);
       setPapers(result.papers);
       
+      // Group results by drug
+      const groups = DrugGroupingService.groupByDrugs(result.papers, result.trials);
+      setDrugGroups(groups);
+      
       // Add search execution message to chat
       setChatHistory(prev => [...prev, { 
         type: 'system' as const, 
-        message: `I've conducted a search for "${suggestion.query}" and found ${result.trials.length} clinical trials and ${result.papers.length} research papers. The results are displayed in the Research and Market Map tabs.`,
+        message: `I've conducted a search for "${suggestion.query}" and found ${result.trials.length} clinical trials, ${result.papers.length} research papers, and ${groups.length} drugs. The results are displayed in the Research, Market Map, and Drugs tabs.`,
         searchSuggestions: []
       }]);
       
@@ -548,6 +564,7 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
     );
   }
 
+
   // Data Extraction mode
   if (viewMode === 'dataextraction') {
     return (
@@ -682,44 +699,7 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
     console.log('Rendering split screen');
     return (
     <div className="h-screen flex flex-col relative">
-      <Header />
-      
-      {/* Research Tab Navigation - Flush with right panel borders */}
-      <div className="absolute z-20" style={{ left: '50%', right: '0', top: '64px' }}>
-        <div className="flex items-center justify-center gap-4 bg-white border-b border-gray-200 px-6 py-3 h-16">
-          {/* Toggle Buttons */}
-          <div className="flex rounded-lg bg-gray-100 p-1 w-[20rem]">
-            <button
-              onClick={() => setResearchTab('papers')}
-              className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
-                researchTab === 'papers'
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              Research Papers
-            </button>
-            <button
-              onClick={() => setResearchTab('trials')}
-              className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
-                researchTab === 'trials'
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              Clinical Trials
-            </button>
-          </div>
-          
-          {/* Loading Indicator for Papers */}
-          {researchTab === 'papers' && papersLoading && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600"></div>
-              Searching papers...
-            </div>
-          )}
-        </div>
-      </div>
+      <Header onStartNewProject={handleStartNewProject} currentProjectId={currentProjectId} />
       
       {/* Vertical separator line - spans from header to bottom with precise centering */}
       <div 
@@ -804,20 +784,36 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
           </div>
         </div>
 
-        {/* Right Half - Papers Discovery or Trials List */}
-        <div className="w-1/2 bg-gray-50 overflow-hidden" style={{ paddingTop: '80px' }}>
-          {researchTab === 'papers' ? (
-            <PapersDiscovery 
-              trials={trials} 
-              query={lastQuery} 
-              papers={papers}
-              loading={papersLoading}
+        {/* Right Half - Drug-Centric View */}
+        <div className="w-1/2 bg-gray-50 overflow-hidden">
+          {selectedDrug ? (
+            <DrugDetail
+              drugGroup={selectedDrug}
+              query={lastQuery}
+              onBack={() => setSelectedDrug(null)}
+              onExpandFullscreen={() => setShowDrugModal(true)}
             />
           ) : (
-            <TrialsList trials={trials} loading={loading} query={lastQuery} />
+            <DrugsList
+              drugGroups={drugGroups}
+              loading={loading || papersLoading}
+              query={lastQuery}
+              onDrugClick={(drugGroup) => setSelectedDrug(drugGroup)}
+            />
           )}
         </div>
       </div>
+
+      {/* Fullscreen Drug Modal */}
+      {showDrugModal && selectedDrug && (
+        <DrugDetailModal
+          drugGroup={selectedDrug}
+          query={lastQuery}
+          onClose={() => {
+            setShowDrugModal(false);
+          }}
+        />
+      )}
     </div>
   )
   }
