@@ -26,8 +26,18 @@ export default async function handler(req: any, res: any) {
     }
 
     const geminiApiKey = process.env.GOOGLE_GEMINI_API_KEY;
+    
+    // If no Gemini API key, return simple fallback immediately
     if (!geminiApiKey) {
-      return res.status(500).json({ error: 'Google Gemini API key not configured' });
+      console.log('No Gemini API key configured, using simple search strategy');
+      return res.status(200).json({
+        success: true,
+        enhancedQueries: {
+          primary: { query: query },
+          alternative: { query: query },
+          broad: { query: query }
+        }
+      });
     }
 
     const prompt = `You are a medical research expert. Given a user's search query for clinical trials, generate 3 different search strategies.
