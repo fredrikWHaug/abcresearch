@@ -15,6 +15,8 @@ import type { PubMedArticle } from '@/types/papers'
 import { MarketMapService, type SavedMarketMap } from '@/services/marketMapService'
 import { PDFExtractionService, type ExtractionResult } from '@/services/pdfExtractionService'
 import { DrugGroupingService, type DrugGroup } from '@/services/drugGroupingService'
+import { ExtractDrugNamesService } from '@/services/extractDrugNames'
+import { pubmedAPI } from '@/services/pubmedAPI'
 import { supabase } from '@/lib/supabase'
 import type { ClinicalTrial } from '@/types/trials'
 import type { SlideData } from '@/services/slideAPI'
@@ -140,6 +142,9 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
     setDrugGroups([]);
     setSelectedDrug(null);
     setShowDrugModal(false);
+    setExtractingDrugs(false);
+    setSearchProgress({ current: 0, total: 0 });
+    setInitialSearchQueries(null);
   }
 
   const handleDeleteSavedMap = (_id: number) => {
@@ -174,6 +179,15 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
   const [drugGroups, setDrugGroups] = useState<DrugGroup[]>([])
   const [selectedDrug, setSelectedDrug] = useState<DrugGroup | null>(null)
   const [showDrugModal, setShowDrugModal] = useState(false)
+  
+  // Two-stage search state
+  const [extractingDrugs, setExtractingDrugs] = useState(false)
+  const [searchProgress, setSearchProgress] = useState({ current: 0, total: 0 })
+  const [initialSearchQueries, setInitialSearchQueries] = useState<{
+    originalQuery: string;
+    clinicalTrialsQuery: string;
+    pubmedQuery: string;
+  } | null>(null)
   
   // PDF processing state
   const [isProcessingPDF, setIsProcessingPDF] = useState(false)
@@ -288,29 +302,167 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
     }
   }
 
+  /**
+   * Search for clinical trials and papers for a specific drug
+   * Enhanced with original query context for better results
+   */
+  const searchForDrug = async (drugName: string, originalQuery: string): Promise<{ 
+    trials: ClinicalTrial[], 
+    papers: PubMedArticle[]
+  }> => {
+    try {
+      // Include original query context for more targeted results
+      const clinicalTrialsQuery = `${drugName} ${originalQuery}`;
+      const pubmedQuery = `${drugName} AND ${originalQuery} AND ("Clinical Trial"[Publication Type] OR "Randomized Controlled Trial"[Publication Type])`;
+      
+      // Search clinical trials for this drug
+      const trialsResponse = await fetch('/api/search-clinical-trials', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          query: clinicalTrialsQuery,
+        })
+      });
+      
+      if (!trialsResponse.ok) {
+        console.error('Error fetching trials for drug:', drugName);
+        return { 
+          trials: [], 
+          papers: []
+        };
+      }
+      
+      const trialsData = await trialsResponse.json();
+      const drugTrials = trialsData.trials || [];
+      
+      // Search papers for this drug
+      const drugPapers = await pubmedAPI.searchPapers({
+        query: pubmedQuery,
+        maxResults: 20
+      });
+      
+      return { 
+        trials: drugTrials, 
+        papers: drugPapers
+      };
+    } catch (error) {
+      console.error('Error searching for drug:', drugName, error);
+      return { 
+        trials: [], 
+        papers: []
+      };
+    }
+  };
+
   const handleSearchSuggestion = async (suggestion: {id: string, label: string, query: string, description?: string}) => {
     console.log('Search suggestion clicked:', suggestion);
     
     try {
+      // Show split screen immediately
+      setHasSearched(true);
       setLoading(true);
-      setPapersLoading(true);
-      setHasSearched(true); // Only set to true when actual search is conducted
       setLastQuery(suggestion.query);
       
-      // Use new gatherSearchResults service that orchestrates all searches
-      const result = await GatherSearchResultsService.gatherSearchResults(suggestion.query);
+      // Stage 1: Initial search and drug extraction
+      console.log('Stage 1: Performing initial search and extracting drugs...');
+      setExtractingDrugs(true);
       
-      setTrials(result.trials);
-      setPapers(result.papers);
-      
-      // Group results by drug
-      const groups = DrugGroupingService.groupByDrugs(result.papers, result.trials);
-      setDrugGroups(groups);
-      
-      // Add search execution message to chat
+      // Add Stage 1 loading message to chat
       setChatHistory(prev => [...prev, { 
         type: 'system' as const, 
-        message: `I've conducted a search for "${suggestion.query}" and found ${result.trials.length} clinical trials, ${result.papers.length} research papers, and ${groups.length} drugs. The results are displayed in the Research, Market Map, and Drugs tabs.`,
+        message: 'stage1_loading',
+        searchSuggestions: []
+      }]);
+      
+      // Perform initial search
+      const initialResult = await GatherSearchResultsService.gatherSearchResults(suggestion.query);
+      
+      // Save the initial search queries for display
+      setInitialSearchQueries({
+        originalQuery: suggestion.query,
+        clinicalTrialsQuery: suggestion.query,
+        pubmedQuery: `${suggestion.query} AND ("Clinical Trial"[Publication Type] OR "Randomized Controlled Trial"[Publication Type])`
+      });
+      
+      // Extract unique drug names from the results
+      const drugExtractionResult = await ExtractDrugNamesService.extractFromSearchResults(
+        initialResult.trials,
+        initialResult.papers
+      );
+      
+      const uniqueDrugNames = drugExtractionResult.uniqueDrugNames;
+      console.log(`Stage 1 complete: Found ${uniqueDrugNames.length} unique drugs:`, uniqueDrugNames);
+      
+      // Update chat with Stage 1 completion (remove loading message and add completion message)
+      setChatHistory(prev => {
+        const filtered = prev.filter(item => item.message !== 'stage1_loading');
+        return [...filtered, { 
+          type: 'system' as const, 
+          message: `Found ${uniqueDrugNames.length} unique drugs from initial search. Now searching for comprehensive data on each drug...`,
+          searchSuggestions: []
+        }];
+      });
+      
+      // Stage 2: Search for each drug specifically
+      console.log('Stage 2: Searching for each drug specifically...');
+      setExtractingDrugs(false);
+      setSearchProgress({ current: 0, total: uniqueDrugNames.length });
+      
+      // Initialize drug groups array to show results as they come in
+      const allDrugGroups: DrugGroup[] = [];
+      
+      // Search for each drug one by one and update results progressively
+      for (let i = 0; i < uniqueDrugNames.length; i++) {
+        const drugName = uniqueDrugNames[i];
+        console.log(`Searching for drug ${i + 1}/${uniqueDrugNames.length}: ${drugName}`);
+        
+        // Include original query context for more targeted results
+        const drugResults = await searchForDrug(drugName, suggestion.query);
+        
+        // Create a drug group for this drug
+        const drugGroup: DrugGroup = {
+          drugName: drugName,
+          normalizedName: drugName.toLowerCase(),
+          papers: drugResults.papers,
+          trials: drugResults.trials,
+          totalResults: drugResults.papers.length + drugResults.trials.length
+        };
+        
+        allDrugGroups.push(drugGroup);
+        
+        // Update state immediately to show this drug's results
+        setDrugGroups([...allDrugGroups].sort((a, b) => b.totalResults - a.totalResults));
+        setSearchProgress({ current: i + 1, total: uniqueDrugNames.length });
+        
+        console.log(`Found ${drugGroup.totalResults} results for ${drugName}`);
+        
+        // Small delay to avoid overwhelming APIs and make progressive UI visible
+        if (i < uniqueDrugNames.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
+      
+      // Calculate total stats
+      const totalTrials = allDrugGroups.reduce((sum, g) => sum + g.trials.length, 0);
+      const totalPapers = allDrugGroups.reduce((sum, g) => sum + g.papers.length, 0);
+      
+      // Also update the global trials and papers arrays for MarketMap
+      const allTrials = allDrugGroups.flatMap(g => g.trials);
+      const allPapers = allDrugGroups.flatMap(g => g.papers);
+      
+      // Deduplicate trials and papers
+      const uniqueTrials = Array.from(new Map(allTrials.map(t => [t.nctId, t])).values());
+      const uniquePapers = Array.from(new Map(allPapers.map(p => [p.pmid, p])).values());
+      
+      setTrials(uniqueTrials);
+      setPapers(uniquePapers);
+      
+      // Add final message to chat
+      setChatHistory(prev => [...prev, { 
+        type: 'system' as const, 
+        message: `Search complete! Found ${allDrugGroups.length} drugs with ${totalTrials} clinical trials and ${totalPapers} research papers in total. Results are displayed on the right.`,
         searchSuggestions: []
       }]);
       
@@ -321,9 +473,13 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
         message: 'Sorry, there was an error conducting the search. Please try again.',
         searchSuggestions: []
       }]);
+      setExtractingDrugs(false);
+      setHasSearched(false);
     } finally {
       setLoading(false);
       setPapersLoading(false);
+      setExtractingDrugs(false);
+      setSearchProgress({ current: 0, total: 0 });
     }
   }
 
@@ -695,7 +851,7 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
 
   // Research mode - split view layout (only when hasSearched is true and we have search results)
   console.log('Checking split screen condition. hasSearched:', hasSearched, 'trials:', trials.length, 'papers:', papers.length);
-  if (hasSearched && (trials.length > 0 || papers.length > 0)) {
+  if (hasSearched && (drugGroups.length > 0 || searchProgress.total > 0 || extractingDrugs)) {
     console.log('Rendering split screen');
     return (
     <div className="h-screen flex flex-col relative">
@@ -727,9 +883,20 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
                         : 'bg-gray-50 text-gray-700 border-gray-200'
                     }`}
                   >
-                    <div className="text-sm leading-relaxed">
-                      {item.message}
-                    </div>
+                    {/* Special handling for Stage 1 loading */}
+                    {item.message === 'stage1_loading' ? (
+                      <div className="flex items-center gap-3">
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+                        <div className="text-sm">
+                          <div className="font-medium text-gray-900">Stage 1: Extracting Drug Names</div>
+                          <div className="text-gray-600 mt-1">Analyzing initial search results to identify all unique drugs...</div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-sm leading-relaxed">
+                        {item.message}
+                      </div>
+                    )}
                     
                     {/* Search Suggestions */}
                     {item.searchSuggestions && item.searchSuggestions.length > 0 && (
@@ -756,6 +923,23 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
                   </div>
                 </div>
               ))}
+              
+              {/* Stage 2 Progress Indicator */}
+              {searchProgress.total > 0 && searchProgress.current < searchProgress.total && (
+                <div className="flex justify-start">
+                  <div className="max-w-[80%] p-4 rounded-lg border bg-blue-50 border-blue-200">
+                    <div className="text-sm text-blue-900 mb-2">
+                      Stage 2: Searching for drug {searchProgress.current + 1} of {searchProgress.total}...
+                    </div>
+                    <div className="w-full bg-blue-200 rounded-full h-2">
+                      <div 
+                        className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                        style={{ width: `${(searchProgress.current / searchProgress.total) * 100}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -796,9 +980,10 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
           ) : (
             <DrugsList
               drugGroups={drugGroups}
-              loading={loading || papersLoading}
+              loading={searchProgress.total > 0 && searchProgress.current < searchProgress.total}
               query={lastQuery}
               onDrugClick={(drugGroup) => setSelectedDrug(drugGroup)}
+              initialSearchQueries={initialSearchQueries}
             />
           )}
         </div>
