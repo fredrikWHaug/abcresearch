@@ -101,8 +101,9 @@ export class DrugGroupingService {
     const drugMap = new Map<string, DrugGroup>();
 
     // Extract drugs from trials
+    // Pattern-based extraction disabled - rely on AI extraction upstream
     trials.forEach(trial => {
-      const drugs = this.extractDrugsFromTrial(trial);
+      const drugs: string[] = [];
       drugs.forEach(drugName => {
         // Skip blacklisted drugs
         if (this.shouldExcludeDrug(drugName)) {
@@ -127,8 +128,9 @@ export class DrugGroupingService {
     });
 
     // Extract drugs from papers
+    // Pattern-based extraction disabled - rely on AI extraction upstream
     papers.forEach(paper => {
-      const drugs = this.extractDrugsFromPaper(paper);
+      const drugs: string[] = [];
       drugs.forEach(drugName => {
         // Skip blacklisted drugs
         if (this.shouldExcludeDrug(drugName)) {
@@ -160,33 +162,6 @@ export class DrugGroupingService {
 
     // Sort by total results (descending)
     return groups.sort((a, b) => b.totalResults - a.totalResults);
-  }
-
-  /**
-   * Extract drug names from a clinical trial
-   * DISABLED: Now using AI-powered extraction only
-   */
-  private static extractDrugsFromTrial(trial: ClinicalTrial): string[] {
-    // Pattern-based extraction disabled - rely on AI extraction upstream
-    return [];
-  }
-
-  /**
-   * Extract drug names from a paper
-   * DISABLED: Now using AI-powered extraction only
-   */
-  private static extractDrugsFromPaper(paper: PubMedArticle): string[] {
-    // Pattern-based extraction disabled - rely on AI extraction upstream
-    return [];
-  }
-
-  /**
-   * Extract drug names from text using pattern matching
-   * DISABLED: Now using AI-powered extraction only
-   */
-  private static extractDrugsFromText(text: string): string[] {
-    // Pattern-based extraction disabled - rely on AI extraction upstream
-    return [];
   }
 
   /**
