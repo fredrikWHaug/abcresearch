@@ -19,6 +19,85 @@ interface ExtractDrugNamesResponse {
 }
 
 export class ExtractDrugNamesService {
+  // Blacklist of non-drug terms to exclude
+  private static readonly DRUG_BLACKLIST = new Set([
+    'placebo',
+    'glp-1',
+    'glp1',
+    'sglt2',
+    'dpp-4',
+    'ace inhibitor',
+    'beta blocker',
+    'calcium channel blocker',
+    'statin',
+    'insulin',
+    'metformin', // too generic
+    'aspirin', // too generic
+    'control',
+    'standard care',
+    'standard of care',
+    'usual care',
+    'best supportive care',
+    'chemotherapy', // too generic
+    'radiation',
+    'surgery',
+    'combination',
+    'monotherapy',
+    'therapy',
+    'treatment',
+    'intervention',
+    'drug',
+    'medication',
+    'agent',
+  ]);
+
+  /**
+   * Check if a drug name should be excluded
+   */
+  private static shouldExcludeDrug(drugName: string): boolean {
+    const normalized = drugName.toLowerCase().trim();
+    
+    // Exclude if in blacklist
+    if (this.DRUG_BLACKLIST.has(normalized)) {
+      return true;
+    }
+    
+    // Exclude very short names (likely acronyms or not real drugs)
+    if (normalized.length <= 3) {
+      return true;
+    }
+    
+    // Exclude if it's just a drug class (ends with common class suffixes without proper drug name)
+    const genericClassPatterns = [
+      /^glp-?\d+/i,
+      /^sglt-?\d+/i,
+      /^dpp-?\d+/i,
+      /\binhibitor$/i,
+      /\bblocker$/i,
+      /receptor\s+agonist$/i,
+      /receptor\s+antagonist$/i,
+    ];
+    
+    if (genericClassPatterns.some(pattern => pattern.test(normalized))) {
+      return true;
+    }
+    
+    // Exclude generic terms
+    const genericTerms = [
+      /^active\s+/i,
+      /^experimental\s+/i,
+      /^investigational\s+/i,
+      /^standard\s+/i,
+      /^conventional\s+/i,
+    ];
+    
+    if (genericTerms.some(pattern => pattern.test(normalized))) {
+      return true;
+    }
+    
+    return false;
+  }
+
   /**
    * Call the extract-drug-names API proxy
    */
@@ -174,11 +253,29 @@ export class ExtractDrugNamesService {
       const allDrugs = [...trialDrugs, ...paperDrugs];
       const deduplicatedDrugs = this.deduplicateDrugs(allDrugs);
 
+      // Filter to only high-confidence drugs and exclude blacklisted terms
+      const highConfidenceDrugs = deduplicatedDrugs.filter(drug => {
+        // Only include high confidence
+        if (drug.confidence !== 'high') {
+          return false;
+        }
+        
+        // Exclude blacklisted terms
+        if (this.shouldExcludeDrug(drug.name)) {
+          console.log(`Excluding drug: ${drug.name} (blacklisted or generic)`);
+          return false;
+        }
+        
+        return true;
+      });
+
       // Get unique drug names
-      const uniqueDrugNames = [...new Set(deduplicatedDrugs.map(d => d.name))];
+      const uniqueDrugNames = [...new Set(highConfidenceDrugs.map(d => d.name))];
+
+      console.log(`Filtered to ${uniqueDrugNames.length} high-confidence drugs from ${deduplicatedDrugs.length} total`);
 
       return {
-        allDrugs: deduplicatedDrugs,
+        allDrugs: highConfidenceDrugs,
         trialDrugs,
         paperDrugs,
         uniqueDrugNames

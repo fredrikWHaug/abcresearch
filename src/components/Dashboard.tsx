@@ -15,6 +15,8 @@ import type { PubMedArticle } from '@/types/papers'
 import { MarketMapService, type SavedMarketMap } from '@/services/marketMapService'
 import { PDFExtractionService, type ExtractionResult } from '@/services/pdfExtractionService'
 import { DrugGroupingService, type DrugGroup } from '@/services/drugGroupingService'
+import { ExtractDrugNamesService } from '@/services/extractDrugNames'
+import { pubmedAPI } from '@/services/pubmedAPI'
 import { supabase } from '@/lib/supabase'
 import type { ClinicalTrial } from '@/types/trials'
 import type { SlideData } from '@/services/slideAPI'
@@ -88,6 +90,28 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
     }
   }
 
+  // Paper context handlers
+  const handleAddPaperToContext = (paper: PubMedArticle) => {
+    // Check if paper is already in context
+    if (selectedPapers.some(p => p.pmid === paper.pmid)) {
+      return; // Already added
+    }
+    setSelectedPapers(prev => [...prev, paper]);
+  }
+
+  const handleRemovePaperFromContext = (pmid: string) => {
+    setSelectedPapers(prev => prev.filter(p => p.pmid !== pmid));
+  }
+
+  const handleClearContext = () => {
+    setSelectedPapers([]);
+    setShowContextPanel(false);
+  }
+
+  const isPaperInContext = (pmid: string) => {
+    return selectedPapers.some(p => p.pmid === pmid);
+  }
+
   const handleLoadSavedMap = (savedMap: SavedMarketMap) => {
     console.log('Loading saved map:', savedMap);
     console.log('Chat history from saved map:', savedMap.chat_history);
@@ -140,6 +164,9 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
     setDrugGroups([]);
     setSelectedDrug(null);
     setShowDrugModal(false);
+    setExtractingDrugs(false);
+    setSearchProgress({ current: 0, total: 0 });
+    setInitialSearchQueries(null);
   }
 
   const handleDeleteSavedMap = (_id: number) => {
@@ -158,7 +185,12 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
   const [trials, setTrials] = useState<ClinicalTrial[]>([])
   const [loading, setLoading] = useState(false)
   const [lastQuery, setLastQuery] = useState('')
-  const [chatHistory, setChatHistory] = useState<Array<{type: 'user' | 'system', message: string, searchSuggestions?: Array<{id: string, label: string, query: string, description?: string}>}>>([])
+  const [chatHistory, setChatHistory] = useState<Array<{
+    type: 'user' | 'system', 
+    message: string, 
+    searchSuggestions?: Array<{id: string, label: string, query: string, description?: string}>,
+    contextPapers?: PubMedArticle[]
+  }>>([])
   const [hasSearched, setHasSearched] = useState(false)
   const [papers, setPapers] = useState<PubMedArticle[]>([])
   const [papersLoading, setPapersLoading] = useState(false)
@@ -175,20 +207,36 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
   const [selectedDrug, setSelectedDrug] = useState<DrugGroup | null>(null)
   const [showDrugModal, setShowDrugModal] = useState(false)
   
+  // Two-stage search state
+  const [extractingDrugs, setExtractingDrugs] = useState(false)
+  const [searchProgress, setSearchProgress] = useState({ current: 0, total: 0 })
+  const [initialSearchQueries, setInitialSearchQueries] = useState<{
+    originalQuery: string;
+    clinicalTrialsQuery: string;
+    pubmedQuery: string;
+  } | null>(null)
+  
   // PDF processing state
   const [isProcessingPDF, setIsProcessingPDF] = useState(false)
   const [pdfProcessingResult, setPdfProcessingResult] = useState<ExtractionResult | null>(null)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  
+  // Paper context state (for AI conversation)
+  const [selectedPapers, setSelectedPapers] = useState<PubMedArticle[]>([])
+  const [showContextPanel, setShowContextPanel] = useState(false)
 
-  // Close menu when clicking outside
+  // Close menu and context panel when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (isMenuOpen) {
-        const target = event.target as Element;
-        if (!target.closest('.menu-container')) {
-          setIsMenuOpen(false);
-        }
+      const target = event.target as Element;
+      
+      if (isMenuOpen && !target.closest('.menu-container')) {
+        setIsMenuOpen(false);
+      }
+      
+      if (showContextPanel && !target.closest('.context-panel-container')) {
+        setShowContextPanel(false);
       }
     };
 
@@ -196,7 +244,7 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [isMenuOpen]);
+  }, [isMenuOpen, showContextPanel]);
 
   // Debug logging for MarketMap props
   useEffect(() => {
@@ -216,11 +264,16 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
     if (!message.trim()) return;
     
     const userMessage = message.trim();
+    const messageContextPapers = [...selectedPapers]; // Snapshot current context
     setMessage('');
     setHasSearched(true); // Switch to wide screen chat interface after first message
     
-    // Add user message to chat history
-    setChatHistory(prev => [...prev, { type: 'user', message: userMessage }]);
+    // Add user message to chat history with context papers
+    setChatHistory(prev => [...prev, { 
+      type: 'user', 
+      message: userMessage,
+      contextPapers: messageContextPapers.length > 0 ? messageContextPapers : undefined
+    }]);
     
     try {
       setLoading(true);
@@ -234,7 +287,8 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          userQuery: userMessage
+          userQuery: userMessage,
+          contextPapers: selectedPapers.length > 0 ? selectedPapers : undefined
         })
       });
 
@@ -288,29 +342,167 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
     }
   }
 
+  /**
+   * Search for clinical trials and papers for a specific drug
+   * Enhanced with original query context for better results
+   */
+  const searchForDrug = async (drugName: string, originalQuery: string): Promise<{ 
+    trials: ClinicalTrial[], 
+    papers: PubMedArticle[]
+  }> => {
+    try {
+      // Include original query context for more targeted results
+      const clinicalTrialsQuery = `${drugName} ${originalQuery}`;
+      const pubmedQuery = `${drugName} AND ${originalQuery} AND ("Clinical Trial"[Publication Type] OR "Randomized Controlled Trial"[Publication Type])`;
+      
+      // Search clinical trials for this drug
+      const trialsResponse = await fetch('/api/search-clinical-trials', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          query: clinicalTrialsQuery,
+        })
+      });
+      
+      if (!trialsResponse.ok) {
+        console.error('Error fetching trials for drug:', drugName);
+        return { 
+          trials: [], 
+          papers: []
+        };
+      }
+      
+      const trialsData = await trialsResponse.json();
+      const drugTrials = trialsData.trials || [];
+      
+      // Search papers for this drug
+      const drugPapers = await pubmedAPI.searchPapers({
+        query: pubmedQuery,
+        maxResults: 20
+      });
+      
+      return { 
+        trials: drugTrials, 
+        papers: drugPapers
+      };
+    } catch (error) {
+      console.error('Error searching for drug:', drugName, error);
+      return { 
+        trials: [], 
+        papers: []
+      };
+    }
+  };
+
   const handleSearchSuggestion = async (suggestion: {id: string, label: string, query: string, description?: string}) => {
     console.log('Search suggestion clicked:', suggestion);
     
     try {
+      // Show split screen immediately
+      setHasSearched(true);
       setLoading(true);
-      setPapersLoading(true);
-      setHasSearched(true); // Only set to true when actual search is conducted
       setLastQuery(suggestion.query);
       
-      // Use new gatherSearchResults service that orchestrates all searches
-      const result = await GatherSearchResultsService.gatherSearchResults(suggestion.query);
+      // Stage 1: Initial search and drug extraction
+      console.log('Stage 1: Performing initial search and extracting drugs...');
+      setExtractingDrugs(true);
       
-      setTrials(result.trials);
-      setPapers(result.papers);
-      
-      // Group results by drug
-      const groups = DrugGroupingService.groupByDrugs(result.papers, result.trials);
-      setDrugGroups(groups);
-      
-      // Add search execution message to chat
+      // Add Stage 1 loading message to chat
       setChatHistory(prev => [...prev, { 
         type: 'system' as const, 
-        message: `I've conducted a search for "${suggestion.query}" and found ${result.trials.length} clinical trials, ${result.papers.length} research papers, and ${groups.length} drugs. The results are displayed in the Research, Market Map, and Drugs tabs.`,
+        message: 'stage1_loading',
+        searchSuggestions: []
+      }]);
+      
+      // Perform initial search
+      const initialResult = await GatherSearchResultsService.gatherSearchResults(suggestion.query);
+      
+      // Save the initial search queries for display
+      setInitialSearchQueries({
+        originalQuery: suggestion.query,
+        clinicalTrialsQuery: suggestion.query,
+        pubmedQuery: `${suggestion.query} AND ("Clinical Trial"[Publication Type] OR "Randomized Controlled Trial"[Publication Type])`
+      });
+      
+      // Extract unique drug names from the results
+      const drugExtractionResult = await ExtractDrugNamesService.extractFromSearchResults(
+        initialResult.trials,
+        initialResult.papers
+      );
+      
+      const uniqueDrugNames = drugExtractionResult.uniqueDrugNames;
+      console.log(`Stage 1 complete: Found ${uniqueDrugNames.length} unique drugs:`, uniqueDrugNames);
+      
+      // Update chat with Stage 1 completion (remove loading message and add completion message)
+      setChatHistory(prev => {
+        const filtered = prev.filter(item => item.message !== 'stage1_loading');
+        return [...filtered, { 
+          type: 'system' as const, 
+          message: `Found ${uniqueDrugNames.length} unique drugs from initial search. Now searching for comprehensive data on each drug...`,
+          searchSuggestions: []
+        }];
+      });
+      
+      // Stage 2: Search for each drug specifically
+      console.log('Stage 2: Searching for each drug specifically...');
+      setExtractingDrugs(false);
+      setSearchProgress({ current: 0, total: uniqueDrugNames.length });
+      
+      // Initialize drug groups array to show results as they come in
+      const allDrugGroups: DrugGroup[] = [];
+      
+      // Search for each drug one by one and update results progressively
+      for (let i = 0; i < uniqueDrugNames.length; i++) {
+        const drugName = uniqueDrugNames[i];
+        console.log(`Searching for drug ${i + 1}/${uniqueDrugNames.length}: ${drugName}`);
+        
+        // Include original query context for more targeted results
+        const drugResults = await searchForDrug(drugName, suggestion.query);
+        
+        // Create a drug group for this drug
+        const drugGroup: DrugGroup = {
+          drugName: drugName,
+          normalizedName: drugName.toLowerCase(),
+          papers: drugResults.papers,
+          trials: drugResults.trials,
+          totalResults: drugResults.papers.length + drugResults.trials.length
+        };
+        
+        allDrugGroups.push(drugGroup);
+        
+        // Update state immediately to show this drug's results
+        setDrugGroups([...allDrugGroups].sort((a, b) => b.totalResults - a.totalResults));
+        setSearchProgress({ current: i + 1, total: uniqueDrugNames.length });
+        
+        console.log(`Found ${drugGroup.totalResults} results for ${drugName}`);
+        
+        // Small delay to avoid overwhelming APIs and make progressive UI visible
+        if (i < uniqueDrugNames.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
+      
+      // Calculate total stats
+      const totalTrials = allDrugGroups.reduce((sum, g) => sum + g.trials.length, 0);
+      const totalPapers = allDrugGroups.reduce((sum, g) => sum + g.papers.length, 0);
+      
+      // Also update the global trials and papers arrays for MarketMap
+      const allTrials = allDrugGroups.flatMap(g => g.trials);
+      const allPapers = allDrugGroups.flatMap(g => g.papers);
+      
+      // Deduplicate trials and papers
+      const uniqueTrials = Array.from(new Map(allTrials.map(t => [t.nctId, t])).values());
+      const uniquePapers = Array.from(new Map(allPapers.map(p => [p.pmid, p])).values());
+      
+      setTrials(uniqueTrials);
+      setPapers(uniquePapers);
+      
+      // Add final message to chat
+      setChatHistory(prev => [...prev, { 
+        type: 'system' as const, 
+        message: `Search complete! Found ${allDrugGroups.length} drugs with ${totalTrials} clinical trials and ${totalPapers} research papers in total. Results are displayed on the right.`,
         searchSuggestions: []
       }]);
       
@@ -321,16 +513,20 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
         message: 'Sorry, there was an error conducting the search. Please try again.',
         searchSuggestions: []
       }]);
+      setExtractingDrugs(false);
+      setHasSearched(false);
     } finally {
       setLoading(false);
       setPapersLoading(false);
+      setExtractingDrugs(false);
+      setSearchProgress({ current: 0, total: 0 });
     }
   }
 
   // Shared header component
   const Header = ({ onStartNewProject, currentProjectId }: { onStartNewProject?: () => void, currentProjectId?: number | null } = {}) => (
     <div className="h-16 bg-white border-b border-gray-200 z-50 flex items-center relative">
-      {/* Left Side - Hamburger Menu (only for authenticated users) + Guest Banner */}
+      {/* Left Side - Hamburger Menu (only for authenticated users) + Guest Banner + Context Indicator */}
       <div className="flex items-center gap-3 px-6">
         {/* Hamburger Menu - Only show for authenticated users */}
         {!isGuest && (
@@ -486,6 +682,101 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
           <div className="text-center mb-8">
             <h1 className="text-3xl font-semibold text-gray-800 mb-2">Welcome back</h1>
           </div>
+          
+          {/* Context Papers Display */}
+          {selectedPapers.length > 0 && (
+            <div className="mb-3 flex justify-center">
+              {selectedPapers.length <= 2 ? (
+                // Show individual pills for 1-2 papers
+                <div className="flex flex-wrap gap-2 justify-center">
+                  {selectedPapers.map((paper) => (
+                    <div
+                      key={paper.pmid}
+                      className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-md text-sm"
+                    >
+                      <svg className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      <span className="text-blue-900 font-medium line-clamp-1 max-w-[200px]" title={paper.title}>
+                        {paper.title}
+                      </span>
+                      <button
+                        onClick={() => handleRemovePaperFromContext(paper.pmid)}
+                        className="flex-shrink-0 text-blue-400 hover:text-blue-600 transition-colors"
+                        title="Remove from context"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                // Show compact button for 3+ papers
+                <div className="relative context-panel-container">
+                  <button
+                    onClick={() => setShowContextPanel(!showContextPanel)}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
+                  >
+                    <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <span className="text-sm font-medium text-blue-900">
+                      Context ({selectedPapers.length})
+                    </span>
+                    <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                    </svg>
+                  </button>
+                  
+                  {/* Context Panel Dropup */}
+                  {showContextPanel && (
+                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-white rounded-lg shadow-xl border border-gray-200 py-2 w-96 max-h-96 overflow-y-auto z-50">
+                      <div className="px-4 py-2 border-b border-gray-200 flex items-center justify-between">
+                        <h3 className="font-semibold text-gray-900">Papers in AI Context</h3>
+                        <button
+                          onClick={handleClearContext}
+                          className="text-xs text-red-600 hover:text-red-700 font-medium"
+                        >
+                          Clear All
+                        </button>
+                      </div>
+                      <div className="py-2">
+                        {selectedPapers.map((paper) => (
+                          <div
+                            key={paper.pmid}
+                            className="px-4 py-3 hover:bg-gray-50 border-b border-gray-100 last:border-b-0"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-gray-900 line-clamp-2">
+                                  {paper.title}
+                                </p>
+                                <p className="text-xs text-gray-500 mt-1">
+                                  {paper.journal} • {paper.publicationDate}
+                                </p>
+                              </div>
+                              <button
+                                onClick={() => handleRemovePaperFromContext(paper.pmid)}
+                                className="flex-shrink-0 text-gray-400 hover:text-red-600 transition-colors"
+                                title="Remove from context"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+          
           <div className="relative">
             <input
               type="text"
@@ -695,7 +986,7 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
 
   // Research mode - split view layout (only when hasSearched is true and we have search results)
   console.log('Checking split screen condition. hasSearched:', hasSearched, 'trials:', trials.length, 'papers:', papers.length);
-  if (hasSearched && (trials.length > 0 || papers.length > 0)) {
+  if (hasSearched && (drugGroups.length > 0 || searchProgress.total > 0 || extractingDrugs)) {
     console.log('Rendering split screen');
     return (
     <div className="h-screen flex flex-col relative">
@@ -727,9 +1018,59 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
                         : 'bg-gray-50 text-gray-700 border-gray-200'
                     }`}
                   >
-                    <div className="text-sm leading-relaxed">
-                      {item.message}
-                    </div>
+                    {/* Special handling for Stage 1 loading */}
+                    {item.message === 'stage1_loading' ? (
+                      <div className="flex items-center gap-3">
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+                        <div className="text-sm">
+                          <div className="font-medium text-gray-900">Stage 1: Extracting Drug Names</div>
+                          <div className="text-gray-600 mt-1">Analyzing initial search results to identify all unique drugs...</div>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="text-sm leading-relaxed">
+                          {item.message}
+                        </div>
+                        
+                        {/* Context Papers Indicator */}
+                        {item.contextPapers && item.contextPapers.length > 0 && (
+                          <div className="mt-2">
+                            <details className="cursor-pointer">
+                              <summary className={`text-xs font-medium inline-flex items-center gap-1 px-2 py-1 rounded ${
+                                item.type === 'user' 
+                                  ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' 
+                                  : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                              }`}>
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                                Context ({item.contextPapers.length})
+                              </summary>
+                              <div className="mt-2 space-y-1">
+                                {item.contextPapers.map((paper) => (
+                                  <div
+                                    key={paper.pmid}
+                                    className={`text-xs p-2 rounded ${
+                                      item.type === 'user' 
+                                        ? 'bg-gray-700 text-gray-300' 
+                                        : 'bg-white border border-gray-200'
+                                    }`}
+                                  >
+                                    <div className="font-medium line-clamp-2">{paper.title}</div>
+                                    <div className={`text-xs mt-1 ${
+                                      item.type === 'user' ? 'text-gray-400' : 'text-gray-500'
+                                    }`}>
+                                      {paper.journal} • {paper.publicationDate}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </details>
+                          </div>
+                        )}
+                      </>
+                    )}
                     
                     {/* Search Suggestions */}
                     {item.searchSuggestions && item.searchSuggestions.length > 0 && (
@@ -756,12 +1097,123 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
                   </div>
                 </div>
               ))}
+              
+              {/* Stage 2 Progress Indicator */}
+              {searchProgress.total > 0 && searchProgress.current < searchProgress.total && (
+                <div className="flex justify-start">
+                  <div className="max-w-[80%] p-4 rounded-lg border bg-blue-50 border-blue-200">
+                    <div className="text-sm text-blue-900 mb-2">
+                      Stage 2: Searching for drug {searchProgress.current + 1} of {searchProgress.total}...
+                    </div>
+                    <div className="w-full bg-blue-200 rounded-full h-2">
+                      <div 
+                        className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                        style={{ width: `${(searchProgress.current / searchProgress.total) * 100}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
           {/* Input Area - Fixed at bottom */}
           <div className="p-6 border-t bg-background flex-shrink-0">
             <div className="max-w-2xl mx-auto">
+              {/* Context Papers Display */}
+              {selectedPapers.length > 0 && (
+                <div className="mb-3">
+                  {selectedPapers.length <= 2 ? (
+                    // Show individual pills for 1-2 papers
+                    <div className="flex flex-wrap gap-2">
+                      {selectedPapers.map((paper) => (
+                        <div
+                          key={paper.pmid}
+                          className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-md text-sm"
+                        >
+                          <svg className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                          <span className="text-blue-900 font-medium line-clamp-1 max-w-[200px]" title={paper.title}>
+                            {paper.title}
+                          </span>
+                          <button
+                            onClick={() => handleRemovePaperFromContext(paper.pmid)}
+                            className="flex-shrink-0 text-blue-400 hover:text-blue-600 transition-colors"
+                            title="Remove from context"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    // Show compact button for 3+ papers
+                    <div className="relative">
+                      <button
+                        onClick={() => setShowContextPanel(!showContextPanel)}
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
+                      >
+                        <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <span className="text-sm font-medium text-blue-900">
+                          Context ({selectedPapers.length})
+                        </span>
+                        <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                        </svg>
+                      </button>
+                      
+                      {/* Context Panel Dropup */}
+                      {showContextPanel && (
+                        <div className="absolute bottom-full left-0 mb-2 bg-white rounded-lg shadow-xl border border-gray-200 py-2 w-96 max-h-96 overflow-y-auto z-50">
+                          <div className="px-4 py-2 border-b border-gray-200 flex items-center justify-between">
+                            <h3 className="font-semibold text-gray-900">Papers in AI Context</h3>
+                            <button
+                              onClick={handleClearContext}
+                              className="text-xs text-red-600 hover:text-red-700 font-medium"
+                            >
+                              Clear All
+                            </button>
+                          </div>
+                          <div className="py-2">
+                            {selectedPapers.map((paper) => (
+                              <div
+                                key={paper.pmid}
+                                className="px-4 py-3 hover:bg-gray-50 border-b border-gray-100 last:border-b-0"
+                              >
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium text-gray-900 line-clamp-2">
+                                      {paper.title}
+                                    </p>
+                                    <p className="text-xs text-gray-500 mt-1">
+                                      {paper.journal} • {paper.publicationDate}
+                                    </p>
+                                  </div>
+                                  <button
+                                    onClick={() => handleRemovePaperFromContext(paper.pmid)}
+                                    className="flex-shrink-0 text-gray-400 hover:text-red-600 transition-colors"
+                                    title="Remove from context"
+                                  >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+              
               <div className="relative">
                 <input
                   type="text"
@@ -792,13 +1244,16 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
               query={lastQuery}
               onBack={() => setSelectedDrug(null)}
               onExpandFullscreen={() => setShowDrugModal(true)}
+              onAddPaperToContext={handleAddPaperToContext}
+              isPaperInContext={isPaperInContext}
             />
           ) : (
             <DrugsList
               drugGroups={drugGroups}
-              loading={loading || papersLoading}
+              loading={searchProgress.total > 0 && searchProgress.current < searchProgress.total}
               query={lastQuery}
               onDrugClick={(drugGroup) => setSelectedDrug(drugGroup)}
+              initialSearchQueries={initialSearchQueries}
             />
           )}
         </div>
@@ -812,6 +1267,8 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
           onClose={() => {
             setShowDrugModal(false);
           }}
+          onAddPaperToContext={handleAddPaperToContext}
+          isPaperInContext={isPaperInContext}
         />
       )}
     </div>
@@ -838,6 +1295,43 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
                 {item.message}
               </div>
               
+              {/* Context Papers Indicator */}
+              {item.contextPapers && item.contextPapers.length > 0 && (
+                <div className="mt-2">
+                  <details className="cursor-pointer">
+                    <summary className={`text-xs font-medium inline-flex items-center gap-1 px-2 py-1 rounded ${
+                      item.type === 'user' 
+                        ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' 
+                        : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                    }`}>
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      Context ({item.contextPapers.length})
+                    </summary>
+                    <div className="mt-2 space-y-1">
+                      {item.contextPapers.map((paper) => (
+                        <div
+                          key={paper.pmid}
+                          className={`text-xs p-2 rounded ${
+                            item.type === 'user' 
+                              ? 'bg-gray-700 text-gray-300' 
+                              : 'bg-white border border-gray-200'
+                          }`}
+                        >
+                          <div className="font-medium line-clamp-2">{paper.title}</div>
+                          <div className={`text-xs mt-1 ${
+                            item.type === 'user' ? 'text-gray-400' : 'text-gray-500'
+                          }`}>
+                            {paper.journal} • {paper.publicationDate}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                </div>
+              )}
+              
               {/* Search Suggestions */}
               {item.searchSuggestions && item.searchSuggestions.length > 0 && (
                 <div className="mt-3 space-y-2">
@@ -863,24 +1357,120 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
         </div>
 
         {/* Message Input */}
-        <div className="relative">
-          <input
-            type="text"
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            onKeyPress={handleKeyPress}
-            placeholder="Respond to ABCresearch's agent..."
-            className="flex h-[60px] w-full rounded-md border border-gray-300 bg-white pl-4 pr-16 py-2 text-lg ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={loading}
-            autoFocus
-          />
-          <button
-            onClick={handleSendMessage}
-            disabled={!message.trim() || loading}
-            className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-gray-800 hover:bg-gray-900 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
-          >
-            <ArrowUp className="h-4 w-4 text-white" />
-          </button>
+        <div>
+          {/* Context Papers Display */}
+          {selectedPapers.length > 0 && (
+            <div className="mb-3">
+              {selectedPapers.length <= 2 ? (
+                // Show individual pills for 1-2 papers
+                <div className="flex flex-wrap gap-2">
+                  {selectedPapers.map((paper) => (
+                    <div
+                      key={paper.pmid}
+                      className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-md text-sm"
+                    >
+                      <svg className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      <span className="text-blue-900 font-medium line-clamp-1 max-w-[200px]" title={paper.title}>
+                        {paper.title}
+                      </span>
+                      <button
+                        onClick={() => handleRemovePaperFromContext(paper.pmid)}
+                        className="flex-shrink-0 text-blue-400 hover:text-blue-600 transition-colors"
+                        title="Remove from context"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                // Show compact button for 3+ papers
+                <div className="relative context-panel-container">
+                  <button
+                    onClick={() => setShowContextPanel(!showContextPanel)}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
+                  >
+                    <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <span className="text-sm font-medium text-blue-900">
+                      Context ({selectedPapers.length})
+                    </span>
+                    <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                    </svg>
+                  </button>
+                  
+                  {/* Context Panel Dropup */}
+                  {showContextPanel && (
+                    <div className="absolute bottom-full left-0 mb-2 bg-white rounded-lg shadow-xl border border-gray-200 py-2 w-96 max-h-96 overflow-y-auto z-50">
+                      <div className="px-4 py-2 border-b border-gray-200 flex items-center justify-between">
+                        <h3 className="font-semibold text-gray-900">Papers in AI Context</h3>
+                        <button
+                          onClick={handleClearContext}
+                          className="text-xs text-red-600 hover:text-red-700 font-medium"
+                        >
+                          Clear All
+                        </button>
+                      </div>
+                      <div className="py-2">
+                        {selectedPapers.map((paper) => (
+                          <div
+                            key={paper.pmid}
+                            className="px-4 py-3 hover:bg-gray-50 border-b border-gray-100 last:border-b-0"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-gray-900 line-clamp-2">
+                                  {paper.title}
+                                </p>
+                                <p className="text-xs text-gray-500 mt-1">
+                                  {paper.journal} • {paper.publicationDate}
+                                </p>
+                              </div>
+                              <button
+                                onClick={() => handleRemovePaperFromContext(paper.pmid)}
+                                className="flex-shrink-0 text-gray-400 hover:text-red-600 transition-colors"
+                                title="Remove from context"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+          
+          <div className="relative">
+            <input
+              type="text"
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              onKeyPress={handleKeyPress}
+              placeholder="Respond to ABCresearch's agent..."
+              className="flex h-[60px] w-full rounded-md border border-gray-300 bg-white pl-4 pr-16 py-2 text-lg ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={loading}
+              autoFocus
+            />
+            <button
+              onClick={handleSendMessage}
+              disabled={!message.trim() || loading}
+              className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-gray-800 hover:bg-gray-900 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
+            >
+              <ArrowUp className="h-4 w-4 text-white" />
+            </button>
+          </div>
         </div>
       </div>
     </div>
