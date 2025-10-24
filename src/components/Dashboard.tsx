@@ -986,7 +986,7 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
 
   // Research mode - split view layout (only when hasSearched is true and we have search results)
   console.log('Checking split screen condition. hasSearched:', hasSearched, 'trials:', trials.length, 'papers:', papers.length);
-  if (hasSearched && (drugGroups.length > 0 || searchProgress.total > 0 || extractingDrugs)) {
+  if (hasSearched && (drugGroups.length > 0 || searchProgress.total > 0)) {
     console.log('Rendering split screen');
     return (
     <div className="h-screen flex flex-col relative">
@@ -1291,66 +1291,79 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
                 ? 'bg-gray-800 text-white border-gray-700' 
                 : 'bg-gray-50 text-gray-700 border-gray-200'
             }`}>
-              <div className="text-sm leading-relaxed">
-                {item.message}
-              </div>
-              
-              {/* Context Papers Indicator */}
-              {item.contextPapers && item.contextPapers.length > 0 && (
-                <div className="mt-2">
-                  <details className="cursor-pointer">
-                    <summary className={`text-xs font-medium inline-flex items-center gap-1 px-2 py-1 rounded ${
-                      item.type === 'user' 
-                        ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' 
-                        : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-                    }`}>
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                      Context ({item.contextPapers.length})
-                    </summary>
-                    <div className="mt-2 space-y-1">
-                      {item.contextPapers.map((paper) => (
-                        <div
-                          key={paper.pmid}
-                          className={`text-xs p-2 rounded ${
-                            item.type === 'user' 
-                              ? 'bg-gray-700 text-gray-300' 
-                              : 'bg-white border border-gray-200'
-                          }`}
-                        >
-                          <div className="font-medium line-clamp-2">{paper.title}</div>
-                          <div className={`text-xs mt-1 ${
-                            item.type === 'user' ? 'text-gray-400' : 'text-gray-500'
-                          }`}>
-                            {paper.journal} • {paper.publicationDate}
-                          </div>
+              {/* Special handling for Stage 1 loading */}
+              {item.message === 'stage1_loading' ? (
+                <div className="flex items-center gap-3">
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+                  <div className="text-sm">
+                    <div className="font-medium text-gray-900">Stage 1: Extracting Drug Names</div>
+                    <div className="text-gray-600 mt-1">Analyzing initial search results to identify all unique drugs...</div>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="text-sm leading-relaxed">
+                    {item.message}
+                  </div>
+                  
+                  {/* Context Papers Indicator */}
+                  {item.contextPapers && item.contextPapers.length > 0 && (
+                    <div className="mt-2">
+                      <details className="cursor-pointer">
+                        <summary className={`text-xs font-medium inline-flex items-center gap-1 px-2 py-1 rounded ${
+                          item.type === 'user' 
+                            ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' 
+                            : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                        }`}>
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                          Context ({item.contextPapers.length})
+                        </summary>
+                        <div className="mt-2 space-y-1">
+                          {item.contextPapers.map((paper) => (
+                            <div
+                              key={paper.pmid}
+                              className={`text-xs p-2 rounded ${
+                                item.type === 'user' 
+                                  ? 'bg-gray-700 text-gray-300' 
+                                  : 'bg-white border border-gray-200'
+                              }`}
+                            >
+                              <div className="font-medium line-clamp-2">{paper.title}</div>
+                              <div className={`text-xs mt-1 ${
+                                item.type === 'user' ? 'text-gray-400' : 'text-gray-500'
+                              }`}>
+                                {paper.journal} • {paper.publicationDate}
+                              </div>
+                            </div>
+                          ))}
                         </div>
+                      </details>
+                    </div>
+                  )}
+                  
+                  {/* Search Suggestions */}
+                  {item.searchSuggestions && item.searchSuggestions.length > 0 && (
+                    <div className="mt-3 space-y-2">
+                      {item.searchSuggestions.map((suggestion) => (
+                        <button
+                          key={suggestion.id}
+                          onClick={() => handleSearchSuggestion(suggestion)}
+                          className="w-full text-left p-3 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors"
+                        >
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                            <span className="font-medium text-blue-900">{suggestion.label}</span>
+                          </div>
+                          {suggestion.description && (
+                            <p className="text-sm text-blue-700 mt-1">{suggestion.description}</p>
+                          )}
+                        </button>
                       ))}
                     </div>
-                  </details>
-                </div>
-              )}
-              
-              {/* Search Suggestions */}
-              {item.searchSuggestions && item.searchSuggestions.length > 0 && (
-                <div className="mt-3 space-y-2">
-                  {item.searchSuggestions.map((suggestion) => (
-                    <button
-                      key={suggestion.id}
-                      onClick={() => handleSearchSuggestion(suggestion)}
-                      className="w-full text-left p-3 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors"
-                    >
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                        <span className="font-medium text-blue-900">{suggestion.label}</span>
-                      </div>
-                      {suggestion.description && (
-                        <p className="text-sm text-blue-700 mt-1">{suggestion.description}</p>
-                      )}
-                    </button>
-                  ))}
-                </div>
+                  )}
+                </>
               )}
             </div>
           ))}
