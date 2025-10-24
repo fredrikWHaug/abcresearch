@@ -730,6 +730,35 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
           <div className="text-center mb-8">
             <h1 className="text-3xl font-semibold text-gray-800 mb-2">Welcome back</h1>
           </div>
+          
+          {/* Context Papers Display */}
+          {selectedPapers.length > 0 && (
+            <div className="mb-3 flex flex-wrap gap-2 justify-center">
+              {selectedPapers.map((paper) => (
+                <div
+                  key={paper.pmid}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-md text-sm"
+                >
+                  <svg className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <span className="text-blue-900 font-medium line-clamp-1 max-w-[200px]" title={paper.title}>
+                    {paper.title}
+                  </span>
+                  <button
+                    onClick={() => handleRemovePaperFromContext(paper.pmid)}
+                    className="flex-shrink-0 text-blue-400 hover:text-blue-600 transition-colors"
+                    title="Remove from context"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          
           <div className="relative">
             <input
               type="text"
@@ -1034,6 +1063,34 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
           {/* Input Area - Fixed at bottom */}
           <div className="p-6 border-t bg-background flex-shrink-0">
             <div className="max-w-2xl mx-auto">
+              {/* Context Papers Display */}
+              {selectedPapers.length > 0 && (
+                <div className="mb-3 flex flex-wrap gap-2">
+                  {selectedPapers.map((paper) => (
+                    <div
+                      key={paper.pmid}
+                      className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-md text-sm"
+                    >
+                      <svg className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      <span className="text-blue-900 font-medium line-clamp-1 max-w-[200px]" title={paper.title}>
+                        {paper.title}
+                      </span>
+                      <button
+                        onClick={() => handleRemovePaperFromContext(paper.pmid)}
+                        className="flex-shrink-0 text-blue-400 hover:text-blue-600 transition-colors"
+                        title="Remove from context"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              
               <div className="relative">
                 <input
                   type="text"
@@ -1140,24 +1197,54 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
         </div>
 
         {/* Message Input */}
-        <div className="relative">
-          <input
-            type="text"
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            onKeyPress={handleKeyPress}
-            placeholder="Respond to ABCresearch's agent..."
-            className="flex h-[60px] w-full rounded-md border border-gray-300 bg-white pl-4 pr-16 py-2 text-lg ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={loading}
-            autoFocus
-          />
-          <button
-            onClick={handleSendMessage}
-            disabled={!message.trim() || loading}
-            className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-gray-800 hover:bg-gray-900 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
-          >
-            <ArrowUp className="h-4 w-4 text-white" />
-          </button>
+        <div>
+          {/* Context Papers Display */}
+          {selectedPapers.length > 0 && (
+            <div className="mb-3 flex flex-wrap gap-2">
+              {selectedPapers.map((paper) => (
+                <div
+                  key={paper.pmid}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-md text-sm"
+                >
+                  <svg className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <span className="text-blue-900 font-medium line-clamp-1 max-w-[200px]" title={paper.title}>
+                    {paper.title}
+                  </span>
+                  <button
+                    onClick={() => handleRemovePaperFromContext(paper.pmid)}
+                    className="flex-shrink-0 text-blue-400 hover:text-blue-600 transition-colors"
+                    title="Remove from context"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          
+          <div className="relative">
+            <input
+              type="text"
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              onKeyPress={handleKeyPress}
+              placeholder="Respond to ABCresearch's agent..."
+              className="flex h-[60px] w-full rounded-md border border-gray-300 bg-white pl-4 pr-16 py-2 text-lg ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={loading}
+              autoFocus
+            />
+            <button
+              onClick={handleSendMessage}
+              disabled={!message.trim() || loading}
+              className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-gray-800 hover:bg-gray-900 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
+            >
+              <ArrowUp className="h-4 w-4 text-white" />
+            </button>
+          </div>
         </div>
       </div>
     </div>
