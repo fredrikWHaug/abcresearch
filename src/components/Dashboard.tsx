@@ -185,7 +185,12 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
   const [trials, setTrials] = useState<ClinicalTrial[]>([])
   const [loading, setLoading] = useState(false)
   const [lastQuery, setLastQuery] = useState('')
-  const [chatHistory, setChatHistory] = useState<Array<{type: 'user' | 'system', message: string, searchSuggestions?: Array<{id: string, label: string, query: string, description?: string}>}>>([])
+  const [chatHistory, setChatHistory] = useState<Array<{
+    type: 'user' | 'system', 
+    message: string, 
+    searchSuggestions?: Array<{id: string, label: string, query: string, description?: string}>,
+    contextPapers?: PubMedArticle[]
+  }>>([])
   const [hasSearched, setHasSearched] = useState(false)
   const [papers, setPapers] = useState<PubMedArticle[]>([])
   const [papersLoading, setPapersLoading] = useState(false)
@@ -256,11 +261,16 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
     if (!message.trim()) return;
     
     const userMessage = message.trim();
+    const messageContextPapers = [...selectedPapers]; // Snapshot current context
     setMessage('');
     setHasSearched(true); // Switch to wide screen chat interface after first message
     
-    // Add user message to chat history
-    setChatHistory(prev => [...prev, { type: 'user', message: userMessage }]);
+    // Add user message to chat history with context papers
+    setChatHistory(prev => [...prev, { 
+      type: 'user', 
+      message: userMessage,
+      contextPapers: messageContextPapers.length > 0 ? messageContextPapers : undefined
+    }]);
     
     try {
       setLoading(true);
@@ -1010,9 +1020,48 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
                         </div>
                       </div>
                     ) : (
-                      <div className="text-sm leading-relaxed">
-                        {item.message}
-                      </div>
+                      <>
+                        <div className="text-sm leading-relaxed">
+                          {item.message}
+                        </div>
+                        
+                        {/* Context Papers Indicator */}
+                        {item.contextPapers && item.contextPapers.length > 0 && (
+                          <div className="mt-2">
+                            <details className="cursor-pointer">
+                              <summary className={`text-xs font-medium inline-flex items-center gap-1 px-2 py-1 rounded ${
+                                item.type === 'user' 
+                                  ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' 
+                                  : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                              }`}>
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                                Context ({item.contextPapers.length})
+                              </summary>
+                              <div className="mt-2 space-y-1">
+                                {item.contextPapers.map((paper) => (
+                                  <div
+                                    key={paper.pmid}
+                                    className={`text-xs p-2 rounded ${
+                                      item.type === 'user' 
+                                        ? 'bg-gray-700 text-gray-300' 
+                                        : 'bg-white border border-gray-200'
+                                    }`}
+                                  >
+                                    <div className="font-medium line-clamp-2">{paper.title}</div>
+                                    <div className={`text-xs mt-1 ${
+                                      item.type === 'user' ? 'text-gray-400' : 'text-gray-500'
+                                    }`}>
+                                      {paper.journal} • {paper.publicationDate}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </details>
+                          </div>
+                        )}
+                      </>
                     )}
                     
                     {/* Search Suggestions */}
@@ -1063,34 +1112,6 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
           {/* Input Area - Fixed at bottom */}
           <div className="p-6 border-t bg-background flex-shrink-0">
             <div className="max-w-2xl mx-auto">
-              {/* Context Papers Display */}
-              {selectedPapers.length > 0 && (
-                <div className="mb-3 flex flex-wrap gap-2">
-                  {selectedPapers.map((paper) => (
-                    <div
-                      key={paper.pmid}
-                      className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-md text-sm"
-                    >
-                      <svg className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                      <span className="text-blue-900 font-medium line-clamp-1 max-w-[200px]" title={paper.title}>
-                        {paper.title}
-                      </span>
-                      <button
-                        onClick={() => handleRemovePaperFromContext(paper.pmid)}
-                        className="flex-shrink-0 text-blue-400 hover:text-blue-600 transition-colors"
-                        title="Remove from context"
-                      >
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-              
               <div className="relative">
                 <input
                   type="text"
@@ -1172,6 +1193,43 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
                 {item.message}
               </div>
               
+              {/* Context Papers Indicator */}
+              {item.contextPapers && item.contextPapers.length > 0 && (
+                <div className="mt-2">
+                  <details className="cursor-pointer">
+                    <summary className={`text-xs font-medium inline-flex items-center gap-1 px-2 py-1 rounded ${
+                      item.type === 'user' 
+                        ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' 
+                        : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                    }`}>
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      Context ({item.contextPapers.length})
+                    </summary>
+                    <div className="mt-2 space-y-1">
+                      {item.contextPapers.map((paper) => (
+                        <div
+                          key={paper.pmid}
+                          className={`text-xs p-2 rounded ${
+                            item.type === 'user' 
+                              ? 'bg-gray-700 text-gray-300' 
+                              : 'bg-white border border-gray-200'
+                          }`}
+                        >
+                          <div className="font-medium line-clamp-2">{paper.title}</div>
+                          <div className={`text-xs mt-1 ${
+                            item.type === 'user' ? 'text-gray-400' : 'text-gray-500'
+                          }`}>
+                            {paper.journal} • {paper.publicationDate}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                </div>
+              )}
+              
               {/* Search Suggestions */}
               {item.searchSuggestions && item.searchSuggestions.length > 0 && (
                 <div className="mt-3 space-y-2">
@@ -1197,54 +1255,24 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
         </div>
 
         {/* Message Input */}
-        <div>
-          {/* Context Papers Display */}
-          {selectedPapers.length > 0 && (
-            <div className="mb-3 flex flex-wrap gap-2">
-              {selectedPapers.map((paper) => (
-                <div
-                  key={paper.pmid}
-                  className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-md text-sm"
-                >
-                  <svg className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  <span className="text-blue-900 font-medium line-clamp-1 max-w-[200px]" title={paper.title}>
-                    {paper.title}
-                  </span>
-                  <button
-                    onClick={() => handleRemovePaperFromContext(paper.pmid)}
-                    className="flex-shrink-0 text-blue-400 hover:text-blue-600 transition-colors"
-                    title="Remove from context"
-                  >
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-          
-          <div className="relative">
-            <input
-              type="text"
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              onKeyPress={handleKeyPress}
-              placeholder="Respond to ABCresearch's agent..."
-              className="flex h-[60px] w-full rounded-md border border-gray-300 bg-white pl-4 pr-16 py-2 text-lg ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={loading}
-              autoFocus
-            />
-            <button
-              onClick={handleSendMessage}
-              disabled={!message.trim() || loading}
-              className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-gray-800 hover:bg-gray-900 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
-            >
-              <ArrowUp className="h-4 w-4 text-white" />
-            </button>
-          </div>
+        <div className="relative">
+          <input
+            type="text"
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            onKeyPress={handleKeyPress}
+            placeholder="Respond to ABCresearch's agent..."
+            className="flex h-[60px] w-full rounded-md border border-gray-300 bg-white pl-4 pr-16 py-2 text-lg ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={loading}
+            autoFocus
+          />
+          <button
+            onClick={handleSendMessage}
+            disabled={!message.trim() || loading}
+            className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-gray-800 hover:bg-gray-900 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
+          >
+            <ArrowUp className="h-4 w-4 text-white" />
+          </button>
         </div>
       </div>
     </div>
