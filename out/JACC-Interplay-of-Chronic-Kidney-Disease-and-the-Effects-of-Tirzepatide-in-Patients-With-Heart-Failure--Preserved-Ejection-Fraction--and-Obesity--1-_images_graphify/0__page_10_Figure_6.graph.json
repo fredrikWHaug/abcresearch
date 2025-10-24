@@ -1,0 +1,57 @@
+{
+  "is_graph": true,
+  "graph_type": "horizontal point + error bars (forest plot)",
+  "reason": "The image shows point estimates with horizontal error bars (confidence intervals) for multiple timepoints grouped by two measurement types (eGFR-Creatinine and eGFR-Cystatin C). This is a forest-plot-style data visualization.",
+  "data": {
+    "y_labels": [
+      "eGFR-Creatinine: Change at 12 weeks",
+      "eGFR-Creatinine: Change at 24 weeks",
+      "eGFR-Creatinine: Change at 52 weeks",
+      "eGFR-Cystatin C: Change at 12 weeks",
+      "eGFR-Cystatin C: Change at 24 weeks",
+      "eGFR-Cystatin C: Change at 52 weeks"
+    ],
+    "y_positions": [
+      6,
+      5,
+      4,
+      3,
+      2,
+      1
+    ],
+    "means": [
+      -3.4,
+      -1.1,
+      1.6,
+      -1.5,
+      -0.3,
+      1.2
+    ],
+    "lower_errors": [
+      0.6,
+      0.9,
+      1.1,
+      0.9,
+      0.9,
+      1.0
+    ],
+    "upper_errors": [
+      0.6,
+      0.9,
+      1.1,
+      0.9,
+      0.9,
+      1.0
+    ],
+    "groups": [
+      "eGFR-Creatinine",
+      "eGFR-Creatinine",
+      "eGFR-Creatinine",
+      "eGFR-Cystatin C",
+      "eGFR-Cystatin C",
+      "eGFR-Cystatin C"
+    ]
+  },
+  "python_code": "def recreate_plot(output_path: str):\n    \"\"\"\n    Recreate an approximate version of the figure (placebo-corrected changes in eGFR).\n    Saves a PNG to output_path. This function uses only matplotlib (Agg backend).\n    \"\"\"\n    import matplotlib\n    matplotlib.use('Agg')\n    import matplotlib.pyplot as plt\n    import numpy as np\n\n    # Data (approximated from the image)\n    labels = [\n        'eGFR-Creatinine: Change at 12 weeks',\n        'eGFR-Creatinine: Change at 24 weeks',\n        'eGFR-Creatinine: Change at 52 weeks',\n        'eGFR-Cystatin C: Change at 12 weeks',\n        'eGFR-Cystatin C: Change at 24 weeks',\n        'eGFR-Cystatin C: Change at 52 weeks'\n    ]\n    y = np.array([6, 5, 4, 3, 2, 1])\n    means = np.array([-3.4, -1.1, 1.6, -1.5, -0.3, 1.2])\n    lower_err = np.array([0.6, 0.9, 1.1, 0.9, 0.9, 1.0])\n    upper_err = np.array([0.6, 0.9, 1.1, 0.9, 0.9, 1.0])\n\n    # Group indices for styling\n    group_mask = np.array(['creatinine'] * 3 + ['cystatin'] * 3)\n    creat_mask = group_mask == 'creatinine'\n    cyst_mask = group_mask == 'cystatin'\n\n    fig, ax = plt.subplots(figsize=(8.5, 5))\n\n    # Plot creatinine points (top 3)\n    ax.errorbar(means[creat_mask], y[creat_mask],\n                xerr=np.vstack((lower_err[creat_mask], upper_err[creat_mask])),\n                fmt='o', color='#2b6ca3', ecolor='#2b6ca3', capsize=6, markersize=6,\n                label='eGFR-Creatinine')\n\n    # Plot cystatin C points (bottom 3)\n    ax.errorbar(means[cyst_mask], y[cyst_mask],\n                xerr=np.vstack((lower_err[cyst_mask], upper_err[cyst_mask])),\n                fmt='o', color='#1f9a8b', ecolor='#1f9a8b', capsize=6, markersize=6,\n                label='eGFR-Cystatin C')\n\n    # Formatting\n    ax.set_yticks(y)\n    ax.set_yticklabels(labels)\n    ax.invert_yaxis()  # so top item appears at top\n\n    ax.axvline(0, color='gray', linestyle='--', linewidth=1)\n    # separator between groups (approx between y=3 and y=4)\n    ax.axhline(3.5, color='lightgray', linestyle='--', linewidth=1)\n\n    ax.set_xlabel('Placebo-Corrected Change From Baseline in eGFR (mL/min/1.73 m^2)')\n    ax.set_title('Placebo-Corrected Changes in eGFR With Tirzepatide')\n\n    ax.set_xlim(-4.5, 5.0)\n    ax.set_xticks(np.arange(-4, 6, 1))\n\n    ax.legend(frameon=True)\n    ax.grid(axis='x', linestyle=':', linewidth=0.5, alpha=0.7)\n\n    plt.tight_layout()\n    fig.savefig(output_path, dpi=300)\n    plt.close(fig)\n",
+  "assumptions": "The values are approximate visual estimates made from the figure. I assumed six plotted items (3 for eGFR-Creatinine at 12, 24, 52 weeks and 3 for eGFR-Cystatin C at 12, 24, 52 weeks) and placed them in top-to-bottom order. Means and confidence-interval half-widths (lower_errors and upper_errors) are symmetric in this reconstruction and were rounded to 1 decimal place. The exact numeric values, CI asymmetry, and plotting aesthetics (colors, marker sizes, exact y spacing) were inferred from the image and not measured from raw data."
+}
