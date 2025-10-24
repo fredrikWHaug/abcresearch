@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Maximize2 } from 'lucide-react';
 import type { DrugGroup } from '@/services/drugGroupingService';
+import type { PubMedArticle } from '@/types/papers';
 import { PapersDiscovery } from './PapersDiscovery';
 import { TrialsList } from './TrialsList';
 
@@ -10,9 +11,18 @@ interface DrugDetailProps {
   query: string;
   onBack: () => void;
   onExpandFullscreen: () => void;
+  onAddPaperToContext?: (paper: PubMedArticle) => void;
+  isPaperInContext?: (pmid: string) => boolean;
 }
 
-export function DrugDetail({ drugGroup, query, onBack, onExpandFullscreen }: DrugDetailProps) {
+export function DrugDetail({ 
+  drugGroup, 
+  query, 
+  onBack, 
+  onExpandFullscreen,
+  onAddPaperToContext,
+  isPaperInContext
+}: DrugDetailProps) {
   const [activeTab, setActiveTab] = useState<'papers' | 'trials'>('papers');
 
   return (
@@ -79,6 +89,8 @@ export function DrugDetail({ drugGroup, query, onBack, onExpandFullscreen }: Dru
             query={query}
             papers={drugGroup.papers}
             loading={false}
+            onAddPaperToContext={onAddPaperToContext}
+            isPaperInContext={isPaperInContext}
           />
         ) : (
           <TrialsList
