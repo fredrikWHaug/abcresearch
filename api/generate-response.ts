@@ -2,6 +2,14 @@
 
 interface GenerateResponseRequest {
   userQuery: string;
+  contextPapers?: Array<{
+    pmid: string;
+    title: string;
+    abstract: string;
+    journal: string;
+    publicationDate: string;
+    authors: string[];
+  }>;
   searchResults?: {
     trials: any[];
     papers: any[];
@@ -37,9 +45,10 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    const { userQuery, searchResults }: GenerateResponseRequest = req.body;
+    const { userQuery, searchResults, contextPapers }: GenerateResponseRequest = req.body;
     console.log('Parsed userQuery:', userQuery);
     console.log('Parsed searchResults:', searchResults);
+    console.log('Context papers count:', contextPapers?.length || 0);
 
     if (!userQuery) {
       console.log('No userQuery provided');
@@ -223,20 +232,43 @@ Keep the response concise (2-3 sentences) and natural. Don't use bullet points o
       });
     }
 
+    // Build context papers section if available
+    let contextSection = '';
+    if (contextPapers && contextPapers.length > 0) {
+      contextSection = `\n\nThe user has selected ${contextPapers.length} paper(s) as relevant context for this conversation:\n\n`;
+      contextPapers.forEach((paper, index) => {
+        contextSection += `Paper ${index + 1}:
+Title: ${paper.title}
+Journal: ${paper.journal}
+Publication Date: ${paper.publicationDate}
+Authors: ${paper.authors.slice(0, 3).join(', ')}${paper.authors.length > 3 ? ' et al.' : ''}
+Abstract: ${paper.abstract}
+
+---
+
+`;
+      });
+      contextSection += '\nWhen answering the user\'s question, reference these papers if relevant. Cite them by their title or as "Paper 1", "Paper 2", etc.';
+    }
+
     // Generate conversational response based on intent
     const conversationalPrompt = `You are a helpful medical research assistant. The user said: "${userQuery}"
 
 Intent: ${intentResult.intent}
-Response type: ${intentResult.responseType}
+Response type: ${intentResult.responseType}${contextSection}
 
 Generate an appropriate response:
 - If greeting: Be friendly and explain what you can help with
 - If search_request: Acknowledge their request and suggest conducting a search
-- If follow_up: Respond to their follow-up question
+- If follow_up: Respond to their follow-up question, referencing the context papers if relevant
 - If clarification: Ask for clarification about what they want to search for
-- If general_question: Answer their question about your capabilities
+- If general_question: Answer their question about your capabilities, referencing context papers if relevant
 
-Keep it conversational, helpful, and professional. 1-2 sentences max.`;
+${contextPapers && contextPapers.length > 0 ? 
+  'IMPORTANT: The user has provided specific papers for context. If their question relates to these papers (e.g., comparing them, asking about specific findings, analyzing them), make sure to reference the papers in your response.' : 
+  ''}
+
+Keep it conversational, helpful, and professional. 1-2 sentences max unless analyzing the context papers.`;
 
     const conversationalResponse = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
