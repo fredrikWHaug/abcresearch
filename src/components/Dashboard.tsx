@@ -167,7 +167,7 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
   const [hasSearched, setHasSearched] = useState(false)
   const [papers, setPapers] = useState<PubMedArticle[]>([])
   const [papersLoading, setPapersLoading] = useState(false)
-  const [viewMode, setViewMode] = useState<'research' | 'marketmap' | 'savedmaps' | 'dataextraction'>(initialShowSavedMaps ? 'savedmaps' : 'research')
+  const [viewMode, setViewMode] = useState<'projects' | 'research' | 'marketmap' | 'savedmaps' | 'dataextraction'>(initialShowSavedMaps ? 'savedmaps' : 'research')
   const [researchTab, setResearchTab] = useState<'trials' | 'papers'>('papers')
   const [slideData, setSlideData] = useState<SlideData | null>(null)
   const [generatingSlide, setGeneratingSlide] = useState(false)
@@ -519,12 +519,22 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
       </div>
       
       {/* Toggle Buttons - Absolutely positioned center with equal widths */}
-      {(hasSearched || viewMode === 'savedmaps' || viewMode === 'dataextraction') && (
+      {(hasSearched || viewMode === 'savedmaps' || viewMode === 'dataextraction' || viewMode === 'projects') && (
         <div 
           className="absolute z-20"
           style={{ left: '50%', transform: 'translateX(-50%)' }}
         >
-          <div className="flex rounded-lg bg-gray-100 p-1 w-[36rem]">
+          <div className="flex rounded-lg bg-gray-100 p-1 w-[45rem]">
+            <button
+              onClick={() => setViewMode('projects')}
+              className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
+                viewMode === 'projects'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Projects
+            </button>
             <button
               onClick={() => setViewMode('research')}
               className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
@@ -666,6 +676,21 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
         {/* Header with centered buttons */}
         <div className="fixed top-0 left-0 right-0 z-50">
           <Header onStartNewProject={handleStartNewProject} currentProjectId={currentProjectId} />
+        </div>
+      </div>
+    );
+  }
+
+  // Show projects view
+  if (viewMode === 'projects') {
+    return (
+      <div className="h-screen flex flex-col overflow-hidden">
+        <Header onStartNewProject={handleStartNewProject} currentProjectId={currentProjectId} />
+        <div className="flex-1 overflow-y-auto bg-gray-50">
+          <div className="max-w-7xl mx-auto p-8">
+            <h1 className="text-3xl font-bold text-gray-900 mb-4">Projects</h1>
+            <p className="text-gray-600">Projects view coming soon...</p>
+          </div>
         </div>
       </div>
     );
