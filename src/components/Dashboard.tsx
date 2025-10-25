@@ -23,9 +23,10 @@ import type { SlideData } from '@/services/slideAPI'
 
 interface DashboardProps {
   initialShowSavedMaps?: boolean;
+  projectName?: string;
 }
 
-export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
+export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: DashboardProps) {
   const { signOut, isGuest, exitGuestMode } = useAuth()
   
   const handleSignOut = async () => {
@@ -174,6 +175,15 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
   const [slideError, setSlideError] = useState<string | null>(null)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [currentProjectId, setCurrentProjectId] = useState<number | null>(null)
+  const [currentProjectName, setCurrentProjectName] = useState<string>(projectName)
+  
+  // Set project name when prop changes
+  React.useEffect(() => {
+    if (projectName) {
+      setCurrentProjectName(projectName)
+      console.log('New project created:', projectName)
+    }
+  }, [projectName])
   
   // Drug grouping state
   const [drugGroups, setDrugGroups] = useState<DrugGroup[]>([])
