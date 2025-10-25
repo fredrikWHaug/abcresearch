@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { X } from 'lucide-react';
 import type { DrugGroup } from '@/services/drugGroupingService';
+import type { PubMedArticle } from '@/types/papers';
 import { PapersDiscovery } from './PapersDiscovery';
 import { TrialsList } from './TrialsList';
 
@@ -9,9 +10,17 @@ interface DrugDetailModalProps {
   drugGroup: DrugGroup;
   query: string;
   onClose: () => void;
+  onAddPaperToContext?: (paper: PubMedArticle) => void;
+  isPaperInContext?: (pmid: string) => boolean;
 }
 
-export function DrugDetailModal({ drugGroup, query, onClose }: DrugDetailModalProps) {
+export function DrugDetailModal({ 
+  drugGroup, 
+  query, 
+  onClose,
+  onAddPaperToContext,
+  isPaperInContext
+}: DrugDetailModalProps) {
   const [viewMode, setViewMode] = useState<'papers' | 'trials' | 'both'>('both');
 
   return (
@@ -86,6 +95,8 @@ export function DrugDetailModal({ drugGroup, query, onClose }: DrugDetailModalPr
                       query={query}
                       papers={drugGroup.papers}
                       loading={false}
+                      onAddPaperToContext={onAddPaperToContext}
+                      isPaperInContext={isPaperInContext}
                     />
                   </div>
                 </div>
@@ -116,6 +127,8 @@ export function DrugDetailModal({ drugGroup, query, onClose }: DrugDetailModalPr
                 query={query}
                 papers={drugGroup.papers}
                 loading={false}
+                onAddPaperToContext={onAddPaperToContext}
+                isPaperInContext={isPaperInContext}
               />
             </div>
           ) : (

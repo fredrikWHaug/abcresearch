@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { FileText, ExternalLink, Star, Users } from 'lucide-react';
+import { FileText, ExternalLink, Star, Users, Plus, Check } from 'lucide-react';
 import type { PubMedArticle } from '@/types/papers';
 import type { ClinicalTrial } from '@/types/trials';
 
@@ -11,9 +11,17 @@ interface PapersDiscoveryProps {
   query: string;
   papers: PubMedArticle[];
   loading: boolean;
+  onAddPaperToContext?: (paper: PubMedArticle) => void;
+  isPaperInContext?: (pmid: string) => boolean;
 }
 
-export const PapersDiscovery: React.FC<PapersDiscoveryProps> = ({ query, papers, loading }) => {
+export const PapersDiscovery: React.FC<PapersDiscoveryProps> = ({ 
+  query, 
+  papers, 
+  loading,
+  onAddPaperToContext,
+  isPaperInContext
+}) => {
   const [selectedPapers, setSelectedPapers] = useState<Set<string>>(new Set());
 
 
@@ -97,7 +105,34 @@ export const PapersDiscovery: React.FC<PapersDiscoveryProps> = ({ query, papers,
                       {paper.abstract}
                     </p>
                     
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 flex-wrap">
+                      {onAddPaperToContext && (
+                        <Button
+                          variant={isPaperInContext?.(paper.pmid) ? "default" : "outline"}
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (!isPaperInContext?.(paper.pmid)) {
+                              onAddPaperToContext(paper);
+                            }
+                          }}
+                          disabled={isPaperInContext?.(paper.pmid)}
+                          className={isPaperInContext?.(paper.pmid) ? "bg-blue-600 hover:bg-blue-600" : ""}
+                        >
+                          {isPaperInContext?.(paper.pmid) ? (
+                            <>
+                              <Check className="h-3 w-3 mr-1" />
+                              In Context
+                            </>
+                          ) : (
+                            <>
+                              <Plus className="h-3 w-3 mr-1" />
+                              Add to Context
+                            </>
+                          )}
+                        </Button>
+                      )}
+                      
                       <Button
                         variant="outline"
                         size="sm"
