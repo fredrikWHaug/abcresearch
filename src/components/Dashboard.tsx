@@ -10,6 +10,7 @@ import { PapersDiscovery } from '@/components/PapersDiscovery'
 import { DrugsList } from '@/components/DrugsList'
 import { DrugDetail } from '@/components/DrugDetail'
 import { DrugDetailModal } from '@/components/DrugDetailModal'
+import { AssetDevelopmentPipeline } from '@/components/AssetDevelopmentPipeline'
 import { GatherSearchResultsService } from '@/services/gatherSearchResults'
 import type { PubMedArticle } from '@/types/papers'
 import { MarketMapService, type SavedMarketMap } from '@/services/marketMapService'
@@ -194,7 +195,7 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
   const [hasSearched, setHasSearched] = useState(false)
   const [papers, setPapers] = useState<PubMedArticle[]>([])
   const [papersLoading, setPapersLoading] = useState(false)
-  const [viewMode, setViewMode] = useState<'research' | 'marketmap' | 'savedmaps' | 'dataextraction'>(initialShowSavedMaps ? 'savedmaps' : 'research')
+  const [viewMode, setViewMode] = useState<'research' | 'marketmap' | 'savedmaps' | 'dataextraction' | 'pipeline'>(initialShowSavedMaps ? 'savedmaps' : 'research')
   const [researchTab, setResearchTab] = useState<'trials' | 'papers'>('papers')
   const [slideData, setSlideData] = useState<SlideData | null>(null)
   const [generatingSlide, setGeneratingSlide] = useState(false)
@@ -559,12 +560,12 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
       </div>
       
       {/* Toggle Buttons - Absolutely positioned center with equal widths */}
-      {(hasSearched || viewMode === 'savedmaps' || viewMode === 'dataextraction') && (
+      {(hasSearched || viewMode === 'savedmaps' || viewMode === 'dataextraction' || viewMode === 'pipeline') && (
         <div 
           className="absolute z-20"
           style={{ left: '50%', transform: 'translateX(-50%)' }}
         >
-          <div className="flex rounded-lg bg-gray-100 p-1 w-[36rem]">
+          <div className="flex rounded-lg bg-gray-100 p-1 w-[45rem]">
             <button
               onClick={() => setViewMode('research')}
               className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
@@ -584,6 +585,16 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
               }`}
             >
               Market Map
+            </button>
+            <button
+              onClick={() => setViewMode('pipeline')}
+              className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
+                viewMode === 'pipeline'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Asset Pipeline
             </button>
             <button
               onClick={() => setViewMode('savedmaps')}
@@ -673,7 +684,7 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
     );
   };
 
-  if (!hasSearched && viewMode !== 'savedmaps' && viewMode !== 'dataextraction') {
+  if (!hasSearched && viewMode !== 'savedmaps' && viewMode !== 'dataextraction' && viewMode !== 'pipeline') {
     // Initial centered search bar layout (skip if showing saved maps)
     console.log('Rendering initial centered search. hasSearched:', hasSearched, 'viewMode:', viewMode);
     return (
@@ -855,6 +866,20 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
     );
   }
 
+
+  // Asset Development Pipeline mode
+  if (viewMode === 'pipeline') {
+    return (
+      <div className="h-screen flex flex-col overflow-hidden">
+        <Header onStartNewProject={handleStartNewProject} currentProjectId={currentProjectId} />
+        
+        {/* Asset Development Pipeline Content */}
+        <div className="flex-1 overflow-hidden">
+          <AssetDevelopmentPipeline trials={trials} />
+        </div>
+      </div>
+    );
+  }
 
   // Data Extraction mode
   if (viewMode === 'dataextraction') {
