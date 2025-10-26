@@ -24,6 +24,10 @@ export interface StrategyResult {
   strategy: SearchStrategy;
   count: number;
   trials: ClinicalTrial[];
+  formattedQueries?: {
+    clinicalTrials: string;  // Actual query.term sent to ClinicalTrials.gov API
+    pubmed: string;          // Actual term sent to PubMed E-Utilities API
+  };
 }
 
 export interface GatherSearchResultsResponse {
@@ -230,17 +234,29 @@ export class GatherSearchResultsService {
           try {
             const result = await this.searchTrials({ query: strategy.query, pageSize: 50 });
             console.log(`  ✓ "${strategy.query}": ${result.trials.length} trials`);
+            
+            // Capture formatted queries for display
+            const formattedQueries = {
+              clinicalTrials: strategy.query, // This becomes query.term parameter
+              pubmed: `${strategy.query} AND ("Clinical Trial"[Publication Type] OR "Randomized Controlled Trial"[Publication Type])`
+            };
+            
             return {
               strategy,
               count: result.trials.length,
-              trials: result.trials
+              trials: result.trials,
+              formattedQueries
             };
           } catch (error) {
             console.error(`  ✗ "${strategy.query}" failed:`, error);
             return {
               strategy,
               count: 0,
-              trials: []
+              trials: [],
+              formattedQueries: {
+                clinicalTrials: strategy.query,
+                pubmed: `${strategy.query} AND ("Clinical Trial"[Publication Type] OR "Randomized Controlled Trial"[Publication Type])`
+              }
             };
           }
         })

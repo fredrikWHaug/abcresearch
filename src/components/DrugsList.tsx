@@ -250,7 +250,7 @@ export function DrugsList({ drugGroups, loading, query, onDrugClick, onDrugSpeci
                     </div>
                     
                     {initialSearchQueries.strategies.map((strategyResult, index) => {
-                      const { strategy, count } = strategyResult;
+                      const { strategy, count, formattedQueries } = strategyResult;
                       const priorityColors = {
                         high: 'bg-red-50 border-red-200',
                         medium: 'bg-yellow-50 border-yellow-200',
@@ -267,7 +267,7 @@ export function DrugsList({ drugGroups, loading, query, onDrugClick, onDrugSpeci
                           key={index} 
                           className={`border rounded-lg p-4 ${priorityColors[strategy.priority]}`}
                         >
-                          <div className="flex items-start justify-between mb-2">
+                          <div className="flex items-start justify-between mb-3">
                             <div className="flex items-center gap-2">
                               <span className="text-lg font-bold text-gray-700">#{index + 1}</span>
                               <Badge className={`text-xs ${priorityBadgeColors[strategy.priority]}`}>
@@ -283,15 +283,48 @@ export function DrugsList({ drugGroups, loading, query, onDrugClick, onDrugSpeci
                             </div>
                           </div>
                           
-                          <div className="bg-white border border-gray-300 rounded-md p-3 mb-2">
-                            <code className="text-sm text-gray-800 font-mono break-all">
-                              {strategy.query}
-                            </code>
-                          </div>
-                          
-                          <p className="text-sm text-gray-700 italic">
+                          <p className="text-sm text-gray-700 italic mb-3">
                             💡 {strategy.description}
                           </p>
+
+                          {/* ClinicalTrials.gov API Query */}
+                          <div className="space-y-3">
+                            <div>
+                              <div className="flex items-center gap-2 mb-1">
+                                <FlaskConical className="h-4 w-4 text-purple-600" />
+                                <span className="text-xs font-semibold text-gray-700">ClinicalTrials.gov API</span>
+                              </div>
+                              <div className="bg-white border border-purple-200 rounded-md p-2">
+                                <code className="text-xs text-gray-800 font-mono break-all">
+                                  query.term={formattedQueries?.clinicalTrials || strategy.query}
+                                  &pageSize=50
+                                  &fields=NCTId,BriefTitle,Phase,Condition,InterventionName,...
+                                </code>
+                              </div>
+                              <p className="text-xs text-gray-500 mt-1">
+                                → <code>https://clinicaltrials.gov/api/v2/studies?...</code>
+                              </p>
+                            </div>
+
+                            {/* PubMed API Query */}
+                            <div>
+                              <div className="flex items-center gap-2 mb-1">
+                                <FileText className="h-4 w-4 text-green-600" />
+                                <span className="text-xs font-semibold text-gray-700">PubMed E-Utilities API</span>
+                              </div>
+                              <div className="bg-white border border-green-200 rounded-md p-2">
+                                <code className="text-xs text-gray-800 font-mono break-all">
+                                  db=pubmed
+                                  &term={formattedQueries?.pubmed || strategy.query}
+                                  &retmax=30
+                                  &sort=relevance
+                                </code>
+                              </div>
+                              <p className="text-xs text-gray-500 mt-1">
+                                → <code>https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?...</code>
+                              </p>
+                            </div>
+                          </div>
                         </div>
                       );
                     })}
@@ -323,9 +356,17 @@ export function DrugsList({ drugGroups, loading, query, onDrugClick, onDrugSpeci
                       <p className="font-medium">Discovery-Focused Approach</p>
                       <p className="mt-1">These phrase-based queries cast a wide net to DISCOVER drugs across all stages (preclinical → approved), not just search for known drugs. Drug names are then extracted from all results.</p>
                       {initialSearchQueries.strategies && (
-                        <p className="mt-2">
-                          <strong>Results:</strong> Found {new Set(initialSearchQueries.strategies.flatMap(s => s.trials.map(t => t.nctId))).size} unique trials across {initialSearchQueries.strategies.length} strategies.
-                        </p>
+                        <div className="mt-3 space-y-1">
+                          <p>
+                            <strong>📊 Results:</strong> Found {new Set(initialSearchQueries.strategies.flatMap(s => s.trials.map(t => t.nctId))).size} unique trials across {initialSearchQueries.strategies.length} strategies.
+                          </p>
+                          <p>
+                            <strong>🔄 Process:</strong> Each query executes on both APIs in parallel, results are unioned and deduplicated by NCT ID / PMID.
+                          </p>
+                          <p>
+                            <strong>🎯 Filters:</strong> PubMed automatically filters for Clinical Trials and RCTs. ClinicalTrials.gov fetches up to 50 trials per query.
+                          </p>
+                        </div>
                       )}
                     </div>
                   </div>

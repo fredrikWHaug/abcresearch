@@ -224,8 +224,7 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
   const [searchProgress, setSearchProgress] = useState({ current: 0, total: 0 })
   const [initialSearchQueries, setInitialSearchQueries] = useState<{
     originalQuery: string;
-    clinicalTrialsQuery: string;
-    pubmedQuery: string;
+    strategies?: import('@/services/gatherSearchResults').StrategyResult[];
   } | null>(null)
   
   // PDF processing state
@@ -358,6 +357,87 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
     }
   }
 
+  /**
+   * Deep Dive: Run a targeted search for a specific drug
+   * Searches by drug name specifically, ordered by recency and participant size
+   */
+  const handleDrugSpecificSearch = async (drugName: string) => {
+    try {
+      console.log(`🎯 Deep Dive search for: "${drugName}"`);
+      
+      // Notify user
+      setChatHistory(prev => [...prev, {
+        type: 'system' as const,
+        message: `Searching for comprehensive data on "${drugName}"...`,
+        searchSuggestions: []
+      }]);
+      
+      // Search specifically for this drug
+      const result = await GatherSearchResultsService.gatherSearchResults(drugName);
+      
+      // Sort trials by recency and participant size
+      const sortedTrials = [...result.trials].sort((a, b) => {
+        // First by start date (most recent first)
+        const dateA = a.startDate || '';
+        const dateB = b.startDate || '';
+        if (dateA !== dateB) {
+          return dateB.localeCompare(dateA);
+        }
+        // Then by enrollment size (largest first)
+        const enrollA = a.enrollment || 0;
+        const enrollB = b.enrollment || 0;
+        return enrollB - enrollA;
+      });
+      
+      // Sort papers by publication date (most recent first)
+      const sortedPapers = [...result.papers].sort((a, b) => {
+        return b.publicationDate.localeCompare(a.publicationDate);
+      });
+      
+      // Update the drug group with sorted results
+      const updatedDrugGroup: DrugGroup = {
+        drugName,
+        normalizedName: drugName.toLowerCase(),
+        papers: sortedPapers,
+        trials: sortedTrials,
+        totalResults: sortedPapers.length + sortedTrials.length
+      };
+      
+      // Update drugGroups to include this updated drug or add it if new
+      setDrugGroups(prev => {
+        const existing = prev.find(g => g.normalizedName === drugName.toLowerCase());
+        if (existing) {
+          // Update existing drug
+          return prev.map(g => 
+            g.normalizedName === drugName.toLowerCase() ? updatedDrugGroup : g
+          ).sort((a, b) => b.totalResults - a.totalResults);
+        } else {
+          // Add new drug
+          return [...prev, updatedDrugGroup].sort((a, b) => b.totalResults - a.totalResults);
+        }
+      });
+      
+      // Open the drug modal to show results
+      setSelectedDrug(updatedDrugGroup);
+      
+      // Notify success
+      setChatHistory(prev => [...prev, {
+        type: 'system' as const,
+        message: `Found ${sortedTrials.length} trials and ${sortedPapers.length} papers for "${drugName}" (sorted by recency and size)`,
+        searchSuggestions: []
+      }]);
+      
+      console.log(`✅ Deep Dive complete: ${sortedTrials.length} trials, ${sortedPapers.length} papers`);
+    } catch (error) {
+      console.error('Error in drug-specific search:', error);
+      setChatHistory(prev => [...prev, {
+        type: 'system' as const,
+        message: `Error searching for "${drugName}". Please try again.`,
+        searchSuggestions: []
+      }]);
+    }
+  };
+
   const handleSearchSuggestion = async (suggestion: {id: string, label: string, query: string, description?: string}) => {
     console.log('Search suggestion clicked:', suggestion);
     
@@ -381,11 +461,10 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
       // Perform initial search
       const initialResult = await GatherSearchResultsService.gatherSearchResults(suggestion.query);
       
-      // Save the initial search queries for display
+      // Save the initial search queries and strategies for display
       setInitialSearchQueries({
         originalQuery: suggestion.query,
-        clinicalTrialsQuery: suggestion.query,
-        pubmedQuery: `${suggestion.query} AND ("Clinical Trial"[Publication Type] OR "Randomized Controlled Trial"[Publication Type])`
+        strategies: initialResult.searchStrategies
       });
       
       // Extract unique drug names from the results
@@ -1295,6 +1374,7 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
               loading={searchProgress.total > 0 && searchProgress.current < searchProgress.total}
               query={lastQuery}
               onDrugClick={(drugGroup) => setSelectedDrug(drugGroup)}
+              onDrugSpecificSearch={handleDrugSpecificSearch}
               initialSearchQueries={initialSearchQueries}
             />
           )}
