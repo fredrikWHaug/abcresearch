@@ -875,7 +875,10 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
         
         {/* Asset Development Pipeline Content */}
         <div className="flex-1 overflow-hidden">
-          <AssetDevelopmentPipeline trials={trials} />
+          <AssetDevelopmentPipeline 
+            trials={trials} 
+            drugGroups={drugGroups}
+          />
         </div>
       </div>
     );

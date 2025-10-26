@@ -2,14 +2,18 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Search, Filter, Building2, FlaskConical, Calendar, AlertCircle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Search, Filter, Building2, FlaskConical, Calendar, AlertCircle, Sparkles, Loader2, Info } from 'lucide-react';
 import type { PipelineDrugCandidate, PipelineStage } from '@/types/pipeline';
 import type { ClinicalTrial } from '@/types/trials';
+import type { DrugGroup } from '@/services/drugGroupingService';
 import { PipelineService } from '@/services/pipelineService';
+import { PipelineLLMService } from '@/services/pipelineLLMService';
 
 interface AssetDevelopmentPipelineProps {
   candidates?: PipelineDrugCandidate[];
   trials?: ClinicalTrial[];
+  drugGroups?: DrugGroup[];
 }
 
 // Mock data for demonstration - will be replaced with real data from API/database
@@ -88,26 +92,58 @@ const MOCK_CANDIDATES: PipelineDrugCandidate[] = [
   },
 ];
 
-export function AssetDevelopmentPipeline({ candidates: propCandidates, trials }: AssetDevelopmentPipelineProps) {
+export function AssetDevelopmentPipeline({ candidates: propCandidates, trials, drugGroups }: AssetDevelopmentPipelineProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStage, setSelectedStage] = useState<PipelineStage | 'All'>('All');
   const [showFilters, setShowFilters] = useState(false);
   const [processedCandidates, setProcessedCandidates] = useState<PipelineDrugCandidate[]>([]);
+  const [isExtracting, setIsExtracting] = useState(false);
+  const [extractionError, setExtractionError] = useState<string | null>(null);
+  const [usedLLM, setUsedLLM] = useState(false);
 
   // Process trials into pipeline candidates when trials change
   useEffect(() => {
     if (propCandidates) {
       // Use provided candidates
       setProcessedCandidates(propCandidates);
+      setUsedLLM(false);
     } else if (trials && trials.length > 0) {
-      // Convert trials to pipeline candidates
+      // Convert trials to pipeline candidates (pattern-based)
       const converted = PipelineService.trialsToPipeline(trials);
       setProcessedCandidates(converted);
+      setUsedLLM(false);
     } else {
       // Use mock data as fallback
       setProcessedCandidates(MOCK_CANDIDATES);
+      setUsedLLM(false);
     }
   }, [propCandidates, trials]);
+
+  // Handle LLM extraction
+  const handleLLMExtraction = async () => {
+    if (!drugGroups || drugGroups.length === 0) {
+      setExtractionError('No drug data available. Please perform a search first.');
+      return;
+    }
+
+    setIsExtracting(true);
+    setExtractionError(null);
+
+    try {
+      const candidates = await PipelineLLMService.extractPipelineData(drugGroups);
+      setProcessedCandidates(candidates);
+      setUsedLLM(true);
+      console.log('LLM extraction complete:', candidates);
+    } catch (error) {
+      console.error('LLM extraction failed:', error);
+      setExtractionError(error instanceof Error ? error.message : 'Failed to extract pipeline data');
+    } finally {
+      setIsExtracting(false);
+    }
+  };
+
+  // Get processing stats
+  const processingStats = drugGroups ? PipelineLLMService.getProcessingStats(drugGroups) : null;
 
   const candidates = processedCandidates;
 
@@ -201,23 +237,108 @@ export function AssetDevelopmentPipeline({ candidates: propCandidates, trials }:
           )}
 
           <div className="flex items-start justify-between mb-4">
-            <div>
+            <div className="flex-1">
               <h1 className="text-3xl font-bold text-gray-900">Asset Development Pipeline</h1>
               <p className="text-gray-600 mt-1">
                 {isUsingRealData 
-                  ? `Showing ${candidates.length} drug candidates from your search results`
+                  ? usedLLM
+                    ? `Showing ${candidates.length} AI-extracted drug candidates (top 10 by paper count)`
+                    : `Showing ${candidates.length} drug candidates from your search results`
                   : 'Comprehensive view of drug candidates across development stages'
                 }
               </p>
             </div>
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
-            >
-              <Filter className="h-4 w-4" />
-              <span className="text-sm font-medium">Filters</span>
-            </button>
+            <div className="flex items-center gap-3">
+              {/* AI Extraction Button */}
+              {drugGroups && drugGroups.length > 0 && !usedLLM && (
+                <Button
+                  onClick={handleLLMExtraction}
+                  disabled={isExtracting}
+                  className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white"
+                >
+                  {isExtracting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Extracting...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-4 w-4" />
+                      AI Extract (Top 10)
+                    </>
+                  )}
+                </Button>
+              )}
+              <button
+                onClick={() => setShowFilters(!showFilters)}
+                className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+              >
+                <Filter className="h-4 w-4" />
+                <span className="text-sm font-medium">Filters</span>
+              </button>
+            </div>
           </div>
+
+          {/* Processing Stats Info */}
+          {processingStats && !usedLLM && !isExtracting && (
+            <div className="mb-4 bg-purple-50 border border-purple-200 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <Info className="h-5 w-5 text-purple-600 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <h3 className="text-sm font-semibold text-purple-900">AI Extraction Available</h3>
+                  <p className="text-sm text-purple-800 mt-1">
+                    Click "AI Extract" to use Claude AI to extract comprehensive drug information from your search results. 
+                    To control costs, only the top {processingStats.willProcess} drugs (by paper count) will be processed.
+                  </p>
+                  {processingStats.willSkip > 0 && (
+                    <p className="text-xs text-purple-700 mt-2">
+                      Note: {processingStats.willSkip} drugs with fewer papers will be skipped.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Extraction Error */}
+          {extractionError && (
+            <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <h3 className="text-sm font-semibold text-red-900">Extraction Failed</h3>
+                  <p className="text-sm text-red-800 mt-1">{extractionError}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Extraction Progress */}
+          {isExtracting && (
+            <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-center gap-3">
+                <Loader2 className="h-5 w-5 text-blue-600 animate-spin flex-shrink-0" />
+                <div className="flex-1">
+                  <h3 className="text-sm font-semibold text-blue-900">Extracting Pipeline Data...</h3>
+                  <p className="text-sm text-blue-800 mt-1">
+                    Processing top {processingStats?.willProcess || 10} drugs with AI. This may take 30-60 seconds.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* LLM Success Badge */}
+          {usedLLM && (
+            <div className="mb-4 bg-green-50 border border-green-200 rounded-lg p-3">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-green-600" />
+                <span className="text-sm font-medium text-green-900">
+                  AI-extracted comprehensive drug data with high accuracy
+                </span>
+              </div>
+            </div>
+          )}
 
           {/* Search and Filters */}
           <div className="space-y-4">
