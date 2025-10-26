@@ -63,15 +63,15 @@ export function EntryChoice({ onOpenExisting, onStartNew }: EntryChoiceProps) {
               </div>
               
               <h2 className="text-2xl font-bold text-gray-900 mb-4">
-                Start New Research
+                Create New Project
               </h2>
               
               <p className="text-gray-600 mb-6">
-                Begin a fresh research session
+                Begin a fresh research project
               </p>
               
               <div className="flex items-center justify-center text-green-600 font-semibold group-hover:text-green-700">
-                <span>Start Research</span>
+                <span>Create Project</span>
                 <ArrowRight className="h-5 w-5 ml-2 group-hover:translate-x-1 transition-transform" />
               </div>
             </CardContent>

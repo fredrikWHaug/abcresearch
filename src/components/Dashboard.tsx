@@ -24,9 +24,10 @@ import type { SlideData } from '@/services/slideAPI'
 
 interface DashboardProps {
   initialShowSavedMaps?: boolean;
+  projectName?: string;
 }
 
-export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
+export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: DashboardProps) {
   const { signOut, isGuest, exitGuestMode } = useAuth()
   
   const handleSignOut = async () => {
@@ -202,6 +203,16 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
   const [slideError, setSlideError] = useState<string | null>(null)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [currentProjectId, setCurrentProjectId] = useState<number | null>(null)
+  const [currentProjectName, setCurrentProjectName] = useState<string>(projectName)
+  const [showProjectsDropdown, setShowProjectsDropdown] = useState(false)
+  
+  // Set project name when prop changes
+  React.useEffect(() => {
+    if (projectName) {
+      setCurrentProjectName(projectName)
+      console.log('New project created:', projectName)
+    }
+  }, [projectName])
   
   // Drug grouping state
   const [drugGroups, setDrugGroups] = useState<DrugGroup[]>([])
@@ -227,7 +238,7 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
   const [selectedPapers, setSelectedPapers] = useState<PubMedArticle[]>([])
   const [showContextPanel, setShowContextPanel] = useState(false)
 
-  // Close menu and context panel when clicking outside
+  // Close menu, context panel, and projects dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Element;
@@ -239,13 +250,17 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
       if (showContextPanel && !target.closest('.context-panel-container')) {
         setShowContextPanel(false);
       }
+      
+      if (showProjectsDropdown && !target.closest('.projects-dropdown-container')) {
+        setShowProjectsDropdown(false);
+      }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [isMenuOpen, showContextPanel]);
+  }, [isMenuOpen, showContextPanel, showProjectsDropdown]);
 
   // Debug logging for MarketMap props
   useEffect(() => {
@@ -566,6 +581,58 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
           style={{ left: '50%', transform: 'translateX(-50%)' }}
         >
           <div className="flex rounded-lg bg-gray-100 p-1 w-[45rem]">
+            <div className="relative flex-1 projects-dropdown-container">
+              <button
+                onClick={() => setShowProjectsDropdown(!showProjectsDropdown)}
+                className={`py-2 px-4 rounded-md text-sm font-medium transition-colors w-full text-center whitespace-nowrap ${
+                  showProjectsDropdown
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                Projects
+              </button>
+              
+              {/* Projects Dropdown */}
+              {showProjectsDropdown && (
+                <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-lg shadow-xl border border-gray-200 py-2 min-w-[250px] z-50">
+                  <div className="px-4 py-2 border-b border-gray-200">
+                    <h3 className="font-semibold text-gray-900 text-sm">Your Projects</h3>
+                  </div>
+                  <div className="py-1">
+                    {currentProjectName ? (
+                      <button
+                        onClick={() => {
+                          console.log('Selected project:', currentProjectName)
+                          setShowProjectsDropdown(false)
+                        }}
+                        className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+                            <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                            </svg>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-900 truncate">
+                              {currentProjectName}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              Current project
+                            </p>
+                          </div>
+                        </div>
+                      </button>
+                    ) : (
+                      <div className="px-4 py-3 text-sm text-gray-500 text-center">
+                        No projects yet
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
             <button
               onClick={() => setViewMode('research')}
               className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
@@ -816,6 +883,7 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
       </div>
     );
   }
+
 
   // Show saved maps view
   if (viewMode === 'savedmaps') {
