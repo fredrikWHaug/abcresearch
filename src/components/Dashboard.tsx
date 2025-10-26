@@ -358,60 +358,6 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
     }
   }
 
-  /**
-   * Search for clinical trials and papers for a specific drug
-   * Enhanced with original query context for better results
-   */
-  const searchForDrug = async (drugName: string, originalQuery: string): Promise<{ 
-    trials: ClinicalTrial[], 
-    papers: PubMedArticle[]
-  }> => {
-    try {
-      // Include original query context for more targeted results
-      const clinicalTrialsQuery = `${drugName} ${originalQuery}`;
-      const pubmedQuery = `${drugName} AND ${originalQuery} AND ("Clinical Trial"[Publication Type] OR "Randomized Controlled Trial"[Publication Type])`;
-      
-      // Search clinical trials for this drug
-      const trialsResponse = await fetch('/api/search-clinical-trials', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          query: clinicalTrialsQuery,
-        })
-      });
-      
-      if (!trialsResponse.ok) {
-        console.error('Error fetching trials for drug:', drugName);
-        return { 
-          trials: [], 
-          papers: []
-        };
-      }
-      
-      const trialsData = await trialsResponse.json();
-      const drugTrials = trialsData.trials || [];
-      
-      // Search papers for this drug
-      const drugPapers = await pubmedAPI.searchPapers({
-        query: pubmedQuery,
-        maxResults: 20
-      });
-      
-      return { 
-        trials: drugTrials, 
-        papers: drugPapers
-      };
-    } catch (error) {
-      console.error('Error searching for drug:', drugName, error);
-      return { 
-        trials: [], 
-        papers: []
-      };
-    }
-  };
-
   const handleSearchSuggestion = async (suggestion: {id: string, label: string, query: string, description?: string}) => {
     console.log('Search suggestion clicked:', suggestion);
     
@@ -445,80 +391,77 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
       // Extract unique drug names from the results
       const drugExtractionResult = await ExtractDrugNamesService.extractFromSearchResults(
         initialResult.trials,
-        initialResult.papers
+        initialResult.papers,
+        suggestion.query
       );
       
       const uniqueDrugNames = drugExtractionResult.uniqueDrugNames;
       console.log(`Stage 1 complete: Found ${uniqueDrugNames.length} unique drugs:`, uniqueDrugNames);
       
-      // Update chat with Stage 1 completion (remove loading message and add completion message)
+      // Update chat with completion (remove loading message)
       setChatHistory(prev => {
         const filtered = prev.filter(item => item.message !== 'stage1_loading');
         return [...filtered, { 
           type: 'system' as const, 
-          message: `Found ${uniqueDrugNames.length} unique drugs from initial search. Now searching for comprehensive data on each drug...`,
+          message: `Found ${uniqueDrugNames.length} unique drugs from ${initialResult.trials.length} trials and ${initialResult.papers.length} papers. Grouping results...`,
           searchSuggestions: []
         }];
       });
       
-      // Stage 2: Search for each drug specifically
-      console.log('Stage 2: Searching for each drug specifically...');
+      // Group trials and papers by extracted drug names (NO Stage 2 searches!)
+      console.log(`Grouping ${initialResult.trials.length} trials and ${initialResult.papers.length} papers by ${uniqueDrugNames.length} drugs...`);
       setExtractingDrugs(false);
-      setSearchProgress({ current: 0, total: uniqueDrugNames.length });
       
-      // Initialize drug groups array to show results as they come in
-      const allDrugGroups: DrugGroup[] = [];
-      
-      // Search for each drug one by one and update results progressively
-      for (let i = 0; i < uniqueDrugNames.length; i++) {
-        const drugName = uniqueDrugNames[i];
-        console.log(`Searching for drug ${i + 1}/${uniqueDrugNames.length}: ${drugName}`);
+      // Create drug groups from the discovery search results
+      const allDrugGroups: DrugGroup[] = uniqueDrugNames.map(drugName => {
+        const normalizedDrugName = drugName.toLowerCase();
         
-        // Include original query context for more targeted results
-        const drugResults = await searchForDrug(drugName, suggestion.query);
+        // Find trials mentioning this drug
+        const drugTrials = initialResult.trials.filter(trial => {
+          const trialText = [
+            trial.briefTitle,
+            trial.officialTitle,
+            ...(trial.interventions || []),
+            ...(trial.conditions || [])
+          ].join(' ').toLowerCase();
+          return trialText.includes(normalizedDrugName);
+        });
         
-        // Create a drug group for this drug
-        const drugGroup: DrugGroup = {
-          drugName: drugName,
-          normalizedName: drugName.toLowerCase(),
-          papers: drugResults.papers,
-          trials: drugResults.trials,
-          totalResults: drugResults.papers.length + drugResults.trials.length
+        // Find papers mentioning this drug
+        const drugPapers = initialResult.papers.filter(paper => {
+          const paperText = [paper.title, paper.abstract].join(' ').toLowerCase();
+          return paperText.includes(normalizedDrugName);
+        });
+        
+        return {
+          drugName,
+          normalizedName: normalizedDrugName,
+          papers: drugPapers,
+          trials: drugTrials,
+          totalResults: drugPapers.length + drugTrials.length
         };
-        
-        allDrugGroups.push(drugGroup);
-        
-        // Update state immediately to show this drug's results
-        setDrugGroups([...allDrugGroups].sort((a, b) => b.totalResults - a.totalResults));
-        setSearchProgress({ current: i + 1, total: uniqueDrugNames.length });
-        
-        console.log(`Found ${drugGroup.totalResults} results for ${drugName}`);
-        
-        // Small delay to avoid overwhelming APIs and make progressive UI visible
-        if (i < uniqueDrugNames.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 500));
-        }
-      }
+      });
+      
+      // Filter out drugs with no results and sort by total results
+      const filteredDrugGroups = allDrugGroups
+        .filter(g => g.totalResults > 0)
+        .sort((a, b) => b.totalResults - a.totalResults);
+      
+      console.log(`Grouped into ${filteredDrugGroups.length} drugs with results (${allDrugGroups.length - filteredDrugGroups.length} drugs had no matching trials/papers)`);
+      
+      // Update state
+      setDrugGroups(filteredDrugGroups);
+      setTrials(initialResult.trials);
+      setPapers(initialResult.papers);
       
       // Calculate total stats
-      const totalTrials = allDrugGroups.reduce((sum, g) => sum + g.trials.length, 0);
-      const totalPapers = allDrugGroups.reduce((sum, g) => sum + g.papers.length, 0);
-      
-      // Also update the global trials and papers arrays for MarketMap
-      const allTrials = allDrugGroups.flatMap(g => g.trials);
-      const allPapers = allDrugGroups.flatMap(g => g.papers);
-      
-      // Deduplicate trials and papers
-      const uniqueTrials = Array.from(new Map(allTrials.map(t => [t.nctId, t])).values());
-      const uniquePapers = Array.from(new Map(allPapers.map(p => [p.pmid, p])).values());
-      
-      setTrials(uniqueTrials);
-      setPapers(uniquePapers);
+      const totalTrials = filteredDrugGroups.reduce((sum, g) => sum + g.trials.length, 0);
+      const totalPapers = filteredDrugGroups.reduce((sum, g) => sum + g.papers.length, 0);
       
       // Add final message to chat
       setChatHistory(prev => [...prev, { 
         type: 'system' as const, 
-        message: `Search complete! Found ${allDrugGroups.length} drugs with ${totalTrials} clinical trials and ${totalPapers} research papers in total. Results are displayed on the right.`,
+        message: `Discovery complete! Found ${filteredDrugGroups.length} drugs with ${initialResult.trials.length} clinical trials and ${initialResult.papers.length} research papers. Results are displayed on the right.`,
         searchSuggestions: []
       }]);
       

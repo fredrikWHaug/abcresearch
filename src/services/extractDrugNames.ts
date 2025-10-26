@@ -103,7 +103,8 @@ export class ExtractDrugNamesService {
    */
   private static async callExtractAPI(
     text: string, 
-    context: 'clinical_trial' | 'research_paper' | 'general' = 'general'
+    context: 'clinical_trial' | 'research_paper' | 'general' = 'general',
+    userQuery?: string
   ): Promise<Omit<DrugInfo, 'source' | 'sourceType'>[]> {
     try {
       const response = await fetch('/api/extract-drug-names', {
@@ -113,7 +114,8 @@ export class ExtractDrugNamesService {
         },
         body: JSON.stringify({
           text,
-          context
+          context,
+          userQuery
         })
       });
 
@@ -139,7 +141,7 @@ export class ExtractDrugNamesService {
   /**
    * Extract drug names from a single clinical trial
    */
-  static async extractFromTrial(trial: ClinicalTrial): Promise<DrugInfo[]> {
+  static async extractFromTrial(trial: ClinicalTrial, userQuery?: string): Promise<DrugInfo[]> {
     // Combine relevant text from the trial
     const text = [
       trial.briefTitle,
@@ -148,7 +150,7 @@ export class ExtractDrugNamesService {
       ...(trial.conditions || [])
     ].filter(Boolean).join(' ');
 
-    const drugs = await this.callExtractAPI(text, 'clinical_trial');
+    const drugs = await this.callExtractAPI(text, 'clinical_trial', userQuery);
     
     // Add source information
     return drugs.map(drug => ({
@@ -161,14 +163,14 @@ export class ExtractDrugNamesService {
   /**
    * Extract drug names from multiple clinical trials
    */
-  static async extractFromTrials(trials: ClinicalTrial[]): Promise<DrugInfo[]> {
+  static async extractFromTrials(trials: ClinicalTrial[], userQuery?: string): Promise<DrugInfo[]> {
     // Process trials in batches to avoid overwhelming the API
     const batchSize = 5;
     const allDrugs: DrugInfo[] = [];
 
     for (let i = 0; i < trials.length; i += batchSize) {
       const batch = trials.slice(i, i + batchSize);
-      const batchPromises = batch.map(trial => this.extractFromTrial(trial));
+      const batchPromises = batch.map(trial => this.extractFromTrial(trial, userQuery));
       const batchResults = await Promise.all(batchPromises);
       
       // Flatten results
@@ -187,14 +189,14 @@ export class ExtractDrugNamesService {
   /**
    * Extract drug names from a single research paper
    */
-  static async extractFromPaper(paper: PubMedArticle): Promise<DrugInfo[]> {
+  static async extractFromPaper(paper: PubMedArticle, userQuery?: string): Promise<DrugInfo[]> {
     // Combine relevant text from the paper
     const text = [
       paper.title,
       paper.abstract
     ].filter(Boolean).join(' ');
 
-    const drugs = await this.callExtractAPI(text, 'research_paper');
+    const drugs = await this.callExtractAPI(text, 'research_paper', userQuery);
     
     // Add source information
     return drugs.map(drug => ({
@@ -207,14 +209,14 @@ export class ExtractDrugNamesService {
   /**
    * Extract drug names from multiple research papers
    */
-  static async extractFromPapers(papers: PubMedArticle[]): Promise<DrugInfo[]> {
+  static async extractFromPapers(papers: PubMedArticle[], userQuery?: string): Promise<DrugInfo[]> {
     // Process papers in batches to avoid overwhelming the API
     const batchSize = 5;
     const allDrugs: DrugInfo[] = [];
 
     for (let i = 0; i < papers.length; i += batchSize) {
       const batch = papers.slice(i, i + batchSize);
-      const batchPromises = batch.map(paper => this.extractFromPaper(paper));
+      const batchPromises = batch.map(paper => this.extractFromPaper(paper, userQuery));
       const batchResults = await Promise.all(batchPromises);
       
       // Flatten results
@@ -235,7 +237,8 @@ export class ExtractDrugNamesService {
    */
   static async extractFromSearchResults(
     trials: ClinicalTrial[], 
-    papers: PubMedArticle[]
+    papers: PubMedArticle[],
+    userQuery?: string
   ): Promise<{
     allDrugs: DrugInfo[];
     trialDrugs: DrugInfo[];
@@ -245,8 +248,8 @@ export class ExtractDrugNamesService {
     try {
       // Extract from both trials and papers in parallel
       const [trialDrugs, paperDrugs] = await Promise.all([
-        this.extractFromTrials(trials.slice(0, 20)), // Limit to first 20 trials
-        this.extractFromPapers(papers.slice(0, 20))  // Limit to first 20 papers
+        this.extractFromTrials(trials.slice(0, 20), userQuery), // Limit to first 20 trials
+        this.extractFromPapers(papers.slice(0, 20), userQuery)  // Limit to first 20 papers
       ]);
 
       // Combine all drugs
