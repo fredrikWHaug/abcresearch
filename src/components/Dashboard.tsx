@@ -946,6 +946,9 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
           <AssetDevelopmentPipeline 
             trials={trials} 
             drugGroups={drugGroups}
+            query={lastQuery}
+            onAddPaperToContext={handleAddPaperToContext}
+            isPaperInContext={isPaperInContext}
           />
         </div>
       </div>

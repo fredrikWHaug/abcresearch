@@ -182,6 +182,7 @@ export class PipelineService {
           mechanismOfAction: this.extractMechanism(trial.interventions),
           indications: trial.conditions || [],
           lastTrialStartDate: trial.startDate,
+          sourceGroupId: key, // Use the normalized key for matching
         };
         
         candidateMap.set(key, candidate);
