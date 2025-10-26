@@ -51,7 +51,21 @@ export class PipelineLLMService {
         console.warn('Some drugs failed to process:', data.errors);
       }
 
-      return data.candidates;
+      // Add sourceGroupId to match candidates back to their drug groups
+      const candidatesWithRefs = data.candidates.map(candidate => {
+        // Find the matching drug group by normalized name
+        const matchingGroup = top10.find(group => 
+          group.normalizedName === candidate.id ||
+          group.drugName.toLowerCase() === candidate.scientificName.toLowerCase()
+        );
+        
+        return {
+          ...candidate,
+          sourceGroupId: matchingGroup?.normalizedName || candidate.id
+        };
+      });
+
+      return candidatesWithRefs;
     } catch (error) {
       console.error('Error extracting pipeline data:', error);
       throw error;

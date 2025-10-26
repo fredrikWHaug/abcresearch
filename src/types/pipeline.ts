@@ -10,6 +10,7 @@ export interface PipelineDrugCandidate {
   mechanismOfAction?: string; // e.g., "Monotherapy", "Combination Therapy"
   indications?: string[]; // e.g., ["Alzheimer's Disease", "Dementia"]
   lastTrialStartDate?: string; // ISO date string
+  sourceGroupId?: string; // Reference to original DrugGroup for modal lookup
 }
 
 export type PipelineStage = 

@@ -4,9 +4,11 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Search, Filter, Building2, FlaskConical, Calendar, AlertCircle, Sparkles, Loader2, Info } from 'lucide-react';
+import { DrugDetailModal } from '@/components/DrugDetailModal';
 import type { PipelineDrugCandidate, PipelineStage } from '@/types/pipeline';
 import type { ClinicalTrial } from '@/types/trials';
 import type { DrugGroup } from '@/services/drugGroupingService';
+import type { PubMedArticle } from '@/types/papers';
 import { PipelineService } from '@/services/pipelineService';
 import { PipelineLLMService } from '@/services/pipelineLLMService';
 
@@ -14,6 +16,9 @@ interface AssetDevelopmentPipelineProps {
   candidates?: PipelineDrugCandidate[];
   trials?: ClinicalTrial[];
   drugGroups?: DrugGroup[];
+  query?: string;
+  onAddPaperToContext?: (paper: PubMedArticle) => void;
+  isPaperInContext?: (pmid: string) => boolean;
 }
 
 // Mock data for demonstration - will be replaced with real data from API/database
@@ -92,7 +97,14 @@ const MOCK_CANDIDATES: PipelineDrugCandidate[] = [
   },
 ];
 
-export function AssetDevelopmentPipeline({ candidates: propCandidates, trials, drugGroups }: AssetDevelopmentPipelineProps) {
+export function AssetDevelopmentPipeline({ 
+  candidates: propCandidates, 
+  trials, 
+  drugGroups,
+  query = '',
+  onAddPaperToContext,
+  isPaperInContext
+}: AssetDevelopmentPipelineProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStage, setSelectedStage] = useState<PipelineStage | 'All'>('All');
   const [showFilters, setShowFilters] = useState(false);
@@ -100,6 +112,8 @@ export function AssetDevelopmentPipeline({ candidates: propCandidates, trials, d
   const [isExtracting, setIsExtracting] = useState(false);
   const [extractionError, setExtractionError] = useState<string | null>(null);
   const [usedLLM, setUsedLLM] = useState(false);
+  const [selectedDrug, setSelectedDrug] = useState<DrugGroup | null>(null);
+  const [showDrugModal, setShowDrugModal] = useState(false);
 
   // Process trials into pipeline candidates when trials change
   useEffect(() => {
@@ -146,6 +160,23 @@ export function AssetDevelopmentPipeline({ candidates: propCandidates, trials, d
   const processingStats = drugGroups ? PipelineLLMService.getProcessingStats(drugGroups) : null;
 
   const candidates = processedCandidates;
+
+  // Handle drug click - find matching drug group and open modal
+  const handleDrugClick = (candidate: PipelineDrugCandidate) => {
+    if (!drugGroups || drugGroups.length === 0) return;
+
+    // Direct ID match - pipeline candidates are derived from drugGroups
+    const matchingDrug = drugGroups.find(group => 
+      group.normalizedName === candidate.sourceGroupId
+    );
+
+    if (matchingDrug) {
+      setSelectedDrug(matchingDrug);
+      setShowDrugModal(true);
+    } else {
+      console.error('Drug group not found for:', candidate.scientificName, 'ID:', candidate.sourceGroupId);
+    }
+  };
 
   // Filter candidates based on search and filters
   const filteredCandidates = useMemo(() => {
@@ -433,17 +464,23 @@ export function AssetDevelopmentPipeline({ candidates: propCandidates, trials, d
                             <div>
                               {candidate.commercialName ? (
                                 <>
-                                  <div className="font-semibold text-gray-900">
+                                  <button
+                                    onClick={() => handleDrugClick(candidate)}
+                                    className="font-semibold text-gray-900 hover:text-blue-600 transition-colors text-left"
+                                  >
                                     {candidate.commercialName}
-                                  </div>
+                                  </button>
                                   <div className="text-sm text-gray-600">
                                     ({candidate.scientificName})
                                   </div>
                                 </>
                               ) : (
-                                <div className="font-semibold text-gray-900">
+                                <button
+                                  onClick={() => handleDrugClick(candidate)}
+                                  className="font-semibold text-gray-900 hover:text-blue-600 transition-colors text-left"
+                                >
                                   {candidate.scientificName}
-                                </div>
+                                </button>
                               )}
                             </div>
                           </div>
@@ -549,6 +586,20 @@ export function AssetDevelopmentPipeline({ candidates: propCandidates, trials, d
           )}
         </div>
       </div>
+
+      {/* Drug Detail Modal */}
+      {showDrugModal && selectedDrug && (
+        <DrugDetailModal
+          drugGroup={selectedDrug}
+          query={query}
+          onClose={() => {
+            setShowDrugModal(false);
+            setSelectedDrug(null);
+          }}
+          onAddPaperToContext={onAddPaperToContext}
+          isPaperInContext={isPaperInContext}
+        />
+      )}
     </div>
   );
 }
