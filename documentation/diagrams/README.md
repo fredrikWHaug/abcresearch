@@ -4,6 +4,7 @@ This directory contains visual diagrams of the ABCResearch system architecture a
 
 ## Files
 
+- **`single_overarching_architecture.md`** - **[RECOMMENDED]** Comprehensive single-diagram view of the entire platform including all layers, discovery flow, and performance metrics
 - **`abcresearch_architecture.md`** - Complete system architecture showing all components, layers, and their relationships
 - **`abcresearch_data_flow.md`** - End-to-end data flow from user query through AI enhancement, parallel searches, deduplication, and presentation
 - **`abcresearch_tech_stack.md`** - Complete technology stack including frameworks, libraries, external services, and infrastructure
