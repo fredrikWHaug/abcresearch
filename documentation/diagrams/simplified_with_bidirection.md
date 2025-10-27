@@ -50,6 +50,12 @@ graph TB
     subgraph "Data Storage"
         ProjectsTable[Projects<br/>Table<br/>JSONB]
         UsersTable[Users<br/>Table]
+        LogsTable[Logs<br/>Table<br/>Events & Errors]
+    end
+    
+    subgraph "Message Bus & Logging"
+        MessageBus[Pub/Sub<br/>Message Bus<br/>Event Distribution]
+        LogCollector[Log Collector<br/>Aggregates Events]
     end
     
     %% User interactions
@@ -101,6 +107,25 @@ graph TB
     %% PDF processing
     EdgeFunc <-->|process| PostgreSQL
     
+    %% Message Bus - Event Publishing
+    GatherService -->|publish events| MessageBus
+    PipelineService -->|publish events| MessageBus
+    ProjectService -->|publish events| MessageBus
+    MessageBus -->|subscribe| ReactApp
+    
+    %% Logging - Components to Log Collector
+    EnhanceAPI -.->|log requests| LogCollector
+    TrialsAPI -.->|log requests| LogCollector
+    PapersAPI -.->|log requests| LogCollector
+    ChatAPI -.->|log requests| LogCollector
+    PipelineAPI -.->|log requests| LogCollector
+    GatherService -.->|log events| LogCollector
+    PipelineService -.->|log events| LogCollector
+    
+    %% Log Storage
+    LogCollector -->|persist logs| PostgreSQL
+    PostgreSQL -->|store| LogsTable
+    
     %% Interface dots at major connection points
     ReactApp -..- GatherService
     GatherService -..- EnhanceAPI
@@ -114,12 +139,14 @@ graph TB
     classDef external fill:#fce4ec,stroke:#333,stroke-width:2px
     classDef database fill:#f3e5f5,stroke:#333,stroke-width:2px
     classDef user fill:#e0f2f1,stroke:#333,stroke-width:2px
+    classDef logging fill:#fff9c4,stroke:#333,stroke-width:2px
     
     class ReactApp,AuthUI,SearchUI,ChatUI,PipelineUI,MarketUI frontend
     class GatherService,PipelineService,ProjectService service
     class EnhanceAPI,TrialsAPI,PapersAPI,DrugAPI,ChatAPI,SlideAPI,PipelineAPI api
     class ClinicalTrials,PubMed,Claude,Gemini external
-    class AuthService,PostgreSQL,Cache,EdgeFunc,ProjectsTable,UsersTable database
+    class AuthService,PostgreSQL,Cache,EdgeFunc,ProjectsTable,UsersTable,LogsTable database
     class Users user
+    class MessageBus,LogCollector logging
 ```
 
