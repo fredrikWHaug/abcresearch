@@ -53,9 +53,9 @@ graph TB
         LogsTable[Logs<br/>Table<br/>Events & Errors]
     end
     
-    subgraph "Message Bus & Logging"
-        MessageBus[Pub/Sub<br/>Message Bus<br/>Event Distribution]
-        LogCollector[Log Collector<br/>Aggregates Events]
+    subgraph "Observability & Events"
+        VercelLogs[Vercel Logs<br/>Auto-collected<br/>API Execution Logs]
+        RealtimeEvents[Supabase Realtime<br/>Pub/Sub Events<br/>WebSocket]
     end
     
     %% User interactions
@@ -107,24 +107,26 @@ graph TB
     %% PDF processing
     EdgeFunc <-->|process| PostgreSQL
     
-    %% Message Bus - Event Publishing
-    GatherService -->|publish events| MessageBus
-    PipelineService -->|publish events| MessageBus
-    ProjectService -->|publish events| MessageBus
-    MessageBus -->|subscribe| ReactApp
+    %% API Gateway Logging (automatic)
+    EnhanceAPI -.->|auto-logged| VercelLogs
+    TrialsAPI -.->|auto-logged| VercelLogs
+    PapersAPI -.->|auto-logged| VercelLogs
+    DrugAPI -.->|auto-logged| VercelLogs
+    ChatAPI -.->|auto-logged| VercelLogs
+    SlideAPI -.->|auto-logged| VercelLogs
+    PipelineAPI -.->|auto-logged| VercelLogs
     
-    %% Logging - Components to Log Collector
-    EnhanceAPI -.->|log requests| LogCollector
-    TrialsAPI -.->|log requests| LogCollector
-    PapersAPI -.->|log requests| LogCollector
-    ChatAPI -.->|log requests| LogCollector
-    PipelineAPI -.->|log requests| LogCollector
-    GatherService -.->|log events| LogCollector
-    PipelineService -.->|log events| LogCollector
+    %% Application Event Logging (explicit)
+    ProjectService -->|write events| LogsTable
+    AuthService -->|write events| LogsTable
     
-    %% Log Storage
-    LogCollector -->|persist logs| PostgreSQL
-    PostgreSQL -->|store| LogsTable
+    %% Realtime Events via Supabase
+    PostgreSQL -->|DB changes| RealtimeEvents
+    RealtimeEvents -.->|subscribe via WebSocket| ReactApp
+    RealtimeEvents -.->|notify| MarketUI
+    
+    %% Future: Custom Logs Export
+    VercelLogs -.->|future: export| LogsTable
     
     %% Interface dots at major connection points
     ReactApp -..- GatherService
@@ -147,6 +149,6 @@ graph TB
     class ClinicalTrials,PubMed,Claude,Gemini external
     class AuthService,PostgreSQL,Cache,EdgeFunc,ProjectsTable,UsersTable,LogsTable database
     class Users user
-    class MessageBus,LogCollector logging
+    class VercelLogs,RealtimeEvents logging
 ```
 
