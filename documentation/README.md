@@ -1,61 +1,81 @@
 # ABCresearch Documentation
 
-Welcome to the ABCresearch documentation. This folder contains comprehensive documentation covering all aspects of the application.
+Welcome to the ABCresearch documentation. This comprehensive guide covers all aspects of the AI-powered pharmaceutical research platform.
+
+## What is ABCresearch?
+
+ABCresearch is an intelligent research assistant that helps pharmaceutical researchers discover and analyze drug candidates through:
+- AI-powered discovery-focused search across clinical trials and research papers
+- Automatic drug extraction and grouping with AI
+- Market map visualization and competitive analysis
+- Asset development pipeline tracking
+- Conversational AI interface for data exploration
 
 ## Documentation Structure
 
-### [0. Overview](./0-overview.md)
-**Purpose**: High-level overview of the application's functionalities and architecture
+The documentation is organized sequentially for easy navigation:
 
-**Best for**: Understanding what the application does and how it works at a high level
+### Core Documentation
+
+**[0. Overview](./0-overview.md)** - Start here for a high-level understanding of the platform
+
+**[1. Frontend](./1-frontend.md)** - React architecture, components, and client-side services
+
+**[2. Backend](./2-backend.md)** - API endpoints, serverless functions, and AI integration
+
+**[3. Database](./3-database.md)** - Project-centric database design (Supabase/PostgreSQL)
+
+### Asset Pipeline Documentation
+
+**[4. Asset Pipeline](./4-asset-pipeline.md)** - Drug candidate table view and automatic classification
+
+**[5. Pipeline Drug Matching](./5-pipeline-drug-matching.md)** - How drug modals connect to pipeline data
+
+**[6. Pipeline LLM Strategy](./6-pipeline-llm-strategy.md)** - AI extraction approaches and implementation
+
+**[7. Pipeline Model Options](./7-pipeline-model-options.md)** - Claude model selection and optimization
+
+### Design System
+
+**[8. Design Scheme](./8-design-scheme.md)** - UI/UX design system and component guidelines
+
+## Reading Guide
+
+### For First-Time Readers
+**Start here:**
+1. Read [0. Overview](./0-overview.md) to understand what the platform does
+2. Skim [1. Frontend](./1-frontend.md) to see how the UI is organized
+3. Skim [2. Backend](./2-backend.md) to understand the API architecture
+
+**Then explore based on your role:**
+- **Frontend Developers**: Deep dive into docs 1, 4, and 8
+- **Backend Developers**: Deep dive into docs 2, 3, and 6
+- **Product/Research**: Focus on docs 0, 4, 5, and 6
+
+### For Specific Tasks
+- **Understanding search functionality**: Read 0 (Data Flow) and 2 (AI Query Enhancement)
+- **Working with drug data**: Read 5 (Drug Matching) and 1 (Drug Grouping Service)
+- **Database changes**: Read 3 (Database) - note the project-centric design
+- **AI/LLM optimization**: Read 6 (LLM Strategy) and 7 (Model Options)
+- **UI components**: Read 8 (Design Scheme) and 1 (Components)
+
+## Key Concepts
+
+- **Discovery-Focused Search**: Uses phrase-based strategies instead of drug names to find emerging candidates
+- **Two-Stage AI Processing**: Claude for intent, Gemini for query enhancement and drug extraction
+- **Drug-Centric Analysis**: Automatically groups trials and papers by drug compound
+- **Project-Centric Database**: All data organized around research projects (work in progress)
+- **Client-Side Services**: Business logic lives in frontend services, not backend APIs
+
+## Documentation Standards
+
+All documentation follows these conventions:
+- Updated date at the top of each file
+- No emojis (uses clear text instead)
+- Code examples with file paths
+- Practical implementation details over theory
 
 ---
 
-### [1. Frontend Documentation](./1-frontend.md)
-**Purpose**: Detailed documentation of the client-side architecture and components
-
-**Best for**: Frontend developers working on UI components and client-side logic
-
----
-
-### [2. Backend Documentation](./2-backend.md)
-**Purpose**: Comprehensive guide to server-side architecture and API endpoints
-
-**Best for**: Backend developers working on API endpoints and database operations
-
----
-
-### [3. Database Documentation](./3-database.md)
-**Purpose**: Comprehensive guide to database architecture and operations
-
-**Best for**: Backend developers and database administrators
-
----
-
-### [4. Design Scheme](./4-design-scheme.md)
-**Purpose**: Complete design system documentation for consistent UI/UX
-
-**Best for**: Designers and frontend developers maintaining visual consistency
-
----
-
-## Quick Start Guide
-
-### For New Developers
-1. **Start with**: [0. Overview](./0-overview.md)
-2. **Then read**: [1. Frontend](./1-frontend.md) or [2. Backend](./2-backend.md) depending on your role
-3. **Reference**: [3. Database](./3-database.md) for data operations
-4. **Reference**: [4. Design Scheme](./4-design-scheme.md) for UI components
-
-### For Database Administrators
-1. **Start with**: [3. Database](./3-database.md)
-2. **Reference**: [2. Backend](./2-backend.md)
-
-### For Designers
-1. **Start with**: [4. Design Scheme](./4-design-scheme.md)
-2. **Reference**: [0. Overview](./0-overview.md)
-
----
-
-**Last Updated**: October 25, 2025
+**Last Updated**: October 26, 2025
 
