@@ -1,4 +1,6 @@
-# Pipeline LLM Model Options
+LATEST UPDATE: 10/26/25
+
+# ABCresearch - Pipeline LLM Model Options
 
 ## Current Configuration
 
@@ -8,7 +10,7 @@
 
 ## Model Comparison
 
-### Claude 3.5 Haiku ⭐ (Current)
+### Claude 3.5 Haiku (Current - Recommended)
 
 **Pricing:**
 - Input: $0.80 per 1M tokens
@@ -25,7 +27,7 @@
 - Monthly (20 searches/day): **$28**
 
 **Best for:**
-- Cost-sensitive deployments ✅
+- Cost-sensitive deployments (Recommended)
 - High-volume extraction
 - Structured data tasks
 - Production use
@@ -84,17 +86,17 @@
 ### Token Limit: 2048 (Current)
 
 **Good for:**
-- Detailed mechanism descriptions ✅
-- Multiple indications ✅
-- Rich JSON responses ✅
-- 10 trials + 10 papers input ✅
+- Detailed mechanism descriptions
+- Multiple indications
+- Rich JSON responses
+- 10 trials + 10 papers input
 
 ### Other Options:
 
 | Max Tokens | Use Case | Output Size |
 |------------|----------|-------------|
 | 1024 | Basic extraction | Small JSON |
-| 2048 | **Standard** ✅ | Detailed JSON |
+| 2048 | **Standard (Current)** | Detailed JSON |
 | 4096 | Very detailed | Extensive text |
 | 8192 | Maximum | Full essays |
 
@@ -108,9 +110,9 @@ Assuming 20 searches/day × 30 days = 600 extractions/month (10 drugs each)
 
 | Model | Per Extraction | Monthly Cost | Quality |
 |-------|----------------|--------------|---------|
-| **Haiku 3.5** ⭐ | $0.046 | **$28** | ⭐⭐⭐⭐ |
-| Sonnet 3.5 | $0.175 | $105 | ⭐⭐⭐⭐⭐ |
-| Opus 3 | $0.875 | $525 | ⭐⭐⭐⭐⭐+ |
+| **Haiku 3.5 (Current)** | $0.046 | **$28** | 4/5 |
+| Sonnet 3.5 | $0.175 | $105 | 5/5 |
+| Opus 3 | $0.875 | $525 | 5/5+ |
 
 ---
 
@@ -120,13 +122,13 @@ Assuming 20 searches/day × 30 days = 600 extractions/month (10 drugs each)
 
 | Field | Haiku 3.5 | Sonnet 3.5 | Opus 3 |
 |-------|-----------|------------|--------|
-| Commercial Name | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
-| Stage Detection | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
-| Technologies | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
-| Mechanism (brief) | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
-| Mechanism (detailed) | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
-| Indications | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
-| JSON Structure | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
+| Commercial Name | 4/5 | 5/5 | 5/5 |
+| Stage Detection | 5/5 | 5/5 | 5/5 |
+| Technologies | 4/5 | 5/5 | 5/5 |
+| Mechanism (brief) | 4/5 | 5/5 | 5/5 |
+| Mechanism (detailed) | 3/5 | 5/5 | 5/5 |
+| Indications | 5/5 | 5/5 | 5/5 |
+| JSON Structure | 5/5 | 5/5 | 5/5 |
 
 **Verdict**: Haiku 3.5 is excellent for structured extraction tasks. The 4x cost increase for Sonnet is only worth it if you need highly nuanced mechanism descriptions.
 
@@ -158,7 +160,7 @@ const message = await anthropic.messages.create({
 });
 ```
 
-### Option 3: Keep Haiku 3.5 (Cost Effective) ✅
+### Option 3: Keep Haiku 3.5 (Cost Effective - Recommended)
 
 ```typescript
 const message = await anthropic.messages.create({
@@ -187,7 +189,7 @@ All Claude 3.5 models share rate limits based on your API tier:
 - Tokens: ~33K input + ~5K output = 38K
 - Duration: ~20 seconds with delays
 
-✅ Safe for Tier 1 accounts
+Safe for Tier 1 accounts
 
 ---
 
@@ -216,7 +218,7 @@ Implement Supabase caching with 30-day TTL
 
 ## Recommendations
 
-### For Production (Current Setup) ✅
+### For Production (Current Setup - Recommended)
 - **Model**: Claude 3.5 Haiku
 - **Max Tokens**: 2048
 - **Top Drugs**: 10
@@ -245,11 +247,11 @@ After switching to Haiku 3.5, test with:
 1. Search for "Alzheimer's disease"
 2. Click "AI Extract (Top 10)"
 3. Verify quality of:
-   - ✅ Stage detection
-   - ✅ Commercial names
-   - ✅ Mechanism descriptions
-   - ✅ Technology classification
-   - ✅ Indications
+   - Stage detection
+   - Commercial names
+   - Mechanism descriptions
+   - Technology classification
+   - Indications
 
 If quality is insufficient, switch to Sonnet 3.5.
 
@@ -258,7 +260,7 @@ If quality is insufficient, switch to Sonnet 3.5.
 ## Update History
 
 - **v1.0** (Initial): Sonnet 3.5, 1024 tokens
-- **v1.1** (Current): Haiku 3.5, 2048 tokens ✅
+- **v1.1** (Current): Haiku 3.5, 2048 tokens (Recommended)
   - 74% cost reduction
   - 2x more output space
   - Maintained quality for structured extraction

@@ -1,4 +1,6 @@
-# Asset Development Pipeline
+LATEST UPDATE: 10/26/25
+
+# ABCresearch - Asset Development Pipeline Documentation
 
 ## Overview
 

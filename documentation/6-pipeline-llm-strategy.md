@@ -1,4 +1,6 @@
-# Pipeline Data Extraction: LLM Strategy Plan
+LATEST UPDATE: 10/26/25
+
+# ABCresearch - Pipeline Data Extraction: LLM Strategy Plan
 
 ## Overview
 
@@ -174,7 +176,7 @@ export class PipelineLLMService {
 - Enable/disable LLM extraction toggle in settings
 - Cache results to avoid re-processing
 
-### Pros ✅
+### Pros
 
 1. **High Accuracy**
    - LLM understands context and nuance
@@ -201,7 +203,7 @@ export class PipelineLLMService {
    - Can request confidence scores
    - Prompt tweaking is intuitive
 
-### Cons ❌
+### Cons
 
 1. **Cost**
    - ~$0.01-0.10 per drug (depending on token count)
@@ -563,7 +565,7 @@ const handleAddColumn = async (name: string, description: string) => {
 };
 ```
 
-### Pros ✅
+### Pros
 
 1. **Scalability**
    - One-time ingestion per drug
@@ -605,7 +607,7 @@ const handleAddColumn = async (name: string, description: string) => {
    - Show confidence/source citations
    - Debug extraction issues
 
-### Cons ❌
+### Cons
 
 1. **Complexity**
    - Requires vector database setup
@@ -643,16 +645,16 @@ const handleAddColumn = async (name: string, description: string) => {
 
 | Criteria | Direct LLM | RAG Database |
 |----------|-----------|--------------|
-| **Accuracy** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ |
-| **Speed (per drug)** | ⭐⭐ (3-10s) | ⭐⭐⭐⭐ (0.5-2s) |
-| **Cost (50 drugs)** | ⭐⭐ ($2-5) | ⭐⭐⭐⭐ ($0.20-0.50) |
-| **Scalability** | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
-| **Flexibility** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ |
-| **Implementation** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ |
-| **Maintenance** | ⭐⭐⭐⭐ | ⭐⭐⭐ |
-| **Cross-Drug Analysis** | ⭐ | ⭐⭐⭐⭐⭐ |
+| **Accuracy** | 5/5 | 4/5 |
+| **Speed (per drug)** | 2/5 (3-10s) | 4/5 (0.5-2s) |
+| **Cost (50 drugs)** | 2/5 ($2-5) | 4/5 ($0.20-0.50) |
+| **Scalability** | 3/5 | 5/5 |
+| **Flexibility** | 5/5 | 4/5 |
+| **Implementation** | 5/5 | 3/5 |
+| **Maintenance** | 4/5 | 3/5 |
+| **Cross-Drug Analysis** | 1/5 | 5/5 |
 | **Caching** | Manual | Built-in |
-| **Multi-User** | ⭐⭐ | ⭐⭐⭐⭐⭐ |
+| **Multi-User** | 2/5 | 5/5 |
 
 ---
 
@@ -787,29 +789,29 @@ Total: ~$100/month
 
 ### For Your Use Case:
 
-1. **Start with Direct LLM** ✅
+1. **Start with Direct LLM** (Recommended)
    - You have relatively small datasets (<100 drugs typically)
    - Fast time to value
    - Easy to iterate on prompts
    - Users can see results immediately
 
-2. **Add Caching Early** ⚡
+2. **Add Caching Early** (High Priority)
    - Store results in Supabase (simple table)
    - 30-day TTL
    - Cuts costs by 80%+
 
-3. **Consider RAG if:** 🔄
+3. **Consider RAG if:** (Future Enhancement)
    - Users run >20 searches/day
    - Dataset grows to >500 drugs
    - You want cross-drug analytics
    - Multiple users querying same drugs
 
 4. **Must-Have Features:**
-   - ✅ Streaming updates (show drugs as processed)
-   - ✅ Error handling with fallback
-   - ✅ Confidence scores
-   - ✅ Source citations
-   - ✅ Custom column support
+   - Streaming updates (show drugs as processed)
+   - Error handling with fallback
+   - Confidence scores
+   - Source citations
+   - Custom column support
 
 ---
 

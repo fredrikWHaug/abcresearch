@@ -1,4 +1,6 @@
-# Pipeline Drug Matching System
+LATEST UPDATE: 10/26/25
+
+# ABCresearch - Pipeline Drug Matching System
 
 ## Your Question: How do we know which drug modal to open?
 
@@ -25,7 +27,7 @@ export interface PipelineDrugCandidate {
   id: string;                    // lowercase normalized name
   scientificName: string;        // e.g., "Lecanemab"
   commercialName?: string;       // e.g., "LEQEMBI™"
-  sourceGroupId: string;         // 🆕 Direct FK to DrugGroup.normalizedName
+  sourceGroupId: string;         // NEW: Direct FK to DrugGroup.normalizedName
   // ... other fields
 }
 ```
@@ -57,7 +59,7 @@ When converting to pipeline candidates, we store the reference:
 const candidate: PipelineDrugCandidate = {
   id: "lecanemab",
   scientificName: "Lecanemab",
-  sourceGroupId: "lecanemab",  // ✅ Store the normalized name as reference
+  sourceGroupId: "lecanemab",  // Store the normalized name as reference
   // ...
 }
 
@@ -70,7 +72,7 @@ const candidatesWithRefs = data.candidates.map(candidate => {
   
   return {
     ...candidate,
-    sourceGroupId: matchingGroup?.normalizedName  // ✅ Link it back
+    sourceGroupId: matchingGroup?.normalizedName  // Link it back
   };
 });
 ```
@@ -151,7 +153,7 @@ if (matchingDrug) {
 │  handleDrugClick(candidate)                                 │
 │  ┌──────────────────────────────────────────────┐          │
 │  │ Find match:                                   │          │
-│  │   ✅ TIER 1: sourceGroupId match!            │          │
+│  │   TIER 1: sourceGroupId match!                │          │
 │  │      "lecanemab" === "lecanemab"             │          │
 │  │                                               │          │
 │  │   ✓ Found DrugGroup with:                    │          │
@@ -169,31 +171,31 @@ if (matchingDrug) {
 
 ### Before (Name-Based Only):
 ```typescript
-// ❌ Fragile - what if LLM says "BAN2401" but search found "Lecanemab"?
+// PROBLEM: Fragile - what if LLM says "BAN2401" but search found "Lecanemab"?
 const match = drugGroups.find(g => 
   g.drugName.toLowerCase() === candidate.scientificName.toLowerCase()
 );
 ```
 
 **Problems:**
-- ❌ Fails if names don't match exactly
-- ❌ Commercial vs scientific name confusion
-- ❌ Spelling variations break it
-- ❌ No way to know which match failed
+- Fails if names don't match exactly
+- Commercial vs scientific name confusion
+- Spelling variations break it
+- No way to know which match failed
 
 ### After (ID-Based Reference):
 ```typescript
-// ✅ Simple and guaranteed - direct foreign key relationship
+// SOLUTION: Simple and guaranteed - direct foreign key relationship
 const match = drugGroups.find(g => 
   g.normalizedName === candidate.sourceGroupId
 );
 ```
 
 **Benefits:**
-- ✅ 100% reliable - direct ID reference
-- ✅ Simple code - one line match
-- ✅ No fallbacks needed - candidates are always from drugGroups
-- ✅ Clear errors if something goes wrong
+- 100% reliable - direct ID reference
+- Simple code - one line match
+- No fallbacks needed - candidates are always from drugGroups
+- Clear errors if something goes wrong
 
 ## Edge Cases Handled
 
@@ -203,7 +205,7 @@ Search found: "BAN2401" (normalizedName: "ban2401")
 LLM extracts: "Lecanemab"
 sourceGroupId: "ban2401"
 
-Result: ✅ Matches perfectly via sourceGroupId
+Result: Matches perfectly via sourceGroupId
 ```
 
 ### Case 2: Commercial vs Scientific Name
@@ -212,14 +214,14 @@ Search found: "Lecanemab" (normalizedName: "lecanemab")
 User clicks: "LEQEMBI™"
 sourceGroupId: "lecanemab"
 
-Result: ✅ Matches via direct ID (name doesn't matter)
+Result: Matches via direct ID (name doesn't matter)
 ```
 
 ### Case 3: Drug Not in DrugGroups (should never happen)
 ```
 Pipeline candidate with sourceGroupId not in drugGroups
 
-Result: ❌ Error logged, modal doesn't open
+Result: Error logged, modal doesn't open
 This indicates a bug in the extraction logic
 ```
 
@@ -287,16 +289,16 @@ const matchingDrug = drugGroups.find(group =>
 Try these scenarios:
 
 1. **Normal Flow:**
-   - Search → AI Extract → Click drug name → ✅ Modal opens
+   - Search → AI Extract → Click drug name → Modal opens
 
 2. **Commercial Name:**
-   - Click "ADUHELM™" → ✅ Matches to "Aducanumab" group
+   - Click "ADUHELM™" → Matches to "Aducanumab" group
 
 3. **After Refresh:**
-   - Search → Navigate away → Come back → Click drug → ✅ Still works
+   - Search → Navigate away → Come back → Click drug → Still works
 
 4. **Pattern vs LLM:**
-   - Try both extraction methods → ✅ Both use sourceGroupId
+   - Try both extraction methods → Both use sourceGroupId
 
 ## Summary
 
