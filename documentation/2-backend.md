@@ -1,4 +1,4 @@
-LATEST UPDATE: 10/17/25, 11:45AM
+LATEST UPDATE: 10/26/25
 
 # ABCresearch - Backend Documentation
 
@@ -11,12 +11,12 @@ The backend follows a **serverless architecture** using Vercel Functions as API 
 ### API Proxies Pattern
 
 **Purpose**: Server-side functions act purely as proxies to external services
-- ✅ Handle CORS issues
-- ✅ Protect API keys
-- ✅ Manage rate limiting
-- ✅ Format responses
-- ❌ No business logic
-- ❌ No data transformation beyond basic formatting
+- Handle CORS issues
+- Protect API keys
+- Manage rate limiting
+- Format responses
+- No business logic (kept client-side)
+- No data transformation beyond basic formatting
 
 **Benefits**:
 1. **Security**: API keys never exposed to client
@@ -240,12 +240,14 @@ function calculateRelevanceScore(xml: string): number {
 
 **Endpoint**: `POST /api/enhance-search`
 
-**Purpose**: Enhance user queries using Google Gemini API
+**Purpose**: Generate phrase-based discovery strategies using Google Gemini API
 
 **Request Body**:
 ```typescript
 {
-  query: string  // User's natural language query
+  query: string           // User's natural language query
+  searchType?: string     // 'initial' (default) or 'drug-specific' (deprecated)
+  context?: string        // Additional context
 }
 ```
 
@@ -253,53 +255,57 @@ function calculateRelevanceScore(xml: string): number {
 ```typescript
 {
   success: boolean
-  enhancedQueries: {
-    primary: SearchParams      // Most precise search
-    alternative: SearchParams  // Broader alternative
-    broad: SearchParams        // Widest search
-  }
+  strategies: SearchStrategy[]  // EXACTLY 5 phrase-based strategies
+  totalStrategies: number
+}
+
+interface SearchStrategy {
+  query: string                // Phrase-based search query (NOT drug names)
+  description: string          // What types of drugs this will uncover
+  priority: 'high' | 'medium' | 'low'
+  searchType: 'mechanism' | 'indication' | 'stage' | 'synonym' | 'broad'
 }
 ```
 
-**AI Prompt Strategy**:
+**Discovery-Focused AI Prompt Strategy**:
 ```typescript
-const prompt = `You are a medical research expert. Enhance this query: "${query}"
+const prompt = `You are a medical research expert specializing in drug discovery through clinical trial searches.
 
-Generate 3 search strategies:
+USER QUERY: "${query}"
 
-1. PRIMARY (most precise):
-   - Extract specific medical condition
-   - Identify drug/intervention
-   - Determine trial phase if mentioned
-   - Status (recruiting/completed)
+Your goal is to DISCOVER drugs across all development stages (preclinical, Phase 1-4, approved) by searching for CONCEPTS and PHRASES, not specific drug names.
 
-2. ALTERNATIVE (slightly broader):
-   - Include related conditions
-   - Broader intervention category
-   - No phase restriction
+Generate EXACTLY 5 search strategies that cast a wide net to uncover drugs. Focus on:
 
-3. BROAD (catch-all):
-   - General therapeutic area
-   - Any related interventions
+1. Therapeutic mechanisms (e.g., "GLP-1 receptor agonist", "PD-1 inhibitor")
+2. Disease + mechanism (e.g., "diabetes incretin", "obesity GLP-1")
+3. Development stage + mechanism (e.g., "Phase 3 GLP-1", "novel incretin mimetic")
+4. Alternative terminology (e.g., "glucagon-like peptide", "incretin-based therapy")
+5. Broad discovery (e.g., "anti-obesity agent", "glucose-lowering therapy")
 
-Return ONLY valid JSON with this structure:
-{
-  "primary": { "condition": "...", "phase": "...", "status": "..." },
-  "alternative": { "condition": "...", "query": "..." },
-  "broad": { "query": "..." }
-}
+CRITICAL RULES:
+- DO NOT search for specific drug names (e.g., NOT "semaglutide" or "tirzepatide")
+- DO search for drug CLASSES, MECHANISMS, INDICATIONS, CONCEPTS
+- Focus on discovering UNKNOWN/EMERGING drugs
+- Each query should discover different subsets of drugs
+- Limit to EXACTLY 5 strategies
 
-Rules:
-- Use null for absent fields
-- phase: "PHASE1", "PHASE2", "PHASE3" or null
-- status: "RECRUITING", "COMPLETED", "ACTIVE_NOT_RECRUITING" or null
+Return ONLY a valid JSON array with EXACTLY 5 strategies (no markdown):
+[
+  {
+    "query": "phrase here (no drug names)",
+    "description": "discovers X type of drugs",
+    "priority": "high|medium|low",
+    "searchType": "mechanism|indication|stage|synonym|broad"
+  }
+]
 `
 ```
 
 **Gemini API Call**:
 ```typescript
 const response = await fetch(
-  `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`,
+  `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${GEMINI_API_KEY}`,
   {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -307,12 +313,18 @@ const response = await fetch(
       contents: [{ parts: [{ text: prompt }] }],
       generationConfig: {
         temperature: 0.3,  // Low temperature for consistent results
-        maxOutputTokens: 500
+        maxOutputTokens: 2000  // Increased for 5 strategies
       }
     })
   }
 )
 ```
+
+**Key Changes from Previous Version**:
+- Changed from 3 strategies to **5 phrase-based discovery strategies**
+- Focus on discovering drugs (not searching for known drugs)
+- Strategies are phrases/concepts, not drug-specific searches
+- Returns array format instead of object with primary/alternative/broad
 
 **Response Cleaning**:
 ```typescript
@@ -324,11 +336,13 @@ if (cleanedText.startsWith('```json')) {
     .replace(/\s*```$/, '')
 }
 
-// Extract JSON object
-const jsonMatch = cleanedText.match(/\{[\s\S]*\}/)
+// Extract JSON array or object
+const jsonMatch = cleanedText.match(/\[[\s\S]*\]|\{[\s\S]*"strategies"[\s\S]*\}/)
 if (jsonMatch) {
-  const result = JSON.parse(jsonMatch[0])
-  return { success: true, enhancedQueries: result }
+  const parsed = JSON.parse(jsonMatch[0])
+  // Handle both array and object responses
+  const strategies = Array.isArray(parsed) ? parsed : parsed.strategies
+  return { success: true, strategies, totalStrategies: strategies.length }
 }
 ```
 
@@ -340,12 +354,13 @@ if (jsonMatch) {
 
 **Endpoint**: `POST /api/extract-drug-names`
 
-**Purpose**: Extract drug names from text using Gemini API
+**Purpose**: Extract drug names from clinical trials and papers using Gemini API
 
 **Request Body**:
 ```typescript
 {
-  texts: string[]  // Array of text snippets (titles, abstracts, etc.)
+  texts: string[]     // Array of text snippets (titles, abstracts, interventions)
+  userQuery?: string  // Original user query for context-aware extraction
 }
 ```
 
@@ -409,6 +424,14 @@ Rules:
 ```typescript
 {
   userQuery: string
+  contextPapers?: Array<{  // Optional: Papers selected as context
+    pmid: string
+    title: string
+    abstract: string
+    journal: string
+    publicationDate: string
+    authors: string[]
+  }>
   searchResults?: {        // Optional: Include if responding to search results
     trials: ClinicalTrial[]
     papers: PubMedArticle[]
@@ -505,18 +528,40 @@ Generate natural, conversational response:
 Keep concise (2-3 sentences).
 `
 
+// Build context papers section if available
+let contextSection = ''
+if (contextPapers && contextPapers.length > 0) {
+  contextSection = `\n\nThe user has selected ${contextPapers.length} paper(s) as relevant context:\n\n`
+  contextPapers.forEach((paper, index) => {
+    contextSection += `Paper ${index + 1}:
+Title: ${paper.title}
+Journal: ${paper.journal}
+Publication Date: ${paper.publicationDate}
+Authors: ${paper.authors.slice(0, 3).join(', ')}${paper.authors.length > 3 ? ' et al.' : ''}
+Abstract: ${paper.abstract}
+---
+`
+  })
+  contextSection += '\nWhen answering, reference these papers if relevant. Cite by title or as "Paper 1", "Paper 2", etc.'
+}
+
 // Otherwise, generate conversational response
 const conversationalPrompt = `User said: "${userQuery}"
 Intent: ${intentResult.intent}
+Response type: ${intentResult.responseType}${contextSection}
 
 Generate appropriate response:
 - greeting: Be friendly, explain capabilities
 - search_request: Acknowledge, suggest conducting search
-- follow_up: Answer follow-up question
+- follow_up: Answer follow-up question, referencing context papers if relevant
 - clarification: Ask for clarification
-- general_question: Answer about capabilities
+- general_question: Answer about capabilities, referencing context papers if relevant
 
-Keep conversational, helpful, professional. 1-2 sentences max.
+${contextPapers && contextPapers.length > 0 ? 
+  'IMPORTANT: The user has provided specific papers for context. If their question relates to these papers, reference them in your response.' : 
+  ''}
+
+Keep conversational, helpful, professional. 1-2 sentences max unless analyzing context papers.
 `
 ```
 
@@ -822,9 +867,9 @@ async function fetchWithRetry(url: string, options: any, maxRetries = 3) {
 ## Security Considerations
 
 ### API Key Protection
-- ✅ All API keys stored in environment variables
-- ✅ Never exposed to client-side code
-- ✅ Server-side functions act as proxies
+- All API keys stored in environment variables
+- Never exposed to client-side code
+- Server-side functions act as proxies
 
 ### CORS Configuration
 ```typescript
@@ -841,8 +886,8 @@ if (!query || query.trim().length === 0) {
 ```
 
 ### SQL Injection Prevention
-- ✅ Supabase client uses parameterized queries
-- ✅ No raw SQL construction from user input
+- Supabase client uses parameterized queries
+- No raw SQL construction from user input
 
 ### Row-Level Security (RLS)
 ```sql
@@ -858,14 +903,26 @@ CREATE POLICY "Users own their market maps"
 ## Performance Optimizations
 
 ### 1. Parallel API Calls
+**Discovery Search Strategy**:
 ```typescript
-// Execute multiple searches simultaneously
-const [primaryResult, alternativeResult, broadResult] = await Promise.all([
-  searchTrials(enhancedQueries.primary),
-  searchTrials(enhancedQueries.alternative),
-  searchTrials(enhancedQueries.broad)
-])
+// Execute 5 phrase-based discovery strategies in parallel
+const strategyResults = await Promise.all(
+  strategies.map(async (strategy) => {
+    const result = await searchTrials({ query: strategy.query, pageSize: 50 })
+    return {
+      strategy,
+      count: result.trials.length,
+      trials: result.trials
+    }
+  })
+)
+
+// Union all results: ~250 trials → ~150 unique after deduplication
+const allTrials = strategyResults.flatMap(r => r.trials)
+const uniqueTrials = deduplicateByNCTId(allTrials)
 ```
+
+**Result**: 5 parallel trial searches + 5 parallel paper searches = 10 API calls complete in 6-8 seconds
 
 ### 2. Batch Processing
 ```typescript
