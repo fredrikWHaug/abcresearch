@@ -7,26 +7,35 @@ import type { PubMedArticle } from '@/types/papers';
 import { pubmedAPI } from './pubmedAPI';
 import { TrialRankingService } from './trialRankingService';
 
-interface EnhancedQueries {
-  primary: SearchParams;
-  alternative: SearchParams;
-  broad: SearchParams;
+interface SearchStrategy {
+  query: string;
+  description: string;
+  priority: 'high' | 'medium' | 'low';
+  searchType: 'targeted' | 'broad' | 'synonym' | 'brand' | 'indication' | 'combination';
 }
 
 interface EnhancedSearchResponse {
   success: boolean;
-  enhancedQueries: EnhancedQueries;
+  strategies: SearchStrategy[];
+  totalStrategies: number;
+}
+
+export interface StrategyResult {
+  strategy: SearchStrategy;
+  count: number;
+  trials: ClinicalTrial[];
+  formattedQueries?: {
+    clinicalTrials: string;  // Actual query.term sent to ClinicalTrials.gov API
+    pubmed: string;          // Actual term sent to PubMed E-Utilities API
+  };
 }
 
 export interface GatherSearchResultsResponse {
   trials: ClinicalTrial[];
   papers: PubMedArticle[];
   totalCount: number;
-  searchStrategies: {
-    primary: { count: number; trials: ClinicalTrial[] };
-    alternative: { count: number; trials: ClinicalTrial[] };
-    broad: { count: number; trials: ClinicalTrial[] };
-  };
+  searchStrategies: StrategyResult[];
+  strategiesUsed: number;
 }
 
 export class GatherSearchResultsService {
@@ -135,10 +144,10 @@ export class GatherSearchResultsService {
   }
 
   /**
-   * Enhance a user query using AI and return multiple search strategies
-   * Calls ai-enhanced-search API
+   * Enhance a user query using AI and return phrase-based discovery strategies
+   * Generates EXACTLY 5 strategies focused on discovering drugs (not searching for known drugs)
    */
-  private static async enhanceQuery(userQuery: string): Promise<EnhancedQueries> {
+  private static async enhanceQuery(userQuery: string): Promise<SearchStrategy[]> {
     try {
       const response = await fetch('/api/enhance-search', {
         method: 'POST',
@@ -146,7 +155,8 @@ export class GatherSearchResultsService {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          query: userQuery
+          query: userQuery,
+          searchType: 'initial'  // Always use discovery-focused approach
         })
       });
 
@@ -157,19 +167,29 @@ export class GatherSearchResultsService {
 
       const data: EnhancedSearchResponse = await response.json();
       
-      if (!data.success) {
+      if (!data.success || !data.strategies || data.strategies.length === 0) {
         throw new Error('Failed to enhance search query');
       }
 
-      return data.enhancedQueries;
+      // Enforce limit of 5 strategies
+      const strategies = data.strategies.slice(0, 5);
+
+      console.log(`✅ Generated ${strategies.length} discovery strategies for: "${userQuery}"`);
+      strategies.forEach((s, i) => {
+        console.log(`  ${i+1}. [${s.priority}] ${s.searchType}: "${s.query}"`);
+        console.log(`      → ${s.description}`);
+      });
+
+      return strategies;
     } catch (error) {
       console.error('Error enhancing search query:', error);
       // Fallback to basic search if enhancement fails
-      return {
-        primary: { query: userQuery },
-        alternative: { query: userQuery },
-        broad: { query: userQuery }
-      };
+      return [{
+        query: userQuery,
+        description: 'Original query (fallback)',
+        priority: 'high',
+        searchType: 'broad'
+      }];
     }
   }
 
@@ -195,35 +215,59 @@ export class GatherSearchResultsService {
   }
 
   /**
-   * Search for clinical trials using enhanced search strategies
+   * Search for clinical trials using phrase-based discovery strategies
+   * Executes 5 LLM-generated queries to UNCOVER drugs across all stages
    */
   private static async searchClinicalTrials(userQuery: string): Promise<{
     trials: ClinicalTrial[];
-    searchStrategies: {
-      primary: { count: number; trials: ClinicalTrial[] };
-      alternative: { count: number; trials: ClinicalTrial[] };
-      broad: { count: number; trials: ClinicalTrial[] };
-    };
+    searchStrategies: StrategyResult[];
   }> {
     try {
-      // Get enhanced queries from AI
-      const enhancedQueries = await this.enhanceQuery(userQuery);
+      // Get 5 phrase-based discovery strategies from AI
+      const strategies = await this.enhanceQuery(userQuery);
       
-      // Perform searches in parallel with cleaned queries
-      const [primaryResult, alternativeResult, broadResult] = await Promise.all([
-        this.searchTrials(this.cleanQuery(enhancedQueries.primary, userQuery)),
-        this.searchTrials(this.cleanQuery(enhancedQueries.alternative, userQuery)),
-        this.searchTrials(this.cleanQuery(enhancedQueries.broad, userQuery))
-      ]);
+      console.log(`🔍 Executing ${strategies.length} discovery searches in parallel...`);
+      
+      // Execute all 5 strategies in parallel (max 50 results per strategy)
+      const strategyResults = await Promise.all(
+        strategies.map(async (strategy) => {
+          try {
+            const result = await this.searchTrials({ query: strategy.query, pageSize: 50 });
+            console.log(`  ✓ "${strategy.query}": ${result.trials.length} trials`);
+            
+            // Capture formatted queries for display
+            const formattedQueries = {
+              clinicalTrials: strategy.query, // This becomes query.term parameter
+              pubmed: `${strategy.query} AND ("Clinical Trial"[Publication Type] OR "Randomized Controlled Trial"[Publication Type])`
+            };
+            
+            return {
+              strategy,
+              count: result.trials.length,
+              trials: result.trials,
+              formattedQueries
+            };
+          } catch (error) {
+            console.error(`  ✗ "${strategy.query}" failed:`, error);
+            return {
+              strategy,
+              count: 0,
+              trials: [],
+              formattedQueries: {
+                clinicalTrials: strategy.query,
+                pubmed: `${strategy.query} AND ("Clinical Trial"[Publication Type] OR "Randomized Controlled Trial"[Publication Type])`
+              }
+            };
+          }
+        })
+      );
 
-      // Merge and deduplicate results
-      const allTrials = [
-        ...primaryResult.trials,
-        ...alternativeResult.trials,
-        ...broadResult.trials
-      ];
+      // Union all results
+      const allTrials = strategyResults.flatMap(r => r.trials);
+      
+      console.log(`📊 Total trials across ${strategies.length} strategies: ${allTrials.length}`);
 
-      // Remove duplicates based on NCT ID
+      // Deduplicate by NCT ID
       const uniqueTrials = allTrials.reduce((acc: ClinicalTrial[], current: ClinicalTrial) => {
         const existing = acc.find(trial => trial.nctId === current.nctId);
         if (!existing) {
@@ -232,16 +276,15 @@ export class GatherSearchResultsService {
         return acc;
       }, []);
       
-      // Apply ranking to the unique trials
+      console.log(`✅ Unique trials after deduplication: ${uniqueTrials.length}`);
+      console.log(`   Removed ${allTrials.length - uniqueTrials.length} duplicates (${Math.round((allTrials.length - uniqueTrials.length) / allTrials.length * 100)}%)`);
+      
+      // Apply ranking to prioritize most relevant
       const rankedTrials = TrialRankingService.rankTrials(uniqueTrials, userQuery);
 
       return {
         trials: rankedTrials,
-        searchStrategies: {
-          primary: { count: primaryResult.trials.length, trials: primaryResult.trials },
-          alternative: { count: alternativeResult.trials.length, trials: alternativeResult.trials },
-          broad: { count: broadResult.trials.length, trials: broadResult.trials }
-        }
+        searchStrategies: strategyResults
       };
     } catch (error) {
       console.error('Error searching clinical trials:', error);
@@ -250,17 +293,46 @@ export class GatherSearchResultsService {
   }
 
   /**
-   * Search for research papers related to the query
+   * Search for research papers using phrase-based discovery strategies
+   * Uses all 5 LLM-generated queries to maximize paper discovery
    */
   private static async searchResearchPapers(userQuery: string): Promise<PubMedArticle[]> {
     try {
-      // Search for papers using the query
-      const papers = await pubmedAPI.searchPapers({
-        query: `${userQuery} AND ("Clinical Trial"[Publication Type] OR "Randomized Controlled Trial"[Publication Type])`,
-        maxResults: 30
-      });
+      // Get 5 phrase-based discovery strategies from AI (same as trials)
+      const strategies = await this.enhanceQuery(userQuery);
       
-      return papers;
+      console.log(`📄 Searching papers with ${strategies.length} discovery strategies...`);
+      
+      // Execute all 5 paper searches in parallel (30 results per strategy)
+      const paperSearches = await Promise.all(
+        strategies.map(async (strategy) => {
+          try {
+            const papers = await pubmedAPI.searchPapers({
+              query: `${strategy.query} AND ("Clinical Trial"[Publication Type] OR "Randomized Controlled Trial"[Publication Type])`,
+              maxResults: 30
+            });
+            console.log(`  ✓ "${strategy.query}": ${papers.length} papers`);
+            return papers;
+          } catch (error) {
+            console.error(`  ✗ "${strategy.query}" failed:`, error);
+            return [];
+          }
+        })
+      );
+      
+      // Union and deduplicate papers by PMID
+      const allPapers = paperSearches.flat();
+      const uniquePapers = allPapers.reduce((acc: PubMedArticle[], current: PubMedArticle) => {
+        const existing = acc.find(paper => paper.pmid === current.pmid);
+        if (!existing) {
+          acc.push(current);
+        }
+        return acc;
+      }, []);
+      
+      console.log(`📄 Total papers: ${allPapers.length}, Unique: ${uniquePapers.length} (${Math.round((allPapers.length - uniquePapers.length) / allPapers.length * 100)}% duplicates)`);
+      
+      return uniquePapers;
     } catch (error) {
       console.error('Error searching research papers:', error);
       // Don't throw - just return empty array if papers fail
@@ -269,25 +341,39 @@ export class GatherSearchResultsService {
   }
 
   /**
-   * Main method: Gather all search results (trials and papers)
-   * Orchestrates AI-enhanced search, clinical trials API, and PubMed API
+   * Main method: Discover drugs through phrase-based searches
+   * Orchestrates 5 LLM-generated queries for trials and 5 for papers
+   * Goal: UNCOVER drugs across all stages (discovery → approved)
    */
   static async gatherSearchResults(userQuery: string): Promise<GatherSearchResultsResponse> {
     try {
+      console.log(`\n🚀 Starting drug discovery search for: "${userQuery}"`);
+      console.log(`   Strategy: Phrase-based discovery (NOT drug-specific)`);
+      console.log('=' .repeat(80));
+      
       // Search both clinical trials and research papers in parallel
+      // Each uses 5 LLM-generated phrase-based queries
       const [trialsResult, papers] = await Promise.all([
         this.searchClinicalTrials(userQuery),
         this.searchResearchPapers(userQuery)
       ]);
 
+      console.log(`\n✅ Discovery search complete!`);
+      console.log(`   Unique trials: ${trialsResult.trials.length}`);
+      console.log(`   Unique papers: ${papers.length}`);
+      console.log(`   Discovery strategies: ${trialsResult.searchStrategies.length}`);
+      console.log(`   → Now extract drug names from these ${trialsResult.trials.length + papers.length} results`);
+      console.log('=' .repeat(80) + '\n');
+
       return {
         trials: trialsResult.trials,
         papers: papers,
         totalCount: trialsResult.trials.length,
-        searchStrategies: trialsResult.searchStrategies
+        searchStrategies: trialsResult.searchStrategies,
+        strategiesUsed: trialsResult.searchStrategies.length
       };
     } catch (error) {
-      console.error('Error gathering search results:', error);
+      console.error('Error in discovery search:', error);
       throw error;
     }
   }
@@ -316,11 +402,17 @@ export class GatherSearchResultsService {
         trials: rankedTrials,
         papers: papers,
         totalCount: rankedTrials.length,
-        searchStrategies: {
-          primary: { count: trialsResult.trials.length, trials: trialsResult.trials },
-          alternative: { count: 0, trials: [] },
-          broad: { count: 0, trials: [] }
-        }
+        searchStrategies: [{
+          strategy: {
+            query: userQuery,
+            description: 'Direct search (no AI enhancement)',
+            priority: 'high',
+            searchType: 'targeted'
+          },
+          count: trialsResult.trials.length,
+          trials: trialsResult.trials
+        }],
+        strategiesUsed: 1
       };
     } catch (error) {
       console.error('Error in simple search:', error);

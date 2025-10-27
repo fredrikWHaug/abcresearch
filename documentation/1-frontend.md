@@ -1,4 +1,4 @@
-LATEST UPDATE: 10/17/25, 11:45AM
+LATEST UPDATE: 10/26/25
 
 # ABCresearch - Frontend Documentation
 
@@ -96,7 +96,7 @@ const [papers, setPapers] = useState<PubMedArticle[]>([])
 const [drugGroups, setDrugGroups] = useState<DrugGroup[]>([])
 
 // UI State
-const [viewMode, setViewMode] = useState<'research' | 'marketmap' | 'savedmaps' | 'dataextraction'>()
+const [viewMode, setViewMode] = useState<'research' | 'marketmap' | 'savedmaps' | 'dataextraction' | 'pipeline'>()
 const [researchTab, setResearchTab] = useState<'trials' | 'papers'>('papers')
 
 // Slide Generation
@@ -112,8 +112,9 @@ const [chatHistory, setChatHistory] = useState<ChatMessage[]>([])
 1. **Initial State**: Centered search bar
 2. **Research Mode**: Split-screen chat + drug-centric results
 3. **Market Map Mode**: Full-screen trial visualization
-4. **Saved Maps Mode**: Saved projects gallery
-5. **Data Extraction Mode**: PDF upload and processing
+4. **Asset Pipeline Mode**: Table view of drug candidates by development stage
+5. **Saved Maps Mode**: Saved projects gallery
+6. **Data Extraction Mode**: PDF upload and processing
 
 **Key Features**:
 - Real-time AI chat interface
@@ -221,7 +222,30 @@ const [pdfProcessingResult, setPdfProcessingResult] = useState<ExtractionResult 
 const [selectedFile, setSelectedFile] = useState<File | null>(null)
 ```
 
-### 8. Reusable UI Components
+### 8. Asset Pipeline Component
+
+#### AssetDevelopmentPipeline Component
+**File**: `src/components/AssetDevelopmentPipeline.tsx`
+
+**Features**:
+- Comprehensive table view of drug candidates
+- Automatic classification by development stage (Marketed, Phase III, Phase II, Phase I, Pre-Clinical, Discovery)
+- Technology type identification (Biologics, Small Molecule, Gene Therapy, Cell Therapy)
+- Filterable by stage, sponsor, indication, and drug name
+- Sortable columns with summary statistics
+
+**Props**:
+```typescript
+interface AssetPipelineProps {
+  trials: ClinicalTrial[]
+  drugGroups: DrugGroup[]
+  query: string
+  onAddPaperToContext: (paper: PubMedArticle) => void
+  isPaperInContext: (pmid: string) => boolean
+}
+```
+
+### 9. Reusable UI Components
 
 Located in `src/components/ui/`:
 
@@ -271,35 +295,58 @@ private static async searchResearchPapers(userQuery: string): Promise<PubMedArti
 ```
 
 **Search Flow**:
-1. AI-enhanced query generation (3 strategies: primary, alternative, broad)
-2. Parallel trial searches across all strategies
-3. PubMed paper search with clinical trial filters
-4. Result deduplication and ranking
-5. Return combined results
+1. AI-enhanced query generation (5 phrase-based discovery strategies via Gemini)
+2. Parallel trial searches across all strategies (5 × 50 results)
+3. Parallel PubMed paper searches (5 × 30 results)
+4. Result deduplication (~250 trials → ~150 unique, ~150 papers → ~80 unique)
+5. AI drug extraction from unified results (Gemini analyzes 20 trials + 20 papers)
+6. Local grouping of all results by extracted drugs
+7. Return combined results with 20-25 discovered drugs
 
-### 2. DrugGroupingService
+### 2. ExtractDrugNamesService
+**File**: `src/services/extractDrugNames.ts`
+
+**Purpose**: AI-powered drug name extraction from trials and papers
+
+**Methods**:
+```typescript
+static async extractFromSearchResults(
+  trials: ClinicalTrial[], 
+  papers: PubMedArticle[], 
+  userQuery: string
+): Promise<{ uniqueDrugNames: string[], drugInfo: DrugInfo[] }>
+
+static async extractFromTrials(trials: ClinicalTrial[], userQuery: string): Promise<string[]>
+static async extractFromPapers(papers: PubMedArticle[], userQuery: string): Promise<string[]>
+```
+
+**Extraction Process**:
+- Uses Gemini API to intelligently extract drug names
+- Analyzes 20 trials and 20 papers from search results
+- Filters out generic terms (placebo, standard care, chemotherapy)
+- Returns 20-25 unique drug names with confidence scores
+- Context-aware extraction using original user query
+
+**Drug Blacklist**:
+- Filters out: placebo, control, standard care, therapy, treatment
+- Removes generic drug classes: insulin, metformin, aspirin
+- Excludes non-drugs: surgery, radiation, chemotherapy
+
+### 3. DrugGroupingService
 **File**: `src/services/drugGroupingService.ts`
 
-**Purpose**: Groups papers and trials by drug compounds
+**Purpose**: Groups papers and trials by drug compounds (after AI extraction)
 
 **Methods**:
 ```typescript
 static groupByDrugs(papers: PubMedArticle[], trials: ClinicalTrial[]): DrugGroup[]
 static filterDrugGroups(groups: DrugGroup[], query: string): DrugGroup[]
-private static extractDrugsFromTrial(trial: ClinicalTrial): string[]
-private static extractDrugsFromPaper(paper: PubMedArticle): string[]
 private static normalizeDrugName(drugName: string): string
 ```
 
-**Drug Detection**:
-- Known drug synonym mapping (e.g., Ozempic → Semaglutide)
-- Pattern matching for drug suffixes:
-  - `-mab`: Monoclonal antibodies (e.g., Pembrolizumab)
-  - `-tinib`: Tyrosine kinase inhibitors
-  - `-tide`: Peptides (e.g., Semaglutide)
-  - `-ine`: Various drug classes
+**Note**: Pattern-based extraction is deprecated. This service now primarily handles grouping of drugs after AI extraction by ExtractDrugNamesService.
 
-### 3. TrialRankingService
+### 4. TrialRankingService
 **File**: `src/services/trialRankingService.ts`
 
 **Purpose**: Ranks clinical trials by relevance
@@ -327,7 +374,7 @@ Completed: +10 points
 2-3 years: +10 points
 ```
 
-### 4. MarketMapService
+### 5. MarketMapService
 **File**: `src/services/marketMapService.ts`
 
 **Purpose**: Database operations for saved projects
@@ -348,7 +395,7 @@ static async deleteMarketMap(id: number): Promise<void>
 - Chat history (conversational context)
 - Papers data (linked research papers)
 
-### 5. PaperLinkingService
+### 6. PaperLinkingService
 **File**: `src/services/paperLinkingService.ts`
 
 **Purpose**: Links papers to clinical trials
@@ -370,7 +417,7 @@ static async searchPapersForQuery(query: string, trials: ClinicalTrial[]): Promi
 - **Moderate**: 1 high-relevance paper or premium journal publication
 - **Weak**: Generic matches only
 
-### 6. PubMedAPI Service
+### 7. PubMedAPI Service
 **File**: `src/services/pubmedAPI.ts`
 
 **Purpose**: Client-side PubMed API wrapper
@@ -382,7 +429,7 @@ async findPapersForTrial(nctId: string): Promise<PubMedArticle[]>
 async searchByDrugCondition(drug: string, condition: string): Promise<PubMedArticle[]>
 ```
 
-### 7. SlideAPI Service
+### 8. SlideAPI Service
 **File**: `src/services/slideAPI.ts`
 
 **Purpose**: Slide generation via API
@@ -392,7 +439,34 @@ async searchByDrugCondition(drug: string, condition: string): Promise<PubMedArti
 static async generateSlide(trials: ClinicalTrial[], query: string): Promise<SlideData>
 ```
 
-### 8. PDFExtractionService
+### 9. PipelineService
+**File**: `src/services/pipelineService.ts`
+
+**Purpose**: Converts clinical trials to pipeline drug candidate data
+
+**Methods**:
+```typescript
+static trialsToPipeline(trials: ClinicalTrial[]): PipelineDrugCandidate[]
+static filterCandidates(
+  candidates: PipelineDrugCandidate[], 
+  filters: FilterOptions
+): PipelineDrugCandidate[]
+static getStats(candidates: PipelineDrugCandidate[]): PipelineStats
+```
+
+**Pipeline Stage Mapping**:
+- **Marketed**: Approved status or completed Phase 4
+- **Phase III**: Active Phase 3 trials
+- **Phase II**: Active Phase 2 trials
+- **Phase I**: Active Phase 1 trials
+- **Pre-Clinical**: Early-stage trials
+- **Discovery**: Default for unclear stages
+
+**Technology Classification**:
+- Detects: Biologics, Small Molecule, Gene Therapy, Cell Therapy, Peptide
+- Pattern matching on intervention names and types
+
+### 10. PDFExtractionService
 **File**: `src/services/pdfExtractionService.ts`
 
 **Purpose**: PDF table extraction and Excel conversion
@@ -578,17 +652,29 @@ const buttonVariants = cva(
 ## Performance Optimizations
 
 ### 1. Parallel API Calls
+**Discovery Search Strategy**:
 ```typescript
-const [trialsResult, papers] = await Promise.all([
-  this.searchClinicalTrials(userQuery),
-  this.searchResearchPapers(userQuery)
-])
+// Execute 5 phrase-based strategies in parallel for trials
+const strategyResults = await Promise.all(
+  strategies.map(strategy => 
+    searchTrials({ query: strategy.query, pageSize: 50 })
+  )
+)
+
+// Execute 5 phrase-based strategies in parallel for papers
+const paperSearches = await Promise.all(
+  strategies.map(strategy => 
+    searchPapers({ query: strategy.query, maxResults: 30 })
+  )
+)
 ```
 
+**Result**: 10 parallel API calls complete in 6-8 seconds
+
 ### 2. Deduplication
-- Trials deduplicated by NCT ID
-- Papers deduplicated by PMID
-- Drugs normalized by synonyms
+- Trials deduplicated by NCT ID (~250 → ~150 unique, 27% overlap)
+- Papers deduplicated by PMID (~150 → ~80 unique, 37% overlap)
+- Drugs normalized by AI extraction (20-25 unique drugs)
 
 ### 3. Conditional Rendering
 ```typescript
@@ -599,7 +685,14 @@ const [trialsResult, papers] = await Promise.all([
 Components loaded on-demand based on view mode
 
 ### 5. Rate Limiting
-Respects external API rate limits with delays
+- PubMed: 350ms delay between requests (respects 3 req/sec limit)
+- ClinicalTrials.gov: Sequential with intelligent delays
+- AI APIs: Error handling with fallback strategies
+
+### 6. Local Grouping
+- After drug extraction, grouping happens locally (no additional API calls)
+- Filters trials/papers by matching drug names in text
+- Sorts by relevance and date without external requests
 
 ## Error Handling
 

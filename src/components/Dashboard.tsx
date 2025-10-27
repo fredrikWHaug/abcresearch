@@ -10,6 +10,7 @@ import { PapersDiscovery } from '@/components/PapersDiscovery'
 import { DrugsList } from '@/components/DrugsList'
 import { DrugDetail } from '@/components/DrugDetail'
 import { DrugDetailModal } from '@/components/DrugDetailModal'
+import { AssetDevelopmentPipeline } from '@/components/AssetDevelopmentPipeline'
 import { GatherSearchResultsService } from '@/services/gatherSearchResults'
 import type { PubMedArticle } from '@/types/papers'
 import { MarketMapService, type SavedMarketMap } from '@/services/marketMapService'
@@ -23,9 +24,10 @@ import type { SlideData } from '@/services/slideAPI'
 
 interface DashboardProps {
   initialShowSavedMaps?: boolean;
+  projectName?: string;
 }
 
-export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
+export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: DashboardProps) {
   const { signOut, isGuest, exitGuestMode } = useAuth()
   
   const handleSignOut = async () => {
@@ -194,13 +196,23 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
   const [hasSearched, setHasSearched] = useState(false)
   const [papers, setPapers] = useState<PubMedArticle[]>([])
   const [papersLoading, setPapersLoading] = useState(false)
-  const [viewMode, setViewMode] = useState<'research' | 'marketmap' | 'savedmaps' | 'dataextraction'>(initialShowSavedMaps ? 'savedmaps' : 'research')
+  const [viewMode, setViewMode] = useState<'research' | 'marketmap' | 'savedmaps' | 'dataextraction' | 'pipeline'>(initialShowSavedMaps ? 'savedmaps' : 'research')
   const [researchTab, setResearchTab] = useState<'trials' | 'papers'>('papers')
   const [slideData, setSlideData] = useState<SlideData | null>(null)
   const [generatingSlide, setGeneratingSlide] = useState(false)
   const [slideError, setSlideError] = useState<string | null>(null)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [currentProjectId, setCurrentProjectId] = useState<number | null>(null)
+  const [currentProjectName, setCurrentProjectName] = useState<string>(projectName)
+  const [showProjectsDropdown, setShowProjectsDropdown] = useState(false)
+  
+  // Set project name when prop changes
+  React.useEffect(() => {
+    if (projectName) {
+      setCurrentProjectName(projectName)
+      console.log('New project created:', projectName)
+    }
+  }, [projectName])
   
   // Drug grouping state
   const [drugGroups, setDrugGroups] = useState<DrugGroup[]>([])
@@ -212,8 +224,7 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
   const [searchProgress, setSearchProgress] = useState({ current: 0, total: 0 })
   const [initialSearchQueries, setInitialSearchQueries] = useState<{
     originalQuery: string;
-    clinicalTrialsQuery: string;
-    pubmedQuery: string;
+    strategies?: import('@/services/gatherSearchResults').StrategyResult[];
   } | null>(null)
   
   // PDF processing state
@@ -226,7 +237,7 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
   const [selectedPapers, setSelectedPapers] = useState<PubMedArticle[]>([])
   const [showContextPanel, setShowContextPanel] = useState(false)
 
-  // Close menu and context panel when clicking outside
+  // Close menu, context panel, and projects dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Element;
@@ -238,13 +249,17 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
       if (showContextPanel && !target.closest('.context-panel-container')) {
         setShowContextPanel(false);
       }
+      
+      if (showProjectsDropdown && !target.closest('.projects-dropdown-container')) {
+        setShowProjectsDropdown(false);
+      }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [isMenuOpen, showContextPanel]);
+  }, [isMenuOpen, showContextPanel, showProjectsDropdown]);
 
   // Debug logging for MarketMap props
   useEffect(() => {
@@ -343,56 +358,83 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
   }
 
   /**
-   * Search for clinical trials and papers for a specific drug
-   * Enhanced with original query context for better results
+   * Deep Dive: Run a targeted search for a specific drug
+   * Searches by drug name specifically, ordered by recency and participant size
    */
-  const searchForDrug = async (drugName: string, originalQuery: string): Promise<{ 
-    trials: ClinicalTrial[], 
-    papers: PubMedArticle[]
-  }> => {
+  const handleDrugSpecificSearch = async (drugName: string) => {
     try {
-      // Include original query context for more targeted results
-      const clinicalTrialsQuery = `${drugName} ${originalQuery}`;
-      const pubmedQuery = `${drugName} AND ${originalQuery} AND ("Clinical Trial"[Publication Type] OR "Randomized Controlled Trial"[Publication Type])`;
+      console.log(`🎯 Deep Dive search for: "${drugName}"`);
       
-      // Search clinical trials for this drug
-      const trialsResponse = await fetch('/api/search-clinical-trials', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          query: clinicalTrialsQuery,
-        })
+      // Notify user
+      setChatHistory(prev => [...prev, {
+        type: 'system' as const,
+        message: `Searching for comprehensive data on "${drugName}"...`,
+        searchSuggestions: []
+      }]);
+      
+      // Search specifically for this drug
+      const result = await GatherSearchResultsService.gatherSearchResults(drugName);
+      
+      // Sort trials by recency and participant size
+      const sortedTrials = [...result.trials].sort((a, b) => {
+        // First by start date (most recent first)
+        const dateA = a.startDate || '';
+        const dateB = b.startDate || '';
+        if (dateA !== dateB) {
+          return dateB.localeCompare(dateA);
+        }
+        // Then by enrollment size (largest first)
+        const enrollA = a.enrollment || 0;
+        const enrollB = b.enrollment || 0;
+        return enrollB - enrollA;
       });
       
-      if (!trialsResponse.ok) {
-        console.error('Error fetching trials for drug:', drugName);
-        return { 
-          trials: [], 
-          papers: []
-        };
-      }
-      
-      const trialsData = await trialsResponse.json();
-      const drugTrials = trialsData.trials || [];
-      
-      // Search papers for this drug
-      const drugPapers = await pubmedAPI.searchPapers({
-        query: pubmedQuery,
-        maxResults: 20
+      // Sort papers by publication date (most recent first)
+      const sortedPapers = [...result.papers].sort((a, b) => {
+        return b.publicationDate.localeCompare(a.publicationDate);
       });
       
-      return { 
-        trials: drugTrials, 
-        papers: drugPapers
+      // Update the drug group with sorted results
+      const updatedDrugGroup: DrugGroup = {
+        drugName,
+        normalizedName: drugName.toLowerCase(),
+        papers: sortedPapers,
+        trials: sortedTrials,
+        totalResults: sortedPapers.length + sortedTrials.length
       };
+      
+      // Update drugGroups to include this updated drug or add it if new
+      setDrugGroups(prev => {
+        const existing = prev.find(g => g.normalizedName === drugName.toLowerCase());
+        if (existing) {
+          // Update existing drug
+          return prev.map(g => 
+            g.normalizedName === drugName.toLowerCase() ? updatedDrugGroup : g
+          ).sort((a, b) => b.totalResults - a.totalResults);
+        } else {
+          // Add new drug
+          return [...prev, updatedDrugGroup].sort((a, b) => b.totalResults - a.totalResults);
+        }
+      });
+      
+      // Open the drug modal to show results
+      setSelectedDrug(updatedDrugGroup);
+      
+      // Notify success
+      setChatHistory(prev => [...prev, {
+        type: 'system' as const,
+        message: `Found ${sortedTrials.length} trials and ${sortedPapers.length} papers for "${drugName}" (sorted by recency and size)`,
+        searchSuggestions: []
+      }]);
+      
+      console.log(`✅ Deep Dive complete: ${sortedTrials.length} trials, ${sortedPapers.length} papers`);
     } catch (error) {
-      console.error('Error searching for drug:', drugName, error);
-      return { 
-        trials: [], 
-        papers: []
-      };
+      console.error('Error in drug-specific search:', error);
+      setChatHistory(prev => [...prev, {
+        type: 'system' as const,
+        message: `Error searching for "${drugName}". Please try again.`,
+        searchSuggestions: []
+      }]);
     }
   };
 
@@ -419,90 +461,86 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
       // Perform initial search
       const initialResult = await GatherSearchResultsService.gatherSearchResults(suggestion.query);
       
-      // Save the initial search queries for display
+      // Save the initial search queries and strategies for display
       setInitialSearchQueries({
         originalQuery: suggestion.query,
-        clinicalTrialsQuery: suggestion.query,
-        pubmedQuery: `${suggestion.query} AND ("Clinical Trial"[Publication Type] OR "Randomized Controlled Trial"[Publication Type])`
+        strategies: initialResult.searchStrategies
       });
       
       // Extract unique drug names from the results
       const drugExtractionResult = await ExtractDrugNamesService.extractFromSearchResults(
         initialResult.trials,
-        initialResult.papers
+        initialResult.papers,
+        suggestion.query
       );
       
       const uniqueDrugNames = drugExtractionResult.uniqueDrugNames;
       console.log(`Stage 1 complete: Found ${uniqueDrugNames.length} unique drugs:`, uniqueDrugNames);
       
-      // Update chat with Stage 1 completion (remove loading message and add completion message)
+      // Update chat with completion (remove loading message)
       setChatHistory(prev => {
         const filtered = prev.filter(item => item.message !== 'stage1_loading');
         return [...filtered, { 
           type: 'system' as const, 
-          message: `Found ${uniqueDrugNames.length} unique drugs from initial search. Now searching for comprehensive data on each drug...`,
+          message: `Found ${uniqueDrugNames.length} unique drugs from ${initialResult.trials.length} trials and ${initialResult.papers.length} papers. Grouping results...`,
           searchSuggestions: []
         }];
       });
       
-      // Stage 2: Search for each drug specifically
-      console.log('Stage 2: Searching for each drug specifically...');
+      // Group trials and papers by extracted drug names (NO Stage 2 searches!)
+      console.log(`Grouping ${initialResult.trials.length} trials and ${initialResult.papers.length} papers by ${uniqueDrugNames.length} drugs...`);
       setExtractingDrugs(false);
-      setSearchProgress({ current: 0, total: uniqueDrugNames.length });
       
-      // Initialize drug groups array to show results as they come in
-      const allDrugGroups: DrugGroup[] = [];
-      
-      // Search for each drug one by one and update results progressively
-      for (let i = 0; i < uniqueDrugNames.length; i++) {
-        const drugName = uniqueDrugNames[i];
-        console.log(`Searching for drug ${i + 1}/${uniqueDrugNames.length}: ${drugName}`);
+      // Create drug groups from the discovery search results
+      const allDrugGroups: DrugGroup[] = uniqueDrugNames.map(drugName => {
+        const normalizedDrugName = drugName.toLowerCase();
         
-        // Include original query context for more targeted results
-        const drugResults = await searchForDrug(drugName, suggestion.query);
+        // Find trials mentioning this drug
+        const drugTrials = initialResult.trials.filter(trial => {
+          const trialText = [
+            trial.briefTitle,
+            trial.officialTitle,
+            ...(trial.interventions || []),
+            ...(trial.conditions || [])
+          ].join(' ').toLowerCase();
+          return trialText.includes(normalizedDrugName);
+        });
         
-        // Create a drug group for this drug
-        const drugGroup: DrugGroup = {
-          drugName: drugName,
-          normalizedName: drugName.toLowerCase(),
-          papers: drugResults.papers,
-          trials: drugResults.trials,
-          totalResults: drugResults.papers.length + drugResults.trials.length
+        // Find papers mentioning this drug
+        const drugPapers = initialResult.papers.filter(paper => {
+          const paperText = [paper.title, paper.abstract].join(' ').toLowerCase();
+          return paperText.includes(normalizedDrugName);
+        });
+        
+        return {
+          drugName,
+          normalizedName: normalizedDrugName,
+          papers: drugPapers,
+          trials: drugTrials,
+          totalResults: drugPapers.length + drugTrials.length
         };
-        
-        allDrugGroups.push(drugGroup);
-        
-        // Update state immediately to show this drug's results
-        setDrugGroups([...allDrugGroups].sort((a, b) => b.totalResults - a.totalResults));
-        setSearchProgress({ current: i + 1, total: uniqueDrugNames.length });
-        
-        console.log(`Found ${drugGroup.totalResults} results for ${drugName}`);
-        
-        // Small delay to avoid overwhelming APIs and make progressive UI visible
-        if (i < uniqueDrugNames.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 500));
-        }
-      }
+      });
+      
+      // Filter out drugs with no results and sort by total results
+      const filteredDrugGroups = allDrugGroups
+        .filter(g => g.totalResults > 0)
+        .sort((a, b) => b.totalResults - a.totalResults);
+      
+      console.log(`Grouped into ${filteredDrugGroups.length} drugs with results (${allDrugGroups.length - filteredDrugGroups.length} drugs had no matching trials/papers)`);
+      
+      // Update state
+      setDrugGroups(filteredDrugGroups);
+      setTrials(initialResult.trials);
+      setPapers(initialResult.papers);
       
       // Calculate total stats
-      const totalTrials = allDrugGroups.reduce((sum, g) => sum + g.trials.length, 0);
-      const totalPapers = allDrugGroups.reduce((sum, g) => sum + g.papers.length, 0);
-      
-      // Also update the global trials and papers arrays for MarketMap
-      const allTrials = allDrugGroups.flatMap(g => g.trials);
-      const allPapers = allDrugGroups.flatMap(g => g.papers);
-      
-      // Deduplicate trials and papers
-      const uniqueTrials = Array.from(new Map(allTrials.map(t => [t.nctId, t])).values());
-      const uniquePapers = Array.from(new Map(allPapers.map(p => [p.pmid, p])).values());
-      
-      setTrials(uniqueTrials);
-      setPapers(uniquePapers);
+      const totalTrials = filteredDrugGroups.reduce((sum, g) => sum + g.trials.length, 0);
+      const totalPapers = filteredDrugGroups.reduce((sum, g) => sum + g.papers.length, 0);
       
       // Add final message to chat
       setChatHistory(prev => [...prev, { 
         type: 'system' as const, 
-        message: `Search complete! Found ${allDrugGroups.length} drugs with ${totalTrials} clinical trials and ${totalPapers} research papers in total. Results are displayed on the right.`,
+        message: `Discovery complete! Found ${filteredDrugGroups.length} drugs with ${initialResult.trials.length} clinical trials and ${initialResult.papers.length} research papers. Results are displayed on the right.`,
         searchSuggestions: []
       }]);
       
@@ -559,12 +597,64 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
       </div>
       
       {/* Toggle Buttons - Absolutely positioned center with equal widths */}
-      {(hasSearched || viewMode === 'savedmaps' || viewMode === 'dataextraction') && (
+      {(hasSearched || viewMode === 'savedmaps' || viewMode === 'dataextraction' || viewMode === 'pipeline') && (
         <div 
           className="absolute z-20"
           style={{ left: '50%', transform: 'translateX(-50%)' }}
         >
-          <div className="flex rounded-lg bg-gray-100 p-1 w-[36rem]">
+          <div className="flex rounded-lg bg-gray-100 p-1 w-[45rem]">
+            <div className="relative flex-1 projects-dropdown-container">
+              <button
+                onClick={() => setShowProjectsDropdown(!showProjectsDropdown)}
+                className={`py-2 px-4 rounded-md text-sm font-medium transition-colors w-full text-center whitespace-nowrap ${
+                  showProjectsDropdown
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                Projects
+              </button>
+              
+              {/* Projects Dropdown */}
+              {showProjectsDropdown && (
+                <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-lg shadow-xl border border-gray-200 py-2 min-w-[250px] z-50">
+                  <div className="px-4 py-2 border-b border-gray-200">
+                    <h3 className="font-semibold text-gray-900 text-sm">Your Projects</h3>
+                  </div>
+                  <div className="py-1">
+                    {currentProjectName ? (
+                      <button
+                        onClick={() => {
+                          console.log('Selected project:', currentProjectName)
+                          setShowProjectsDropdown(false)
+                        }}
+                        className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+                            <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                            </svg>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-900 truncate">
+                              {currentProjectName}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              Current project
+                            </p>
+                          </div>
+                        </div>
+                      </button>
+                    ) : (
+                      <div className="px-4 py-3 text-sm text-gray-500 text-center">
+                        No projects yet
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
             <button
               onClick={() => setViewMode('research')}
               className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
@@ -584,6 +674,16 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
               }`}
             >
               Market Map
+            </button>
+            <button
+              onClick={() => setViewMode('pipeline')}
+              className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
+                viewMode === 'pipeline'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Asset Pipeline
             </button>
             <button
               onClick={() => setViewMode('savedmaps')}
@@ -673,7 +773,7 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
     );
   };
 
-  if (!hasSearched && viewMode !== 'savedmaps' && viewMode !== 'dataextraction') {
+  if (!hasSearched && viewMode !== 'savedmaps' && viewMode !== 'dataextraction' && viewMode !== 'pipeline') {
     // Initial centered search bar layout (skip if showing saved maps)
     console.log('Rendering initial centered search. hasSearched:', hasSearched, 'viewMode:', viewMode);
     return (
@@ -806,6 +906,7 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
     );
   }
 
+
   // Show saved maps view
   if (viewMode === 'savedmaps') {
     return (
@@ -855,6 +956,26 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
     );
   }
 
+
+  // Asset Development Pipeline mode
+  if (viewMode === 'pipeline') {
+    return (
+      <div className="h-screen flex flex-col overflow-hidden">
+        <Header onStartNewProject={handleStartNewProject} currentProjectId={currentProjectId} />
+        
+        {/* Asset Development Pipeline Content */}
+        <div className="flex-1 overflow-hidden">
+          <AssetDevelopmentPipeline 
+            trials={trials} 
+            drugGroups={drugGroups}
+            query={lastQuery}
+            onAddPaperToContext={handleAddPaperToContext}
+            isPaperInContext={isPaperInContext}
+          />
+        </div>
+      </div>
+    );
+  }
 
   // Data Extraction mode
   if (viewMode === 'dataextraction') {
@@ -1253,6 +1374,7 @@ export function Dashboard({ initialShowSavedMaps = false }: DashboardProps) {
               loading={searchProgress.total > 0 && searchProgress.current < searchProgress.total}
               query={lastQuery}
               onDrugClick={(drugGroup) => setSelectedDrug(drugGroup)}
+              onDrugSpecificSearch={handleDrugSpecificSearch}
               initialSearchQueries={initialSearchQueries}
             />
           )}

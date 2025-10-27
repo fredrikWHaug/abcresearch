@@ -3,6 +3,7 @@
 
 interface ExtractDrugNamesRequest {
   text: string;
+  userQuery?: string; // The original user search query for context
   context?: 'clinical_trial' | 'research_paper' | 'general';
 }
 
@@ -15,6 +16,33 @@ interface DrugInfo {
 interface ExtractDrugNamesResponse {
   success: boolean;
   drugs: DrugInfo[];
+}
+
+// Deduplication helper function
+function deduplicateDrugs(drugs: DrugInfo[]): DrugInfo[] {
+  const seen = new Map<string, DrugInfo>();
+  
+  for (const drug of drugs) {
+    // Normalize the drug name for comparison (lowercase, trim, remove extra spaces)
+    const normalizedName = drug.name.toLowerCase().trim().replace(/\s+/g, ' ');
+    
+    if (!seen.has(normalizedName)) {
+      // First occurrence - keep it
+      seen.set(normalizedName, drug);
+    } else {
+      // Duplicate found - keep the one with higher confidence
+      const existing = seen.get(normalizedName)!;
+      const confidenceRank = { high: 3, medium: 2, low: 1 };
+      
+      if (confidenceRank[drug.confidence] > confidenceRank[existing.confidence]) {
+        // Replace with higher confidence version
+        seen.set(normalizedName, drug);
+      }
+      // If same confidence, keep the first one (already in map)
+    }
+  }
+  
+  return Array.from(seen.values());
 }
 
 export default async function handler(req: any, res: any) {
@@ -33,7 +61,7 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    const { text, context = 'general' }: ExtractDrugNamesRequest = req.body;
+    const { text, userQuery, context = 'general' }: ExtractDrugNamesRequest = req.body;
 
     if (!text || text.trim().length === 0) {
       return res.status(400).json({ error: 'No text provided' });
@@ -47,12 +75,16 @@ export default async function handler(req: any, res: any) {
     const contextInstructions = {
       clinical_trial: 'Focus on interventions, drug names, and therapies mentioned in clinical trial data.',
       research_paper: 'Extract drug names, compounds, and therapeutic agents mentioned in research papers.',
-      general: 'Extract all drug names, medications, and therapeutic interventions.'
+      general: 'Extract all drug names, medications, and therapeutic interventions that are relevant to the user query.'
     };
 
-    const prompt = `You are a medical AI expert specializing in pharmacology. Extract all drug names, medications, and therapeutic interventions from the following text.
+    const userQueryContext = userQuery 
+      ? `\n\nUser's Original Query: "${userQuery}"\n\nConsider the user's query when determining which drugs are relevant. Focus on drugs that are most likely related to what the user is searching for.` 
+      : '';
 
-Context: ${contextInstructions[context]}
+    const prompt = `You are a medical AI expert specializing in pharmacology. Extract all drug names, medications, and therapeutic interventions from the following text that are relevant to the user's interests.
+
+Context: ${contextInstructions[context]}${userQueryContext}
 
 Text: "${text}"
 
@@ -74,10 +106,10 @@ Rules:
 - Set confidence to "high" for standard drug names, "medium" for less common, "low" for uncertain
 - For type: "drug" for pharmaceuticals, "intervention" for procedures, "therapy" for treatment approaches
 - Return empty array if no drugs found
-- Remove duplicates
+- Only extract drugs that are relevant to the user's query context
 - Only return the JSON object, nothing else`;
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${geminiApiKey}`, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${geminiApiKey}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -138,9 +170,12 @@ Rules:
       result = { drugs: [] };
     }
 
+    // Deduplicate the drugs to ensure a clean final list
+    const deduplicatedDrugs = deduplicateDrugs(result.drugs || []);
+
     return res.status(200).json({
       success: true,
-      drugs: result.drugs || []
+      drugs: deduplicatedDrugs
     });
 
   } catch (error) {

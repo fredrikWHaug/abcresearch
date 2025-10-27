@@ -1,10 +1,20 @@
-LATEST UPDATE: 10/17/25, 11:45AM
+LATEST UPDATE: 10/26/25
 
 # ABCresearch - Database Documentation
+
+**IMPORTANT NOTE**: The current database implementation using `market_maps` table is a work in progress and will be replaced with a project-centric design. The schema below represents the proposed new architecture.
 
 ## Database Architecture Overview
 
 ABCresearch uses **Supabase** as its backend database and authentication platform. Supabase is built on top of PostgreSQL, providing a modern, scalable, and developer-friendly database solution with built-in authentication, real-time subscriptions, and RESTful APIs.
+
+### Design Philosophy
+
+The database follows a **project-centric architecture** where a project is the central entity that contains all related research data. This approach:
+- Aligns with user mental model (users work on "projects")
+- Supports multiple views (Market Map, Asset Pipeline, Papers, Trials)
+- Enables flexible data organization and future feature expansion
+- Maintains data consistency across different UI views
 
 ### Key Components
 
@@ -49,37 +59,39 @@ VITE_SUPABASE_ANON_KEY=your-anon-key-here
 - Row Level Security (RLS) policies protect data access
 - Service role key (if needed) should NEVER be exposed client-side
 
-## Database Schema
+## Proposed Project-Centric Database Schema
 
 ### Entity Relationship Diagram
 
 ```
 ┌─────────────────┐           ┌─────────────────┐
-│   auth.users    │◄──────────│  market_maps    │
+│   auth.users    │◄──────────│    projects     │
 │  (Supabase      │   1:N     │                 │
 │   Managed)      │           │                 │
 └─────────────────┘           └─────────────────┘
      (PK) id                       user_id (FK)
      email                         name
-     encrypted_password            query
-     created_at                    trials_data (JSONB)
-     updated_at                    slide_data (JSONB)
-                                  chat_history (JSONB)
+     encrypted_password            description
+     created_at                    search_query
+     updated_at                    trials_data (JSONB)
                                   papers_data (JSONB)
+                                  drugs_data (JSONB)
+                                  slide_data (JSONB)
+                                  chat_history (JSONB)
                                   created_at
                                   updated_at
 ```
 
 ## Tables
 
-### 1. `market_maps` Table
+### 1. `projects` Table
 
-**Purpose**: Stores saved research projects (market maps) with complete session data
+**Purpose**: Core table storing research projects with all associated data (trials, papers, drugs, analysis)
 
 #### Schema Definition
 
 ```sql
-CREATE TABLE market_maps (
+CREATE TABLE projects (
   -- Primary Key
   id BIGSERIAL PRIMARY KEY,
   
@@ -88,13 +100,17 @@ CREATE TABLE market_maps (
   
   -- Basic Information
   name TEXT NOT NULL,
-  query TEXT NOT NULL,
+  description TEXT,
+  search_query TEXT NOT NULL,
   
-  -- Large JSON Data
-  trials_data JSONB NOT NULL,
-  slide_data JSONB NOT NULL,
-  chat_history JSONB DEFAULT NULL,
-  papers_data JSONB DEFAULT NULL,
+  -- Research Data (JSONB for flexibility)
+  trials_data JSONB NOT NULL DEFAULT '[]'::jsonb,
+  papers_data JSONB NOT NULL DEFAULT '[]'::jsonb,
+  drugs_data JSONB NOT NULL DEFAULT '[]'::jsonb,
+  
+  -- Analysis & Interaction Data
+  slide_data JSONB DEFAULT NULL,
+  chat_history JSONB DEFAULT '[]'::jsonb,
   
   -- Timestamps
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -102,11 +118,15 @@ CREATE TABLE market_maps (
 );
 
 -- Comments
-COMMENT ON TABLE market_maps IS 'Stores saved research projects with clinical trials, papers, and analysis data';
-COMMENT ON COLUMN market_maps.trials_data IS 'Array of clinical trial objects from ClinicalTrials.gov';
-COMMENT ON COLUMN market_maps.slide_data IS 'AI-generated market analysis and insights';
-COMMENT ON COLUMN market_maps.chat_history IS 'Conversational history between user and AI';
-COMMENT ON COLUMN market_maps.papers_data IS 'Array of research papers from PubMed';
+COMMENT ON TABLE projects IS 'Core table for research projects containing trials, papers, drugs, and analysis';
+COMMENT ON COLUMN projects.name IS 'User-defined project name';
+COMMENT ON COLUMN projects.description IS 'Optional project description';
+COMMENT ON COLUMN projects.search_query IS 'Original discovery search query';
+COMMENT ON COLUMN projects.trials_data IS 'Array of clinical trial objects from ClinicalTrials.gov';
+COMMENT ON COLUMN projects.papers_data IS 'Array of research papers from PubMed';
+COMMENT ON COLUMN projects.drugs_data IS 'Array of extracted and normalized drug compounds';
+COMMENT ON COLUMN projects.slide_data IS 'AI-generated market analysis and insights';
+COMMENT ON COLUMN projects.chat_history IS 'Conversational history between user and AI';
 ```
 
 #### Column Details
@@ -116,81 +136,50 @@ COMMENT ON COLUMN market_maps.papers_data IS 'Array of research papers from PubM
 | `id` | BIGSERIAL | PRIMARY KEY | Auto-incrementing unique identifier |
 | `user_id` | UUID | NOT NULL, FK | References auth.users(id), owner of the project |
 | `name` | TEXT | NOT NULL | User-defined project name |
-| `query` | TEXT | NOT NULL | Original search query that generated results |
-| `trials_data` | JSONB | NOT NULL | Complete array of ClinicalTrial objects |
-| `slide_data` | JSONB | NOT NULL | Generated market analysis slide data |
-| `chat_history` | JSONB | NULL | Array of chat messages (user and system) |
-| `papers_data` | JSONB | NULL | Array of PubMedArticle objects |
-| `created_at` | TIMESTAMPTZ | NOT NULL, DEFAULT NOW() | Record creation timestamp |
+| `description` | TEXT | NULL | Optional project description |
+| `search_query` | TEXT | NOT NULL | Original discovery search query |
+| `trials_data` | JSONB | NOT NULL, DEFAULT [] | Array of ClinicalTrial objects |
+| `papers_data` | JSONB | NOT NULL, DEFAULT [] | Array of PubMedArticle objects |
+| `drugs_data` | JSONB | NOT NULL, DEFAULT [] | Array of extracted drug compounds |
+| `slide_data` | JSONB | NULL | AI-generated market analysis data |
+| `chat_history` | JSONB | DEFAULT [] | Array of chat messages (user and system) |
+| `created_at` | TIMESTAMPTZ | NOT NULL, DEFAULT NOW() | Project creation timestamp |
 | `updated_at` | TIMESTAMPTZ | NOT NULL, DEFAULT NOW() | Last update timestamp |
 
 #### JSONB Data Structures
 
-**trials_data** structure:
-```typescript
-{
-  trials: ClinicalTrial[] = [
-    {
-      nctId: string,
-      briefTitle: string,
-      officialTitle?: string,
-      overallStatus: string,
-      phase?: string[],
-      conditions?: string[],
-      interventions?: string[],
-      sponsors?: {
-        lead?: string,
-        collaborators?: string[]
-      },
-      startDate?: string,
-      completionDate?: string,
-      enrollment?: number,
-      studyType?: string,
-      locations?: Array<{
-        facility: string,
-        city: string,
-        country: string
-      }>,
-      rankScore?: number,
-      rankReasons?: string[]
-    },
-    ...
-  ]
-}
-```
-
-**slide_data** structure:
-```typescript
-{
-  title: string,
-  insights: string[],
-  keyFindings: Array<{
-    title: string,
-    description: string
-  }>,
-  competitiveLandscape: string,
-  recommendations: string[]
-}
-```
-
-**chat_history** structure:
+**trials_data** structure (array of trial objects):
 ```typescript
 [
   {
-    type: 'user' | 'system',
-    message: string,
-    searchSuggestions?: Array<{
-      id: string,
-      label: string,
-      query: string,
-      description?: string
-    }>
+    nctId: string,
+    briefTitle: string,
+    officialTitle?: string,
+    overallStatus: string,
+    phase?: string[],
+    conditions?: string[],
+    interventions?: string[],
+    sponsors?: {
+      lead?: string,
+      collaborators?: string[]
+    },
+    startDate?: string,
+    completionDate?: string,
+    enrollment?: number,
+    studyType?: string,
+    locations?: Array<{
+      facility: string,
+      city: string,
+      country: string
+    }>,
+    rankScore?: number,
+    rankReasons?: string[]
   },
   ...
 ]
 ```
 
-**papers_data** structure:
+**papers_data** structure (array of paper objects):
 ```typescript
 [
   {
@@ -212,28 +201,81 @@ COMMENT ON COLUMN market_maps.papers_data IS 'Array of research papers from PubM
 ]
 ```
 
+**drugs_data** structure (array of drug group objects):
+```typescript
+[
+  {
+    normalizedName: string,
+    variants: string[],
+    trials: Array<{
+      nctId: string,
+      briefTitle: string,
+      phase?: string[],
+      status: string
+    }>,
+    papers: Array<{
+      pmid: string,
+      title: string
+    }>
+  },
+  ...
+]
+```
+
+**slide_data** structure:
+```typescript
+{
+  title: string,
+  insights: string[],
+  keyFindings: Array<{
+    title: string,
+    description: string
+  }>,
+  competitiveLandscape: string,
+  recommendations: string[]
+}
+```
+
+**chat_history** structure (array of message objects):
+```typescript
+[
+  {
+    type: 'user' | 'system',
+    message: string,
+    searchSuggestions?: Array<{
+      id: string,
+      label: string,
+      query: string,
+      description?: string
+    }>
+  },
+  ...
+]
+```
+
 #### Indexes
 
 ```sql
 -- Index on user_id for fast lookups by user
-CREATE INDEX idx_market_maps_user_id ON market_maps(user_id);
+CREATE INDEX idx_projects_user_id ON projects(user_id);
 
 -- Index on created_at for sorting by date (descending)
-CREATE INDEX idx_market_maps_created_at ON market_maps(created_at DESC);
+CREATE INDEX idx_projects_created_at ON projects(created_at DESC);
 
 -- Composite index for user + date queries
-CREATE INDEX idx_market_maps_user_date ON market_maps(user_id, created_at DESC);
+CREATE INDEX idx_projects_user_date ON projects(user_id, created_at DESC);
 
--- GIN index on JSONB columns for fast JSON queries (optional)
-CREATE INDEX idx_market_maps_trials_data_gin ON market_maps USING GIN (trials_data);
-CREATE INDEX idx_market_maps_papers_data_gin ON market_maps USING GIN (papers_data);
+-- GIN indexes on JSONB columns for fast JSON queries (optional, add as needed)
+CREATE INDEX idx_projects_trials_data_gin ON projects USING GIN (trials_data);
+CREATE INDEX idx_projects_papers_data_gin ON projects USING GIN (papers_data);
+CREATE INDEX idx_projects_drugs_data_gin ON projects USING GIN (drugs_data);
 ```
 
 **Index Usage**:
-- `idx_market_maps_user_id`: Fast user-specific queries
-- `idx_market_maps_created_at`: Sorting by date
-- `idx_market_maps_user_date`: Combined user + date filtering
-- GIN indexes: Fast JSONB field searches (if needed)
+- `idx_projects_user_id`: Fast user-specific queries
+- `idx_projects_created_at`: Sorting by date
+- `idx_projects_user_date`: Combined user + date filtering
+- GIN indexes: Fast JSONB field searches (add only if needed for query performance)
 
 ### 2. `auth.users` Table
 
@@ -284,15 +326,15 @@ Supabase uses PostgreSQL's Row Level Security to ensure users can only access th
 
 ### RLS Policies
 
-#### Policy: Users can only access their own market maps
+#### Policy: Users can only access their own projects
 
 ```sql
 -- Enable RLS on the table
-ALTER TABLE market_maps ENABLE ROW LEVEL SECURITY;
+ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
 
 -- Policy for all operations (SELECT, INSERT, UPDATE, DELETE)
-CREATE POLICY "Users can only access their own market maps"
-  ON market_maps
+CREATE POLICY "Users can only access their own projects"
+  ON projects
   FOR ALL
   USING (auth.uid() = user_id);
 ```
@@ -308,28 +350,28 @@ CREATE POLICY "Users can only access their own market maps"
 For more granular control, you could split into separate policies:
 
 ```sql
--- SELECT: Users can view their own maps
-CREATE POLICY "Users can view their own market maps"
-  ON market_maps
+-- SELECT: Users can view their own projects
+CREATE POLICY "Users can view their own projects"
+  ON projects
   FOR SELECT
   USING (auth.uid() = user_id);
 
--- INSERT: Users can create maps for themselves
-CREATE POLICY "Users can create their own market maps"
-  ON market_maps
+-- INSERT: Users can create projects for themselves
+CREATE POLICY "Users can create their own projects"
+  ON projects
   FOR INSERT
   WITH CHECK (auth.uid() = user_id);
 
--- UPDATE: Users can update their own maps
-CREATE POLICY "Users can update their own market maps"
-  ON market_maps
+-- UPDATE: Users can update their own projects
+CREATE POLICY "Users can update their own projects"
+  ON projects
   FOR UPDATE
   USING (auth.uid() = user_id)
   WITH CHECK (auth.uid() = user_id);
 
--- DELETE: Users can delete their own maps
-CREATE POLICY "Users can delete their own market maps"
-  ON market_maps
+-- DELETE: Users can delete their own projects
+CREATE POLICY "Users can delete their own projects"
+  ON projects
   FOR DELETE
   USING (auth.uid() = user_id);
 ```
@@ -340,20 +382,20 @@ CREATE POLICY "Users can delete their own market maps"
 -- Switch to authenticated user context
 SET request.jwt.claims.sub = 'user-uuid-here';
 
--- Test query (should only return user's maps)
-SELECT * FROM market_maps;
+-- Test query (should only return user's projects)
+SELECT * FROM projects;
 
 -- Switch to different user
 SET request.jwt.claims.sub = 'different-user-uuid';
 
--- Test query (should return different user's maps)
-SELECT * FROM market_maps;
+-- Test query (should return different user's projects)
+SELECT * FROM projects;
 
 -- Switch to anonymous (no authentication)
 RESET request.jwt.claims.sub;
 
 -- Test query (should return empty - no access)
-SELECT * FROM market_maps;
+SELECT * FROM projects;
 ```
 
 ## Database Operations
@@ -366,15 +408,17 @@ SELECT * FROM market_maps;
 import { supabase } from '@/lib/supabase'
 
 const { data, error } = await supabase
-  .from('market_maps')
+  .from('projects')
   .insert({
-    user_id: user.id,  // Automatically set by RLS policy
-    name: 'My Market Map',
-    query: 'GLP-1 agonists for diabetes',
+    user_id: user.id,  // Must match authenticated user
+    name: 'GLP-1 Research Project',
+    description: 'Comprehensive analysis of GLP-1 agonists for diabetes treatment',
+    search_query: 'GLP-1 agonists diabetes',
     trials_data: trialsArray,
+    papers_data: papersArray,
+    drugs_data: drugsArray,
     slide_data: slideObject,
-    chat_history: chatArray,
-    papers_data: papersArray
+    chat_history: []
   })
   .select()
   .single()
@@ -384,34 +428,34 @@ if (error) {
   throw error
 }
 
-console.log('Created:', data)
+console.log('Created project:', data)
 ```
 
 #### Read (SELECT)
 
-**Get all user's maps**:
+**Get all user's projects**:
 ```typescript
 const { data, error } = await supabase
-  .from('market_maps')
+  .from('projects')
   .select('*')
   .order('created_at', { ascending: false })
 
-// Returns only authenticated user's maps (thanks to RLS)
+// Returns only authenticated user's projects (thanks to RLS)
 ```
 
-**Get specific map**:
+**Get specific project**:
 ```typescript
 const { data, error } = await supabase
-  .from('market_maps')
+  .from('projects')
   .select('*')
-  .eq('id', mapId)
+  .eq('id', projectId)
   .single()
 ```
 
 **Get with filtering**:
 ```typescript
 const { data, error } = await supabase
-  .from('market_maps')
+  .from('projects')
   .select('*')
   .ilike('name', '%diabetes%')  // Case-insensitive search
   .order('created_at', { ascending: false })
@@ -421,13 +465,14 @@ const { data, error } = await supabase
 
 ```typescript
 const { data, error } = await supabase
-  .from('market_maps')
+  .from('projects')
   .update({
-    name: 'Updated Name',
+    name: 'Updated Project Name',
     trials_data: updatedTrials,
+    drugs_data: updatedDrugs,
     updated_at: new Date().toISOString()
   })
-  .eq('id', mapId)
+  .eq('id', projectId)
   .select()
   .single()
 ```
@@ -436,9 +481,9 @@ const { data, error } = await supabase
 
 ```typescript
 const { error } = await supabase
-  .from('market_maps')
+  .from('projects')
   .delete()
-  .eq('id', mapId)
+  .eq('id', projectId)
 
 if (error) {
   console.error('Delete error:', error)
@@ -452,9 +497,9 @@ if (error) {
 
 **Search within JSONB data**:
 ```typescript
-// Find maps with specific trial NCT ID
+// Find projects with specific trial NCT ID
 const { data, error } = await supabase
-  .from('market_maps')
+  .from('projects')
   .select('*')
   .contains('trials_data', [{ nctId: 'NCT12345678' }])
 ```
@@ -463,8 +508,17 @@ const { data, error } = await supabase
 ```typescript
 // Get only specific fields from JSONB
 const { data, error } = await supabase
-  .from('market_maps')
-  .select('name, query, trials_data->0->nctId')  // First trial's NCT ID
+  .from('projects')
+  .select('name, search_query, trials_data->0->nctId')  // First trial's NCT ID
+```
+
+**Find projects with specific drug**:
+```typescript
+// Search in drugs_data for specific drug name
+const { data, error } = await supabase
+  .from('projects')
+  .select('*')
+  .contains('drugs_data', [{ normalizedName: 'Semaglutide' }])
 ```
 
 #### Pagination
@@ -474,7 +528,7 @@ const pageSize = 10
 const page = 0
 
 const { data, error, count } = await supabase
-  .from('market_maps')
+  .from('projects')
   .select('*', { count: 'exact' })
   .order('created_at', { ascending: false })
   .range(page * pageSize, (page + 1) * pageSize - 1)
@@ -485,12 +539,12 @@ console.log(`Total: ${count}, Page: ${page + 1}`)
 #### Date Range Queries
 
 ```typescript
-// Get maps created in last 30 days
+// Get projects created in last 30 days
 const thirtyDaysAgo = new Date()
 thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
 
 const { data, error } = await supabase
-  .from('market_maps')
+  .from('projects')
   .select('*')
   .gte('created_at', thirtyDaysAgo.toISOString())
   .order('created_at', { ascending: false })
@@ -498,40 +552,57 @@ const { data, error } = await supabase
 
 ## Data Migrations
 
+### Migration Strategy
+
+When transitioning from `market_maps` to `projects`:
+1. Create new `projects` table with updated schema
+2. Migrate data from `market_maps` to `projects` (if any exists)
+3. Update application code to use `projects` table
+4. Drop `market_maps` table after verification
+
 ### Initial Schema Setup
 
-**File**: `migrations/001_initial_schema.sql` (example)
+**File**: `migrations/001_create_projects_table.sql`
 
 ```sql
--- Create market_maps table
-CREATE TABLE market_maps (
+-- Create projects table
+CREATE TABLE projects (
   id BIGSERIAL PRIMARY KEY,
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
-  query TEXT NOT NULL,
-  trials_data JSONB NOT NULL,
-  slide_data JSONB NOT NULL,
-  chat_history JSONB,
-  papers_data JSONB,
+  description TEXT,
+  search_query TEXT NOT NULL,
+  trials_data JSONB NOT NULL DEFAULT '[]'::jsonb,
+  papers_data JSONB NOT NULL DEFAULT '[]'::jsonb,
+  drugs_data JSONB NOT NULL DEFAULT '[]'::jsonb,
+  slide_data JSONB DEFAULT NULL,
+  chat_history JSONB DEFAULT '[]'::jsonb,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- Create indexes
-CREATE INDEX idx_market_maps_user_id ON market_maps(user_id);
-CREATE INDEX idx_market_maps_created_at ON market_maps(created_at DESC);
+CREATE INDEX idx_projects_user_id ON projects(user_id);
+CREATE INDEX idx_projects_created_at ON projects(created_at DESC);
+CREATE INDEX idx_projects_user_date ON projects(user_id, created_at DESC);
 
 -- Enable RLS
-ALTER TABLE market_maps ENABLE ROW LEVEL SECURITY;
+ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
 
 -- Create RLS policy
-CREATE POLICY "Users can only access their own market maps"
-  ON market_maps
+CREATE POLICY "Users can only access their own projects"
+  ON projects
   FOR ALL
   USING (auth.uid() = user_id);
 
--- Add comments
-COMMENT ON TABLE market_maps IS 'Stores saved research projects with clinical trials, papers, and analysis data';
+-- Add table comment
+COMMENT ON TABLE projects IS 'Core table for research projects containing trials, papers, drugs, and analysis';
+
+-- Create auto-update trigger
+CREATE TRIGGER update_projects_updated_at
+  BEFORE UPDATE ON projects
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
 ```
 
 ### Running Migrations
@@ -543,29 +614,50 @@ Using Supabase CLI:
 supabase init
 
 # Create new migration
-supabase migration new add_market_maps_table
+supabase migration new create_projects_table
 
-# Apply migrations
+# Apply migrations locally
 supabase db push
 
-# Or apply to remote database
+# Apply to remote database
 supabase db push --linked
 ```
 
-### Example Migration: Add New Column
+### Example Migration: Migrate from market_maps to projects
 
 ```sql
--- migrations/002_add_metadata_column.sql
+-- migrations/002_migrate_to_projects.sql
 
--- Add new column
-ALTER TABLE market_maps 
-ADD COLUMN metadata JSONB DEFAULT '{}';
+-- Migrate existing data (if any)
+INSERT INTO projects (
+  user_id, 
+  name, 
+  description,
+  search_query, 
+  trials_data, 
+  papers_data, 
+  drugs_data,
+  slide_data, 
+  chat_history,
+  created_at, 
+  updated_at
+)
+SELECT 
+  user_id,
+  name,
+  NULL as description,
+  query as search_query,
+  trials_data,
+  COALESCE(papers_data, '[]'::jsonb) as papers_data,
+  '[]'::jsonb as drugs_data,
+  slide_data,
+  COALESCE(chat_history, '[]'::jsonb) as chat_history,
+  created_at,
+  updated_at
+FROM market_maps;
 
--- Add comment
-COMMENT ON COLUMN market_maps.metadata IS 'Additional metadata for the market map';
-
--- Create index if needed
-CREATE INDEX idx_market_maps_metadata_gin ON market_maps USING GIN (metadata);
+-- Drop old table after verification
+-- DROP TABLE market_maps;
 ```
 
 ## Database Functions and Triggers
@@ -583,37 +675,39 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Create trigger
-CREATE TRIGGER update_market_maps_updated_at
-  BEFORE UPDATE ON market_maps
+CREATE TRIGGER update_projects_updated_at
+  BEFORE UPDATE ON projects
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at_column();
 ```
 
-### Database Function Example: Get User Statistics
+### Database Function Example: Get User Project Statistics
 
 ```sql
--- Create function to get user's market map statistics
-CREATE OR REPLACE FUNCTION get_user_market_map_stats(user_uuid UUID)
+-- Create function to get user's project statistics
+CREATE OR REPLACE FUNCTION get_user_project_stats(user_uuid UUID)
 RETURNS TABLE (
-  total_maps INTEGER,
+  total_projects INTEGER,
   total_trials INTEGER,
   total_papers INTEGER,
-  most_recent_map_date TIMESTAMPTZ
+  total_drugs INTEGER,
+  most_recent_project_date TIMESTAMPTZ
 ) AS $$
 BEGIN
   RETURN QUERY
   SELECT 
-    COUNT(*)::INTEGER AS total_maps,
+    COUNT(*)::INTEGER AS total_projects,
     SUM(jsonb_array_length(trials_data))::INTEGER AS total_trials,
-    SUM(COALESCE(jsonb_array_length(papers_data), 0))::INTEGER AS total_papers,
-    MAX(created_at) AS most_recent_map_date
-  FROM market_maps
+    SUM(jsonb_array_length(papers_data))::INTEGER AS total_papers,
+    SUM(jsonb_array_length(drugs_data))::INTEGER AS total_drugs,
+    MAX(created_at) AS most_recent_project_date
+  FROM projects
   WHERE user_id = user_uuid;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Usage
-SELECT * FROM get_user_market_map_stats('user-uuid-here');
+SELECT * FROM get_user_project_stats('user-uuid-here');
 ```
 
 ## Performance Optimization
@@ -651,7 +745,7 @@ WHERE trials_data->'0'->>'nctId' = 'NCT12345678'
 ```sql
 -- Analyze query performance
 EXPLAIN ANALYZE
-SELECT * FROM market_maps
+SELECT * FROM projects
 WHERE user_id = 'user-uuid'
   AND created_at > NOW() - INTERVAL '30 days'
 ORDER BY created_at DESC;
@@ -674,7 +768,7 @@ ORDER BY created_at DESC;
 supabase db dump > backup.sql
 
 # Export specific table
-supabase db dump --table market_maps > market_maps_backup.sql
+supabase db dump --table projects > projects_backup.sql
 
 # Import backup
 psql $DATABASE_URL < backup.sql
@@ -686,7 +780,7 @@ psql $DATABASE_URL < backup.sql
 pg_dump $DATABASE_URL > full_backup.sql
 
 # Table-specific backup
-pg_dump -t market_maps $DATABASE_URL > market_maps.sql
+pg_dump -t projects $DATABASE_URL > projects.sql
 
 # Restore
 psql $DATABASE_URL < full_backup.sql
@@ -698,7 +792,7 @@ psql $DATABASE_URL < full_backup.sql
 ```typescript
 async function exportUserData(userId: string) {
   const { data, error } = await supabase
-    .from('market_maps')
+    .from('projects')
     .select('*')
     .eq('user_id', userId)
   
@@ -715,20 +809,20 @@ async function exportUserData(userId: string) {
 
 ### 1. Row Level Security
 
-✅ **Always enable RLS on tables with user data**
+**Always enable RLS on tables with user data**
 ```sql
-ALTER TABLE market_maps ENABLE ROW LEVEL SECURITY;
+ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
 ```
 
 ### 2. Service Role Key Protection
 
-❌ **Never expose service role key client-side**
+**Never expose service role key client-side**
 ```typescript
 // WRONG - Service role key exposed
 const supabase = createClient(url, SERVICE_ROLE_KEY)  // DON'T DO THIS
 ```
 
-✅ **Use anon key client-side, service role server-side only**
+**Use anon key client-side, service role server-side only**
 ```typescript
 // Correct - Anon key for client
 const supabase = createClient(url, ANON_KEY)
@@ -737,16 +831,25 @@ const supabase = createClient(url, ANON_KEY)
 ### 3. Input Validation
 
 ```typescript
-// Validate data before insert
-function validateMarketMap(data: any) {
+// Validate project data before insert
+function validateProject(data: any) {
   if (!data.name || data.name.length > 255) {
     throw new Error('Invalid name')
   }
-  if (!data.query || data.query.length > 1000) {
-    throw new Error('Invalid query')
+  if (data.description && data.description.length > 1000) {
+    throw new Error('Description too long')
+  }
+  if (!data.search_query || data.search_query.length > 1000) {
+    throw new Error('Invalid search query')
   }
   if (!Array.isArray(data.trials_data)) {
     throw new Error('trials_data must be an array')
+  }
+  if (!Array.isArray(data.papers_data)) {
+    throw new Error('papers_data must be an array')
+  }
+  if (!Array.isArray(data.drugs_data)) {
+    throw new Error('drugs_data must be an array')
   }
   // ... more validation
 }
@@ -754,19 +857,19 @@ function validateMarketMap(data: any) {
 
 ### 4. SQL Injection Prevention
 
-✅ **Supabase client uses parameterized queries**
+**Supabase client uses parameterized queries**
 ```typescript
 // Safe - parameterized query
 const { data } = await supabase
-  .from('market_maps')
+  .from('projects')
   .select('*')
   .eq('name', userInput)  // Automatically escaped
 ```
 
-❌ **Avoid raw SQL with user input**
+**Avoid raw SQL with user input**
 ```typescript
 // DANGEROUS - Don't do this
-supabase.rpc('raw_sql', { query: `SELECT * FROM market_maps WHERE name = '${userInput}'` })
+supabase.rpc('raw_sql', { query: `SELECT * FROM projects WHERE name = '${userInput}'` })
 ```
 
 ## Monitoring and Observability
@@ -788,7 +891,7 @@ supabase.rpc('raw_sql', { query: `SELECT * FROM market_maps WHERE name = '${user
 ```typescript
 // Log all database operations
 const { data, error } = await supabase
-  .from('market_maps')
+  .from('projects')
   .select('*')
 
 console.log('Query result:', { 
@@ -803,8 +906,8 @@ console.log('Query result:', {
 ```typescript
 try {
   const { data, error } = await supabase
-    .from('market_maps')
-    .insert(newMap)
+    .from('projects')
+    .insert(newProject)
   
   if (error) {
     // Log to error tracking service (Sentry, etc.)
@@ -862,11 +965,11 @@ CREATE TABLE user_preferences (
 );
 ```
 
-2. **Shared Maps Table** (for collaboration)
+2. **Shared Projects Table** (for collaboration)
 ```sql
-CREATE TABLE shared_maps (
+CREATE TABLE shared_projects (
   id BIGSERIAL PRIMARY KEY,
-  map_id BIGINT REFERENCES market_maps(id) ON DELETE CASCADE,
+  project_id BIGINT REFERENCES projects(id) ON DELETE CASCADE,
   owner_id UUID REFERENCES auth.users(id),
   shared_with_user_id UUID REFERENCES auth.users(id),
   permission TEXT CHECK (permission IN ('view', 'edit')),
@@ -879,28 +982,60 @@ CREATE TABLE shared_maps (
 CREATE TABLE search_history (
   id BIGSERIAL PRIMARY KEY,
   user_id UUID REFERENCES auth.users(id),
-  query TEXT NOT NULL,
+  search_query TEXT NOT NULL,
   results_count INTEGER,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 ```
 
-4. **Notifications Table**
+### Normalized Schema Option
+
+For improved query performance and data integrity, consider normalizing the JSONB data:
+
 ```sql
-CREATE TABLE notifications (
+-- Separate table for trials
+CREATE TABLE project_trials (
   id BIGSERIAL PRIMARY KEY,
-  user_id UUID REFERENCES auth.users(id),
-  type TEXT NOT NULL,
-  message TEXT NOT NULL,
-  read BOOLEAN DEFAULT FALSE,
+  project_id BIGINT REFERENCES projects(id) ON DELETE CASCADE,
+  nct_id TEXT NOT NULL,
+  trial_data JSONB NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Separate table for papers
+CREATE TABLE project_papers (
+  id BIGSERIAL PRIMARY KEY,
+  project_id BIGINT REFERENCES projects(id) ON DELETE CASCADE,
+  pmid TEXT NOT NULL,
+  paper_data JSONB NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Separate table for drugs
+CREATE TABLE project_drugs (
+  id BIGSERIAL PRIMARY KEY,
+  project_id BIGINT REFERENCES projects(id) ON DELETE CASCADE,
+  normalized_name TEXT NOT NULL,
+  drug_data JSONB NOT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 ```
 
+**Benefits of Normalization**:
+- Better query performance for specific entities
+- Easier to implement pagination and filtering
+- Improved data integrity and relationships
+- More efficient updates to individual trials/papers/drugs
+
+**Trade-offs**:
+- More complex queries (requires joins)
+- Additional tables to maintain
+- Potential for N+1 query issues
+
 ### Potential Features
 
-- **Real-time Subscriptions**: Live updates when maps are modified
-- **Full-Text Search**: PostgreSQL FTS for searching within saved maps
+- **Real-time Subscriptions**: Live updates when projects are modified
+- **Full-Text Search**: PostgreSQL FTS for searching within saved projects
 - **Materialized Views**: Pre-computed statistics and aggregations
 - **Partitioning**: Time-based partitioning for large datasets
 - **Replication**: Read replicas for improved query performance
@@ -943,7 +1078,7 @@ Solution:
 ```typescript
 // Enable verbose logging
 const { data, error, count } = await supabase
-  .from('market_maps')
+  .from('projects')
   .select('*', { count: 'exact', head: false })
   
 console.log('Debug info:', {
@@ -974,21 +1109,24 @@ supabase status
 
 ```typescript
 // Example test with Supabase
-describe('MarketMapService', () => {
-  it('should create a market map', async () => {
+describe('ProjectService', () => {
+  it('should create a project', async () => {
     const mockData = {
-      name: 'Test Map',
-      query: 'test query',
+      name: 'Test Project',
+      description: 'Test description',
+      search_query: 'test query',
       trials_data: [],
-      slide_data: {},
-      chat_history: [],
-      papers_data: []
+      papers_data: [],
+      drugs_data: [],
+      slide_data: null,
+      chat_history: []
     }
     
-    const result = await MarketMapService.saveMarketMap(mockData)
+    const result = await ProjectService.saveProject(mockData)
     
     expect(result).toBeDefined()
-    expect(result.name).toBe('Test Map')
+    expect(result.name).toBe('Test Project')
+    expect(result.search_query).toBe('test query')
   })
 })
 ```
@@ -1016,23 +1154,23 @@ psql $DATABASE_URL               # Connect to database
 ### Common Queries
 
 ```typescript
-// Get all user's maps
-supabase.from('market_maps').select('*')
+// Get all user's projects
+supabase.from('projects').select('*')
 
-// Get specific map
-supabase.from('market_maps').select('*').eq('id', mapId).single()
+// Get specific project
+supabase.from('projects').select('*').eq('id', projectId).single()
 
-// Create map
-supabase.from('market_maps').insert(data).select().single()
+// Create project
+supabase.from('projects').insert(data).select().single()
 
-// Update map
-supabase.from('market_maps').update(data).eq('id', mapId)
+// Update project
+supabase.from('projects').update(data).eq('id', projectId)
 
-// Delete map
-supabase.from('market_maps').delete().eq('id', mapId)
+// Delete project
+supabase.from('projects').delete().eq('id', projectId)
 ```
 
 ---
 
-This database documentation provides a comprehensive guide to the database architecture, schema, operations, and best practices for ABCresearch.
+This database documentation provides a comprehensive guide to the proposed project-centric database architecture, schema, operations, and best practices for ABCresearch.
 
