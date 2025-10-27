@@ -152,3 +152,20 @@ graph TB
     class VercelLogs,RealtimeEvents logging
 ```
 
+## Task Mapping
+
+### ABC-41: Implement Dynamic AI Response Generation in ChatAPI
+**Element:** ChatAPI (line 31) - API Gateway - Vercel layer  
+**Interface:** ChatUI ↔ ChatAPI (line 85) - Bidirectional message flow  
+**External Dependency:** ChatAPI ↔ Claude (line 96) - Conversation API integration
+
+**Implementation:**
+- Enhance ChatAPI to accept and process conversation history
+- Update ChatUI to send chatHistory with each request
+- Replace rigid intent-based prompting with dynamic conversational AI
+- Improve response quality and naturalness
+
+**Files:**
+- `api/generate-response.ts` - ChatAPI implementation
+- `src/components/Dashboard.tsx` - ChatUI integration
+
