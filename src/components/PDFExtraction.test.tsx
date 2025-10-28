@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { PDFExtraction } from './PDFExtraction'
 import { PDFExtractionService } from '@/services/pdfExtractionService'
@@ -7,16 +7,20 @@ import { PDFExtractionService } from '@/services/pdfExtractionService'
 // Mock the PDFExtractionService
 vi.mock('@/services/pdfExtractionService', () => ({
   PDFExtractionService: {
-    extractTables: vi.fn(),
+    extractContent: vi.fn(),
+    downloadBlob: vi.fn(),
   },
 }))
 
-describe('PDFExtraction Component', () => {
-  let mockExtractTables: ReturnType<typeof vi.fn>
+describe('PDFExtraction Component - Enhanced with Content Extraction', () => {
+  let mockExtractContent: ReturnType<typeof vi.fn>
+  let mockDownloadBlob: ReturnType<typeof vi.fn>
 
   beforeEach(() => {
-    mockExtractTables = vi.mocked(PDFExtractionService.extractTables)
-    mockExtractTables.mockClear()
+    mockExtractContent = vi.mocked(PDFExtractionService.extractContent)
+    mockDownloadBlob = vi.mocked(PDFExtractionService.downloadBlob)
+    mockExtractContent.mockClear()
+    mockDownloadBlob.mockClear()
     
     // Mock URL.createObjectURL and URL.revokeObjectURL
     global.URL.createObjectURL = vi.fn(() => 'blob:mock-url')
@@ -46,7 +50,7 @@ describe('PDFExtraction Component', () => {
       expect(fileInput.accept).toBe('.pdf')
       
       // Extract button should be disabled initially
-      const extractButton = screen.getByRole('button', { name: /Extract Tables/i })
+      const extractButton = screen.getByRole('button', { name: /Extract Content/i })
       expect(extractButton).toBeDisabled()
     })
 
@@ -107,7 +111,7 @@ describe('PDFExtraction Component', () => {
       }
     })
 
-    it('should enable Extract Tables button when file is selected', async () => {
+    it('should enable Extract Content button when file is selected', async () => {
       render(<PDFExtraction />)
       
       const file = new File(['content'], 'test.pdf', { type: 'application/pdf' })
@@ -115,7 +119,7 @@ describe('PDFExtraction Component', () => {
       
       await userEvent.upload(fileInput, file)
       
-      const extractButton = screen.getByRole('button', { name: /Extract Tables/i })
+      const extractButton = screen.getByRole('button', { name: /Extract Content/i })
       expect(extractButton).not.toBeDisabled()
     })
 
@@ -134,12 +138,10 @@ describe('PDFExtraction Component', () => {
     })
 
     it('should clear previous results when new file is selected', async () => {
-      mockExtractTables.mockResolvedValue({
+      mockExtractContent.mockResolvedValue({
         success: true,
-        tablesCount: 2,
-        message: 'Success',
-        blob: new Blob(['data']),
-        fileName: 'output.xlsx',
+        markdownBlob: new Blob(['# Test']),
+        stats: { imagesFound: 0, graphsDetected: 0, processingTimeMs: 1000 }
       })
 
       render(<PDFExtraction />)
@@ -149,7 +151,7 @@ describe('PDFExtraction Component', () => {
       const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
       await userEvent.upload(fileInput, file1)
       
-      const extractButton = screen.getByRole('button', { name: /Extract Tables/i })
+      const extractButton = screen.getByRole('button', { name: /Extract Content/i })
       await userEvent.click(extractButton)
       
       await waitFor(() => {
@@ -166,13 +168,12 @@ describe('PDFExtraction Component', () => {
   })
 
   describe('3. Extraction Trigger', () => {
-    it('should call PDFExtractionService.extractTables when Extract Tables is clicked', async () => {
-      mockExtractTables.mockResolvedValue({
+    it('should call PDFExtractionService.extractContent when Extract Content is clicked', async () => {
+      mockExtractContent.mockResolvedValue({
         success: true,
-        tablesCount: 3,
-        message: 'Success',
-        blob: new Blob(['data']),
-        fileName: 'output.xlsx',
+        markdownBlob: new Blob(['# Test'], { type: 'text/markdown' }),
+        responseJsonBlob: new Blob([JSON.stringify({})], { type: 'application/json' }),
+        stats: { imagesFound: 0, graphsDetected: 0, processingTimeMs: 1000 }
       })
 
       render(<PDFExtraction />)
@@ -181,21 +182,24 @@ describe('PDFExtraction Component', () => {
       const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
       await userEvent.upload(fileInput, file)
       
-      const extractButton = screen.getByRole('button', { name: /Extract Tables/i })
+      const extractButton = screen.getByRole('button', { name: /Extract Content/i })
       await userEvent.click(extractButton)
       
-      expect(mockExtractTables).toHaveBeenCalledWith(file)
-      expect(mockExtractTables).toHaveBeenCalledTimes(1)
+      expect(mockExtractContent).toHaveBeenCalledWith(file, expect.objectContaining({
+        enableGraphify: expect.any(Boolean),
+        forceOCR: expect.any(Boolean),
+        maxGraphifyImages: expect.any(Number)
+      }))
+      expect(mockExtractContent).toHaveBeenCalledTimes(1)
     })
 
     it('should show loading state when processing', async () => {
       // Mock a delayed response
-      mockExtractTables.mockImplementation(() => 
+      mockExtractContent.mockImplementation(() => 
         new Promise(resolve => setTimeout(() => resolve({
           success: true,
-          tablesCount: 1,
-          blob: new Blob(['data']),
-          fileName: 'output.xlsx',
+          markdownBlob: new Blob(['# Test']),
+          stats: { imagesFound: 0, graphsDetected: 0, processingTimeMs: 1000 }
         }), 100))
       )
 
@@ -205,7 +209,7 @@ describe('PDFExtraction Component', () => {
       const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
       await userEvent.upload(fileInput, file)
       
-      const extractButton = screen.getByRole('button', { name: /Extract Tables/i })
+      const extractButton = screen.getByRole('button', { name: /Extract Content/i })
       await userEvent.click(extractButton)
       
       // Check loading state
@@ -222,12 +226,11 @@ describe('PDFExtraction Component', () => {
     })
 
     it('should disable all interactive elements during processing', async () => {
-      mockExtractTables.mockImplementation(() => 
+      mockExtractContent.mockImplementation(() => 
         new Promise(resolve => setTimeout(() => resolve({
           success: true,
-          tablesCount: 1,
-          blob: new Blob(['data']),
-          fileName: 'output.xlsx',
+          markdownBlob: new Blob(['# Test']),
+          stats: { imagesFound: 0, graphsDetected: 0, processingTimeMs: 1000 }
         }), 100))
       )
 
@@ -237,7 +240,7 @@ describe('PDFExtraction Component', () => {
       const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
       await userEvent.upload(fileInput, file)
       
-      const extractButton = screen.getByRole('button', { name: /Extract Tables/i })
+      const extractButton = screen.getByRole('button', { name: /Extract Content/i })
       await userEvent.click(extractButton)
       
       // File input should be disabled
@@ -253,13 +256,17 @@ describe('PDFExtraction Component', () => {
   })
 
   describe('4. Success Case', () => {
-    it('should display success message with table count', async () => {
-      mockExtractTables.mockResolvedValue({
+    it('should display success message with stats', async () => {
+      mockExtractContent.mockResolvedValue({
         success: true,
-        tablesCount: 3,
-        message: 'Successfully extracted tables from PDF',
-        blob: new Blob(['data'], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
-        fileName: 'test_tables.xlsx',
+        markdownBlob: new Blob(['# Document'], { type: 'text/markdown' }),
+        responseJsonBlob: new Blob([JSON.stringify({})], { type: 'application/json' }),
+        stats: {
+          imagesFound: 3,
+          graphsDetected: 0,
+          processingTimeMs: 5000
+        },
+        message: 'Successfully extracted content from PDF'
       })
 
       render(<PDFExtraction />)
@@ -268,22 +275,24 @@ describe('PDFExtraction Component', () => {
       const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
       await userEvent.upload(fileInput, file)
       
-      const extractButton = screen.getByRole('button', { name: /Extract Tables/i })
+      const extractButton = screen.getByRole('button', { name: /Extract Content/i })
       await userEvent.click(extractButton)
       
       await waitFor(() => {
         expect(screen.getByText(/Extraction Successful/i)).toBeInTheDocument()
-        expect(screen.getByText(/Found 3 tables in the document/i)).toBeInTheDocument()
+        expect(screen.getByText(/Successfully extracted content from PDF/i)).toBeInTheDocument()
       })
     })
 
-    it('should handle singular vs plural tables correctly', async () => {
-      mockExtractTables.mockResolvedValue({
+    it('should handle singular vs plural images correctly', async () => {
+      mockExtractContent.mockResolvedValue({
         success: true,
-        tablesCount: 1,
-        message: 'Successfully extracted tables from PDF',
-        blob: new Blob(['data']),
-        fileName: 'test_tables.xlsx',
+        markdownBlob: new Blob(['# Test']),
+        stats: {
+          imagesFound: 1,
+          graphsDetected: 0,
+          processingTimeMs: 2000
+        }
       })
 
       render(<PDFExtraction />)
@@ -292,22 +301,21 @@ describe('PDFExtraction Component', () => {
       const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
       await userEvent.upload(fileInput, file)
       
-      const extractButton = screen.getByRole('button', { name: /Extract Tables/i })
+      const extractButton = screen.getByRole('button', { name: /Extract Content/i })
       await userEvent.click(extractButton)
       
       await waitFor(() => {
-        // Should say "table" not "tables" for count of 1
-        expect(screen.getByText(/Found 1 table in the document/i)).toBeInTheDocument()
+        // Should say "image" not "images" for count of 1
+        expect(screen.getByText(/1 image found/i)).toBeInTheDocument()
       })
     })
 
-    it('should enable Download Excel button on success', async () => {
-      mockExtractTables.mockResolvedValue({
+    it('should enable download buttons on success', async () => {
+      mockExtractContent.mockResolvedValue({
         success: true,
-        tablesCount: 2,
-        message: 'Success',
-        blob: new Blob(['data']),
-        fileName: 'output.xlsx',
+        markdownBlob: new Blob(['# Test'], { type: 'text/markdown' }),
+        responseJsonBlob: new Blob([JSON.stringify({})], { type: 'application/json' }),
+        stats: { imagesFound: 0, graphsDetected: 0, processingTimeMs: 1000 }
       })
 
       render(<PDFExtraction />)
@@ -316,24 +324,22 @@ describe('PDFExtraction Component', () => {
       const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
       await userEvent.upload(fileInput, file)
       
-      const extractButton = screen.getByRole('button', { name: /Extract Tables/i })
+      const extractButton = screen.getByRole('button', { name: /Extract Content/i })
       await userEvent.click(extractButton)
       
       await waitFor(() => {
-        const downloadButton = screen.getByRole('button', { name: /Download Excel/i })
-        expect(downloadButton).toBeInTheDocument()
-        expect(downloadButton).not.toBeDisabled()
+        expect(screen.getByText(/Markdown Content/i)).toBeInTheDocument()
+        expect(screen.getByText(/Full API Response/i)).toBeInTheDocument()
       })
     })
 
     it('should display custom success message if provided', async () => {
       const customMessage = 'Custom success message from backend'
-      mockExtractTables.mockResolvedValue({
+      mockExtractContent.mockResolvedValue({
         success: true,
-        tablesCount: 5,
+        markdownBlob: new Blob(['# Test']),
         message: customMessage,
-        blob: new Blob(['data']),
-        fileName: 'output.xlsx',
+        stats: { imagesFound: 5, graphsDetected: 0, processingTimeMs: 3000 }
       })
 
       render(<PDFExtraction />)
@@ -342,7 +348,7 @@ describe('PDFExtraction Component', () => {
       const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
       await userEvent.upload(fileInput, file)
       
-      const extractButton = screen.getByRole('button', { name: /Extract Tables/i })
+      const extractButton = screen.getByRole('button', { name: /Extract Content/i })
       await userEvent.click(extractButton)
       
       await waitFor(() => {
@@ -353,8 +359,8 @@ describe('PDFExtraction Component', () => {
 
   describe('5. Failure Case', () => {
     it('should display error message on extraction failure', async () => {
-      const errorMessage = 'Failed to extract tables: Invalid PDF format'
-      mockExtractTables.mockResolvedValue({
+      const errorMessage = 'Failed to extract content: Invalid PDF format'
+      mockExtractContent.mockResolvedValue({
         success: false,
         message: errorMessage,
       })
@@ -365,7 +371,7 @@ describe('PDFExtraction Component', () => {
       const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
       await userEvent.upload(fileInput, file)
       
-      const extractButton = screen.getByRole('button', { name: /Extract Tables/i })
+      const extractButton = screen.getByRole('button', { name: /Extract Content/i })
       await userEvent.click(extractButton)
       
       await waitFor(() => {
@@ -375,7 +381,7 @@ describe('PDFExtraction Component', () => {
     })
 
     it('should display generic error message when no specific message provided', async () => {
-      mockExtractTables.mockResolvedValue({
+      mockExtractContent.mockResolvedValue({
         success: false,
       })
 
@@ -385,7 +391,7 @@ describe('PDFExtraction Component', () => {
       const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
       await userEvent.upload(fileInput, file)
       
-      const extractButton = screen.getByRole('button', { name: /Extract Tables/i })
+      const extractButton = screen.getByRole('button', { name: /Extract Content/i })
       await userEvent.click(extractButton)
       
       await waitFor(() => {
@@ -395,7 +401,7 @@ describe('PDFExtraction Component', () => {
 
     it('should handle service exceptions gracefully', async () => {
       const errorMessage = 'Network error: Failed to fetch'
-      mockExtractTables.mockRejectedValue(new Error(errorMessage))
+      mockExtractContent.mockRejectedValue(new Error(errorMessage))
 
       render(<PDFExtraction />)
       
@@ -403,7 +409,7 @@ describe('PDFExtraction Component', () => {
       const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
       await userEvent.upload(fileInput, file)
       
-      const extractButton = screen.getByRole('button', { name: /Extract Tables/i })
+      const extractButton = screen.getByRole('button', { name: /Extract Content/i })
       await userEvent.click(extractButton)
       
       await waitFor(() => {
@@ -412,8 +418,8 @@ describe('PDFExtraction Component', () => {
       })
     })
 
-    it('should not show Download Excel button on failure', async () => {
-      mockExtractTables.mockResolvedValue({
+    it('should not show download buttons on failure', async () => {
+      mockExtractContent.mockResolvedValue({
         success: false,
         message: 'Error',
       })
@@ -424,30 +430,27 @@ describe('PDFExtraction Component', () => {
       const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
       await userEvent.upload(fileInput, file)
       
-      const extractButton = screen.getByRole('button', { name: /Extract Tables/i })
+      const extractButton = screen.getByRole('button', { name: /Extract Content/i })
       await userEvent.click(extractButton)
       
       await waitFor(() => {
         expect(screen.getByText(/Extraction Failed/i)).toBeInTheDocument()
       })
       
-      expect(screen.queryByRole('button', { name: /Download Excel/i })).not.toBeInTheDocument()
+      expect(screen.queryByText(/Markdown Content/i)).not.toBeInTheDocument()
+      expect(screen.queryByText(/Full API Response/i)).not.toBeInTheDocument()
     })
   })
 
   describe('6. Download Functionality', () => {
-    it('should trigger download when Download Excel button is clicked', async () => {
-      const mockBlob = new Blob(['excel data'], { 
-        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
-      })
-      const mockFileName = 'test_tables.xlsx'
+    it('should trigger download when download button is clicked', async () => {
+      const mockMarkdownBlob = new Blob(['# Test Content'], { type: 'text/markdown' })
       
-      mockExtractTables.mockResolvedValue({
+      mockExtractContent.mockResolvedValue({
         success: true,
-        tablesCount: 2,
-        message: 'Success',
-        blob: mockBlob,
-        fileName: mockFileName,
+        markdownBlob: mockMarkdownBlob,
+        responseJsonBlob: new Blob([JSON.stringify({})]),
+        stats: { imagesFound: 0, graphsDetected: 0, processingTimeMs: 1000 }
       })
 
       render(<PDFExtraction />)
@@ -456,40 +459,29 @@ describe('PDFExtraction Component', () => {
       const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
       await userEvent.upload(fileInput, file)
       
-      const extractButton = screen.getByRole('button', { name: /Extract Tables/i })
+      const extractButton = screen.getByRole('button', { name: /Extract Content/i })
       await userEvent.click(extractButton)
       
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: /Download Excel/i })).toBeInTheDocument()
+        expect(screen.getByText(/Markdown Content/i)).toBeInTheDocument()
       })
       
-      // Mock creating and clicking a download link
-      const createElementSpy = vi.spyOn(document, 'createElement')
-      const appendChildSpy = vi.spyOn(document.body, 'appendChild')
-      const removeChildSpy = vi.spyOn(document.body, 'removeChild')
-      
-      const downloadButton = screen.getByRole('button', { name: /Download Excel/i })
+      const downloadButton = screen.getByText(/Markdown Content/i).closest('button')!
       await userEvent.click(downloadButton)
       
-      // Verify download process
-      expect(global.URL.createObjectURL).toHaveBeenCalledWith(mockBlob)
-      expect(createElementSpy).toHaveBeenCalledWith('a')
-      
-      // Clean up spies
-      createElementSpy.mockRestore()
-      appendChildSpy.mockRestore()
-      removeChildSpy.mockRestore()
+      // Verify downloadBlob was called with correct parameters
+      expect(mockDownloadBlob).toHaveBeenCalledWith(
+        expect.any(Blob),
+        'test.md'
+      )
     })
 
-    it('should use correct filename for download', async () => {
-      const mockBlob = new Blob(['data'])
-      const expectedFileName = 'my-document_tables.xlsx'
-      
-      mockExtractTables.mockResolvedValue({
+    it('should use correct filename for markdown download', async () => {
+      mockExtractContent.mockResolvedValue({
         success: true,
-        tablesCount: 1,
-        blob: mockBlob,
-        fileName: expectedFileName,
+        markdownBlob: new Blob(['# Content']),
+        responseJsonBlob: new Blob([JSON.stringify({})]),
+        stats: { imagesFound: 0, graphsDetected: 0, processingTimeMs: 1000 }
       })
 
       render(<PDFExtraction />)
@@ -498,26 +490,28 @@ describe('PDFExtraction Component', () => {
       const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
       await userEvent.upload(fileInput, file)
       
-      const extractButton = screen.getByRole('button', { name: /Extract Tables/i })
+      const extractButton = screen.getByRole('button', { name: /Extract Content/i })
       await userEvent.click(extractButton)
       
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: /Download Excel/i })).toBeInTheDocument()
+        expect(screen.getByText(/Markdown Content/i)).toBeInTheDocument()
       })
       
-      const downloadButton = screen.getByRole('button', { name: /Download Excel/i })
+      const downloadButton = screen.getByText(/Markdown Content/i).closest('button')!
       await userEvent.click(downloadButton)
       
-      // The filename should be used in the download
-      expect(global.URL.createObjectURL).toHaveBeenCalled()
+      // Should use PDF filename with .md extension
+      expect(mockDownloadBlob).toHaveBeenCalledWith(
+        expect.any(Blob),
+        'my-document.md'
+      )
     })
 
-    it('should cleanup blob URL after download', async () => {
-      mockExtractTables.mockResolvedValue({
+    it('should handle downloadBlob service method', async () => {
+      mockExtractContent.mockResolvedValue({
         success: true,
-        tablesCount: 1,
-        blob: new Blob(['data']),
-        fileName: 'test.xlsx',
+        markdownBlob: new Blob(['# Test']),
+        stats: { imagesFound: 0, graphsDetected: 0, processingTimeMs: 1000 }
       })
 
       render(<PDFExtraction />)
@@ -526,20 +520,18 @@ describe('PDFExtraction Component', () => {
       const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
       await userEvent.upload(fileInput, file)
       
-      const extractButton = screen.getByRole('button', { name: /Extract Tables/i })
+      const extractButton = screen.getByRole('button', { name: /Extract Content/i })
       await userEvent.click(extractButton)
       
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: /Download Excel/i })).toBeInTheDocument()
+        expect(screen.getByText(/Markdown Content/i)).toBeInTheDocument()
       })
       
-      const downloadButton = screen.getByRole('button', { name: /Download Excel/i })
+      const downloadButton = screen.getByText(/Markdown Content/i).closest('button')!
       await userEvent.click(downloadButton)
       
-      // Wait for cleanup
-      await waitFor(() => {
-        expect(global.URL.revokeObjectURL).toHaveBeenCalledWith('blob:mock-url')
-      })
+      // Should call the service download method
+      expect(mockDownloadBlob).toHaveBeenCalled()
     })
   })
 
@@ -566,12 +558,11 @@ describe('PDFExtraction Component', () => {
     })
 
     it('should clear results and file when Clear and Start Over is clicked', async () => {
-      mockExtractTables.mockResolvedValue({
+      mockExtractContent.mockResolvedValue({
         success: true,
-        tablesCount: 3,
-        message: 'Success',
-        blob: new Blob(['data']),
-        fileName: 'output.xlsx',
+        markdownBlob: new Blob(['# Test']),
+        responseJsonBlob: new Blob([JSON.stringify({})]),
+        stats: { imagesFound: 0, graphsDetected: 0, processingTimeMs: 1000 }
       })
 
       render(<PDFExtraction />)
@@ -580,7 +571,7 @@ describe('PDFExtraction Component', () => {
       const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
       await userEvent.upload(fileInput, file)
       
-      const extractButton = screen.getByRole('button', { name: /Extract Tables/i })
+      const extractButton = screen.getByRole('button', { name: /Extract Content/i })
       await userEvent.click(extractButton)
       
       await waitFor(() => {
@@ -593,7 +584,7 @@ describe('PDFExtraction Component', () => {
       // Everything should be cleared
       expect(screen.queryByText('test.pdf')).not.toBeInTheDocument()
       expect(screen.queryByText(/Extraction Successful/i)).not.toBeInTheDocument()
-      expect(screen.queryByRole('button', { name: /Download Excel/i })).not.toBeInTheDocument()
+      expect(screen.queryByText(/Markdown Content/i)).not.toBeInTheDocument()
       
       // Should return to initial state
       expect(screen.getByText(/Click to upload PDF file/i)).toBeInTheDocument()
@@ -623,11 +614,10 @@ describe('PDFExtraction Component', () => {
     })
 
     it('should allow selecting new file after reset', async () => {
-      mockExtractTables.mockResolvedValue({
+      mockExtractContent.mockResolvedValue({
         success: true,
-        tablesCount: 1,
-        blob: new Blob(['data']),
-        fileName: 'output.xlsx',
+        markdownBlob: new Blob(['# Test']),
+        stats: { imagesFound: 0, graphsDetected: 0, processingTimeMs: 1000 }
       })
 
       render(<PDFExtraction />)
@@ -637,7 +627,7 @@ describe('PDFExtraction Component', () => {
       const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
       await userEvent.upload(fileInput, file1)
       
-      const extractButton = screen.getByRole('button', { name: /Extract Tables/i })
+      const extractButton = screen.getByRole('button', { name: /Extract Content/i })
       await userEvent.click(extractButton)
       
       await waitFor(() => {
@@ -699,42 +689,47 @@ describe('PDFExtraction Component', () => {
     it('should not allow extraction without a file', () => {
       render(<PDFExtraction />)
       
-      const extractButton = screen.getByRole('button', { name: /Extract Tables/i })
+      const extractButton = screen.getByRole('button', { name: /Extract Content/i })
       expect(extractButton).toBeDisabled()
     })
 
-    it('should handle zero tables found gracefully', async () => {
-      mockExtractTables.mockResolvedValue({
+    it('should handle no images found gracefully', async () => {
+      mockExtractContent.mockResolvedValue({
         success: true,
-        tablesCount: 0,
-        message: 'No tables found in document',
-        blob: new Blob([]),
-        fileName: 'empty.xlsx',
+        markdownBlob: new Blob(['# Text Only Document']),
+        responseJsonBlob: new Blob([JSON.stringify({})]),
+        stats: {
+          imagesFound: 0,
+          graphsDetected: 0,
+          processingTimeMs: 5000
+        },
+        message: 'Successfully extracted content from PDF'
       })
 
       render(<PDFExtraction />)
       
-      const file = new File(['content'], 'test.pdf', { type: 'application/pdf' })
+      const file = new File(['content'], 'text-only.pdf', { type: 'application/pdf' })
       const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
       await userEvent.upload(fileInput, file)
       
-      const extractButton = screen.getByRole('button', { name: /Extract Tables/i })
+      const extractButton = screen.getByRole('button', { name: /Extract Content/i })
       await userEvent.click(extractButton)
       
       await waitFor(() => {
         expect(screen.getByText(/Extraction Successful/i)).toBeInTheDocument()
-        // Should handle 0 tables (no "s" at the end)
-        expect(screen.getByText(/No tables found in document|Found 0 tables/i)).toBeInTheDocument()
+        expect(screen.getByText(/0 images found/i)).toBeInTheDocument()
       })
+      
+      // Should not show graph detection info
+      expect(screen.queryByText(/graphs detected/i)).not.toBeInTheDocument()
     })
 
     it('should prevent multiple simultaneous extractions', async () => {
-      mockExtractTables.mockImplementation(() => 
+      mockExtractContent.mockImplementation(() => 
         new Promise(resolve => setTimeout(() => resolve({
           success: true,
-          tablesCount: 1,
-          blob: new Blob(['data']),
-          fileName: 'output.xlsx',
+          markdownBlob: new Blob(['# Test']),
+          stats: { imagesFound: 0, graphsDetected: 0, processingTimeMs: 1000 }
         }), 200))
       )
 
@@ -744,7 +739,7 @@ describe('PDFExtraction Component', () => {
       const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
       await userEvent.upload(fileInput, file)
       
-      const extractButton = screen.getByRole('button', { name: /Extract Tables/i })
+      const extractButton = screen.getByRole('button', { name: /Extract Content/i })
       
       // Click multiple times rapidly
       await userEvent.click(extractButton)
@@ -753,7 +748,7 @@ describe('PDFExtraction Component', () => {
       
       // Should only be called once
       await waitFor(() => {
-        expect(mockExtractTables).toHaveBeenCalledTimes(1)
+        expect(mockExtractContent).toHaveBeenCalledTimes(1)
       })
     })
 
@@ -768,11 +763,10 @@ describe('PDFExtraction Component', () => {
     })
 
     it('should show appropriate icons for different states', async () => {
-      mockExtractTables.mockResolvedValue({
+      mockExtractContent.mockResolvedValue({
         success: true,
-        tablesCount: 1,
-        blob: new Blob(['data']),
-        fileName: 'output.xlsx',
+        markdownBlob: new Blob(['# Test']),
+        stats: { imagesFound: 0, graphsDetected: 0, processingTimeMs: 1000 }
       })
 
       const { container } = render(<PDFExtraction />)
@@ -787,7 +781,7 @@ describe('PDFExtraction Component', () => {
       // Should show file icon when file is selected
       expect(container.querySelectorAll('svg').length).toBeGreaterThan(1)
       
-      const extractButton = screen.getByRole('button', { name: /Extract Tables/i })
+      const extractButton = screen.getByRole('button', { name: /Extract Content/i })
       await userEvent.click(extractButton)
       
       await waitFor(() => {
@@ -797,27 +791,46 @@ describe('PDFExtraction Component', () => {
     })
   })
 
-  describe('9. Mock Implementation Fallback', () => {
-    it('should use mock data when service is not implemented', async () => {
-      mockExtractTables.mockResolvedValue({
-        success: false,
-        message: 'PDFExtractionService.extractTables() not implemented yet',
+  describe('9. Real Service Integration', () => {
+    it('should call real extraction service with all features', async () => {
+      mockExtractContent.mockResolvedValue({
+        success: true,
+        markdownBlob: new Blob(['# Real Markdown Content']),
+        responseJsonBlob: new Blob([JSON.stringify({ status: 'complete' })]),
+        graphifyResults: {
+          summary: [
+            { imageName: 'chart1.png', isGraph: true, graphType: 'line chart', pythonCode: 'code' }
+          ],
+          graphifyJsonBlob: new Blob([JSON.stringify([{ isGraph: true }])])
+        },
+        stats: {
+          imagesFound: 1,
+          graphsDetected: 1,
+          processingTimeMs: 45000
+        },
+        message: 'Successfully extracted content from PDF with 1 graph(s) detected'
       })
 
       render(<PDFExtraction />)
       
-      const file = new File(['content'], 'test.pdf', { type: 'application/pdf' })
+      const file = new File(['content'], 'research.pdf', { type: 'application/pdf' })
       const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
       await userEvent.upload(fileInput, file)
       
-      const extractButton = screen.getByRole('button', { name: /Extract Tables/i })
+      const extractButton = screen.getByRole('button', { name: /Extract Content/i })
       await userEvent.click(extractButton)
       
-      // Should show mock success result for development
       await waitFor(() => {
         expect(screen.getByText(/Extraction Successful/i)).toBeInTheDocument()
-        expect(screen.getByText(/mock data/i)).toBeInTheDocument()
-      }, { timeout: 3000 })
+      })
+      
+      // Should show graph detection in stats
+      expect(screen.getByText(/1 graph detected/i)).toBeInTheDocument()
+      
+      // All 3 download buttons should be available
+      expect(screen.getByText(/Markdown Content/i)).toBeInTheDocument()
+      expect(screen.getByText(/Full API Response/i)).toBeInTheDocument()
+      expect(screen.getByText(/GPT Graph Analysis/i)).toBeInTheDocument()
     })
   })
 })
