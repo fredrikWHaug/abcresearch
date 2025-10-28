@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useAuth } from '@/contexts/AuthContext'
-import { LogOut, Send, Menu, ArrowUp, Upload, Download, CheckCircle, AlertCircle, Loader2 } from 'lucide-react'
+import { LogOut, Send, Menu, ArrowUp } from 'lucide-react'
 import { MarketMap } from '@/components/MarketMap'
 import { TrialsList } from '@/components/TrialsList'
 import { SavedMaps } from '@/components/SavedMaps'
@@ -14,7 +14,6 @@ import { AssetDevelopmentPipeline } from '@/components/AssetDevelopmentPipeline'
 import { GatherSearchResultsService } from '@/services/gatherSearchResults'
 import type { PubMedArticle } from '@/types/papers'
 import { MarketMapService, type SavedMarketMap } from '@/services/marketMapService'
-import { PDFExtractionService, type ExtractionResult } from '@/services/pdfExtractionService'
 import { DrugGroupingService, type DrugGroup } from '@/services/drugGroupingService'
 import { ExtractDrugNamesService } from '@/services/extractDrugNames'
 import { pubmedAPI } from '@/services/pubmedAPI'
@@ -43,53 +42,6 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
 
   const handleMenuToggle = () => {
     setIsMenuOpen(!isMenuOpen);
-  }
-
-  // PDF processing functions
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file && file.type === 'application/pdf') {
-      setSelectedFile(file);
-      setPdfProcessingResult(null);
-    } else {
-      alert('Please select a valid PDF file.');
-    }
-  }
-
-  const handleFileUpload = async () => {
-    if (!selectedFile) return;
-
-    setIsProcessingPDF(true);
-    setPdfProcessingResult(null);
-
-    try {
-      const result = await PDFExtractionService.extractTablesFromPDF(selectedFile);
-      setPdfProcessingResult(result);
-    } catch (error) {
-      console.error('PDF processing error:', error);
-      setPdfProcessingResult({
-        success: false,
-        tables: [],
-        error: 'An unexpected error occurred while processing the PDF.'
-      });
-    } finally {
-      setIsProcessingPDF(false);
-    }
-  }
-
-  const handleDownloadExcel = () => {
-    if (pdfProcessingResult?.excelBlob) {
-      const filename = `extracted_tables_${new Date().toISOString().split('T')[0]}.xlsx`;
-      PDFExtractionService.downloadExcelFile(pdfProcessingResult.excelBlob, filename);
-    }
-  }
-
-  const handleResetUpload = () => {
-    setSelectedFile(null);
-    setPdfProcessingResult(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
   }
 
   // Paper context handlers
@@ -196,7 +148,7 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
   const [hasSearched, setHasSearched] = useState(false)
   const [papers, setPapers] = useState<PubMedArticle[]>([])
   const [papersLoading, setPapersLoading] = useState(false)
-  const [viewMode, setViewMode] = useState<'research' | 'marketmap' | 'savedmaps' | 'dataextraction' | 'pipeline'>(initialShowSavedMaps ? 'savedmaps' : 'research')
+  const [viewMode, setViewMode] = useState<'research' | 'marketmap' | 'savedmaps' | 'pipeline'>(initialShowSavedMaps ? 'savedmaps' : 'research')
   const [researchTab, setResearchTab] = useState<'trials' | 'papers'>('papers')
   const [slideData, setSlideData] = useState<SlideData | null>(null)
   const [generatingSlide, setGeneratingSlide] = useState(false)
@@ -226,12 +178,6 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
     originalQuery: string;
     strategies?: import('@/services/gatherSearchResults').StrategyResult[];
   } | null>(null)
-  
-  // PDF processing state
-  const [isProcessingPDF, setIsProcessingPDF] = useState(false)
-  const [pdfProcessingResult, setPdfProcessingResult] = useState<ExtractionResult | null>(null)
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
   
   // Paper context state (for AI conversation)
   const [selectedPapers, setSelectedPapers] = useState<PubMedArticle[]>([])
@@ -597,12 +543,12 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
       </div>
       
       {/* Toggle Buttons - Absolutely positioned center with equal widths */}
-      {(hasSearched || viewMode === 'savedmaps' || viewMode === 'dataextraction' || viewMode === 'pipeline') && (
+      {(hasSearched || viewMode === 'savedmaps' || viewMode === 'pipeline') && (
         <div 
           className="absolute z-20"
           style={{ left: '50%', transform: 'translateX(-50%)' }}
         >
-          <div className="flex rounded-lg bg-gray-100 p-1 w-[45rem]">
+          <div className="flex rounded-lg bg-gray-100 p-1 w-[40rem]">
             <div className="relative flex-1 projects-dropdown-container">
               <button
                 onClick={() => setShowProjectsDropdown(!showProjectsDropdown)}
@@ -695,16 +641,6 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
             >
               Saved Maps
             </button>
-            <button
-              onClick={() => setViewMode('dataextraction')}
-              className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
-                viewMode === 'dataextraction'
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              Data Extraction
-            </button>
           </div>
         </div>
       )}
@@ -773,7 +709,7 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
     );
   };
 
-  if (!hasSearched && viewMode !== 'savedmaps' && viewMode !== 'dataextraction' && viewMode !== 'pipeline') {
+  if (!hasSearched && viewMode !== 'savedmaps' && viewMode !== 'pipeline') {
     // Initial centered search bar layout (skip if showing saved maps)
     console.log('Rendering initial centered search. hasSearched:', hasSearched, 'viewMode:', viewMode);
     return (
@@ -972,134 +908,6 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
             onAddPaperToContext={handleAddPaperToContext}
             isPaperInContext={isPaperInContext}
           />
-        </div>
-      </div>
-    );
-  }
-
-  // Data Extraction mode
-  if (viewMode === 'dataextraction') {
-    return (
-      <div className="h-screen flex flex-col overflow-hidden">
-        <Header onStartNewProject={handleStartNewProject} currentProjectId={currentProjectId} />
-        
-        {/* Data Extraction Content */}
-        <div className="flex-1 overflow-hidden bg-gray-50 p-6">
-          <div className="max-w-4xl mx-auto">
-            <div className="text-center mb-8">
-              <h2 className="text-3xl font-bold text-gray-900 mb-2">Data Extraction</h2>
-              <p className="text-gray-600">Upload a PDF document to extract tables and export to Excel</p>
-            </div>
-            
-            {/* Upload Area */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
-              {!selectedFile ? (
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-12 text-center hover:border-gray-800 transition-colors cursor-pointer group">
-                  <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4 group-hover:bg-gray-200 transition-colors">
-                    <Upload className="w-8 h-8 text-gray-800" />
-                  </div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Upload PDF Document</h3>
-                  <p className="text-gray-600 mb-4">Drag and drop your PDF file here, or click to browse</p>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".pdf"
-                    onChange={handleFileSelect}
-                    className="hidden"
-                  />
-                  <button 
-                    onClick={() => fileInputRef.current?.click()}
-                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-gray-800 hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors"
-                  >
-                    <Upload className="w-4 h-4 mr-2" />
-                    Choose File
-                  </button>
-                  <p className="text-xs text-gray-500 mt-3">Supports PDF files up to 10MB</p>
-                </div>
-              ) : (
-                <div className="space-y-6">
-                  {/* Selected File Info */}
-                  <div className="bg-gray-50 rounded-lg p-4 border">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center">
-                        <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center mr-3">
-                          <svg className="w-6 h-6 text-red-600" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
-                          </svg>
-                        </div>
-                        <div>
-                          <p className="font-medium text-gray-900">{selectedFile.name}</p>
-                          <p className="text-sm text-gray-500">{(selectedFile.size / 1024 / 1024).toFixed(2)} MB</p>
-                        </div>
-                      </div>
-                      <button
-                        onClick={handleResetUpload}
-                        className="text-gray-400 hover:text-gray-600 transition-colors"
-                      >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Processing State */}
-                  {isProcessingPDF && (
-                    <div className="bg-blue-50 rounded-lg p-6 text-center">
-                      <Loader2 className="w-8 h-8 text-blue-600 animate-spin mx-auto mb-3" />
-                      <h3 className="text-lg font-semibold text-blue-900 mb-2">Processing PDF...</h3>
-                      <p className="text-blue-700">Extracting tables from your document. This may take a moment.</p>
-                    </div>
-                  )}
-
-                  {/* Results */}
-                  {pdfProcessingResult && (
-                    <div className="space-y-4">
-                      {pdfProcessingResult.success ? (
-                        <div className="bg-green-50 rounded-lg p-6">
-                          <div className="flex items-center mb-3">
-                            <CheckCircle className="w-6 h-6 text-green-600 mr-2" />
-                            <h3 className="text-lg font-semibold text-green-900">Extraction Successful!</h3>
-                          </div>
-                          <p className="text-green-700 mb-4">
-                            Found {pdfProcessingResult.tables.length} table{pdfProcessingResult.tables.length !== 1 ? 's' : ''} in your PDF.
-                          </p>
-                          <button
-                            onClick={handleDownloadExcel}
-                            className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
-                          >
-                            <Download className="w-4 h-4 mr-2" />
-                            Download Excel File
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="bg-red-50 rounded-lg p-6">
-                          <div className="flex items-center mb-3">
-                            <AlertCircle className="w-6 h-6 text-red-600 mr-2" />
-                            <h3 className="text-lg font-semibold text-red-900">Extraction Failed</h3>
-                          </div>
-                          <p className="text-red-700">{pdfProcessingResult.error}</p>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Process Button */}
-                  {!isProcessingPDF && !pdfProcessingResult && (
-                    <div className="text-center">
-                      <button
-                        onClick={handleFileUpload}
-                        className="inline-flex items-center px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
-                      >
-                        <Upload className="w-5 h-5 mr-2" />
-                        Extract Tables
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
         </div>
       </div>
     );
