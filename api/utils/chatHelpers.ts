@@ -41,32 +41,50 @@ export function detectSearchIntent(userQuery: string): boolean {
 }
 
 /**
- * Extract search terms from user query by filtering common words
- * ABC-45: Improved to handle conversational filler words and punctuation
+ * Extract search terms from user query using intelligent medical term detection
+ * ABC-45: Initial implementation with basic word filtering
+ * ABC-46: Enhanced with positive signal detection for medical terms
  */
 export function extractSearchTerms(userQuery: string): string {
-  const commonWords = [
-    // Greetings and polite words (including common typos/variations)
-    'hello', 'hi', 'hey', 'please', 'pleas', 'pls', 'thanks', 'thank', 'thx', 'good', 'great', 'okay', 'ok',
-    // Question words
-    'can', 'could', 'would', 'will', 'do', 'does', 'is', 'are',
-    // Pronouns
-    'you', 'me', 'my', 'i', 'we', 'us',
-    // Action words (search-related)
-    'help', 'search', 'for', 'find', 'look', 'show', 'get', 'give',
-    // Generic medical terms (too broad)
-    'clinical', 'trial', 'trials', 'results', 'studies', 'study',
-    // Articles and conjunctions
-    'on', 'the', 'a', 'an', 'and', 'or', 'in', 'about', 'of', 'to', 'at'
+  // Common conversational words to exclude (focused on 6+ char words that pass length filter)
+  const excludeWords = [
+    'search', 'find', 'look', 'show', 'help', 'please', 'thanks', 'thank',
+    'clinical', 'trial', 'trials', 'research', 'papers', 'studies', 'study', 'results',
+    'actually', 'instead', 'rather', 'really', 'pretty', 'something', 'anything',
+    'information', 'details', 'things'
   ];
 
-  // Remove punctuation and split into words
+  // Medical suffixes that indicate scientific terms
+  const medicalSuffixes = ['mab', 'itis', 'osis', 'pathy', 'oma', 'ase', 'ine'];
+
+  // Remove punctuation except hyphens and apostrophes (keep GLP-1, Alzheimer's)
   const cleanQuery = userQuery.toLowerCase().replace(/[.,!?;:]/g, ' ');
   const words = cleanQuery.split(/\s+/).filter(word => word.length > 0);
   
-  // Filter common words and very short words
+  // Intelligent term extraction using positive signals
   const searchTerms = words
-    .filter(word => !commonWords.includes(word) && word.length > 2)
+    .filter(word => {
+      // Skip if in exclude list
+      if (excludeWords.includes(word)) return false;
+      
+      // KEEP if has numbers or hyphens (medical codes: GLP-1, IL-6, COVID-19)
+      if (/[0-9-]/.test(word)) return true;
+      
+      // KEEP if has medical suffix
+      if (medicalSuffixes.some(suffix => word.endsWith(suffix))) return true;
+      
+      // SKIP past tense verbs (e.g., "realized", "decided") unless medical
+      // But keep medical past tense like "diagnosed"
+      if (word.endsWith('ed') && word.length >= 6 && !word.endsWith('osed')) {
+        return false;
+      }
+      
+      // KEEP if long word (medical terms are typically 6+ characters)
+      if (word.length >= 6) return true;
+      
+      // Skip short generic words
+      return false;
+    })
     .join(' ')
     .trim();
 

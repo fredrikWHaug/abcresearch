@@ -127,6 +127,69 @@ describe('ABC-41: ChatAPI Helpers', () => {
       expect(terms).toBe('glp-1s')
       expect(terms).not.toContain('pleas') // Common typo of "please"
     })
+
+    // ABC-46: Intelligent medical term detection tests
+    it('should extract medical terms from conversational context (ABC-46)', () => {
+      const query = 'Actually, pleas search for diabetes instead'
+      const terms = extractSearchTerms(query)
+      
+      expect(terms).toBe('diabetes')
+      expect(terms).not.toContain('actually')
+      expect(terms).not.toContain('instead')
+    })
+
+    it('should detect medical codes with numbers/hyphens (ABC-46)', () => {
+      const terms1 = extractSearchTerms('Show me GLP-1 trials')
+      expect(terms1).toBe('glp-1')
+      
+      const terms2 = extractSearchTerms('Find IL-6 research')
+      expect(terms2).toBe('il-6')
+      
+      const terms3 = extractSearchTerms('COVID-19 studies please')
+      expect(terms3).toBe('covid-19')
+    })
+
+    it('should detect medical suffixes (ABC-46)', () => {
+      expect(extractSearchTerms('find pembrolizumab trials')).toContain('pembrolizumab')
+      expect(extractSearchTerms('arthritis research')).toContain('arthritis')
+      expect(extractSearchTerms('tuberculosis studies')).toContain('tuberculosis')
+    })
+
+    it('should prioritize long medical terms over short words (ABC-46)', () => {
+      const terms = extractSearchTerms('Can you help me find semaglutide please?')
+      
+      expect(terms).toBe('semaglutide')
+      expect(terms).not.toContain('can')
+      expect(terms).not.toContain('help')
+    })
+
+    it('should handle complex conversational queries (ABC-46)', () => {
+      const query = 'Actually, could you just search for metformin instead of that other drug?'
+      const terms = extractSearchTerms(query)
+      
+      expect(terms).toContain('metformin')
+      expect(terms).not.toContain('actually')
+      expect(terms).not.toContain('could')
+      expect(terms).not.toContain('instead')
+      expect(terms).not.toContain('other')
+    })
+
+    it('should filter past tense verbs (ABC-46)', () => {
+      const query = 'I realized I wanted information about diabetes'
+      const terms = extractSearchTerms(query)
+      
+      expect(terms).toBe('diabetes')
+      expect(terms).not.toContain('realized')
+      expect(terms).not.toContain('wanted')
+    })
+
+    it('should filter generic results word (ABC-46)', () => {
+      const terms = extractSearchTerms('search for clinical trial results on Alzheimer\'s disease')
+      
+      expect(terms).toContain('alzheimer\'s')
+      expect(terms).toContain('disease')
+      expect(terms).not.toContain('results')
+    })
   })
 
   describe('generateSearchSuggestions', () => {
