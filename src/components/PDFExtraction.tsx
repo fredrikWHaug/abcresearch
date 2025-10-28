@@ -1,15 +1,15 @@
 import React, { useState, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Upload, FileText, Download, X, Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
-import { PDFExtractionService, type PDFExtractionResult } from '@/services/pdfExtractionService'
-
-type ExtractionResult = PDFExtractionResult
+import { Upload, FileText, Download, X, Loader2, CheckCircle2, AlertCircle, Image } from 'lucide-react'
+import { PDFExtractionService, type PDFExtractionResult, type ExtractionOptions } from '@/services/pdfExtractionService'
 
 export function PDFExtraction() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
-  const [extractionResult, setExtractionResult] = useState<ExtractionResult | null>(null)
+  const [extractionResult, setExtractionResult] = useState<PDFExtractionResult | null>(null)
+  const [enableGraphify, setEnableGraphify] = useState(true)
+  const [maxImages, setMaxImages] = useState(10)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -20,56 +20,34 @@ export function PDFExtraction() {
     }
   }
 
-  const handleExtractTables = async () => {
+  const handleExtractContent = async () => {
     if (!selectedFile) return
 
     setIsProcessing(true)
     setExtractionResult(null)
 
     try {
-      // Call PDFExtractionService
-      // Note: Currently using mock implementation until backend is ready
-      const result = await PDFExtractionService.extractTables(selectedFile)
-      
-      // For development: simulate success when service is not implemented
-      if (!result.success && result.message?.includes('not implemented')) {
-        // Simulated response structure (remove when implementing actual service)
-        await new Promise(resolve => setTimeout(resolve, 2000)) // Simulate processing time
-        
-        // Mock success result for UI testing
-        const mockResult: ExtractionResult = {
-          success: true,
-          tablesCount: 3,
-          message: 'Successfully extracted tables from PDF (mock data)',
-          blob: new Blob(['mock excel data'], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
-          fileName: `${selectedFile.name.replace('.pdf', '')}_tables.xlsx`
-        }
-        setExtractionResult(mockResult)
-      } else {
-        setExtractionResult(result)
+      const options: ExtractionOptions = {
+        enableGraphify,
+        forceOCR: false,
+        maxGraphifyImages: maxImages
       }
+
+      const result = await PDFExtractionService.extractContent(selectedFile, options)
+      setExtractionResult(result)
     } catch (error) {
-      console.error('Error extracting tables:', error)
+      console.error('Error extracting content:', error)
       setExtractionResult({
         success: false,
-        message: error instanceof Error ? error.message : 'Failed to extract tables from PDF. Please try again.'
+        message: error instanceof Error ? error.message : 'Failed to extract PDF content. Please try again.'
       })
     } finally {
       setIsProcessing(false)
     }
   }
 
-  const handleDownload = () => {
-    if (!extractionResult?.blob || !extractionResult.fileName) return
-
-    const url = window.URL.createObjectURL(extractionResult.blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = extractionResult.fileName
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    window.URL.revokeObjectURL(url)
+  const handleDownload = (blob: Blob, fileName: string) => {
+    PDFExtractionService.downloadBlob(blob, fileName)
   }
 
   const handleReset = () => {
@@ -158,36 +136,63 @@ export function PDFExtraction() {
             </div>
           )}
 
-          {/* Action Buttons */}
-          <div className="flex gap-3">
+          {/* Processing Options */}
+          {selectedFile && !extractionResult && !isProcessing && (
+            <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg space-y-3">
+              <p className="text-sm font-medium text-gray-700">Extraction Options:</p>
+              
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={enableGraphify}
+                  onChange={(e) => setEnableGraphify(e.target.checked)}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="flex items-center gap-2">
+                  <Image className="h-4 w-4 text-gray-500" />
+                  Enable graph detection with GPT Vision
+                </span>
+              </label>
+              
+              {enableGraphify && (
+                <div className="ml-6 space-y-2 p-3 bg-white rounded border border-gray-200">
+                  <label className="text-xs text-gray-600 block">
+                    Max images to analyze: <span className="font-medium text-gray-900">{maxImages}</span>
+                    <input
+                      type="range"
+                      min="1"
+                      max="20"
+                      value={maxImages}
+                      onChange={(e) => setMaxImages(parseInt(e.target.value))}
+                      className="w-full mt-1"
+                    />
+                  </label>
+                  <p className="text-xs text-gray-500">
+                    Higher values increase processing time and cost
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Action Button */}
           <Button
-            onClick={handleExtractTables}
+            onClick={handleExtractContent}
             disabled={!selectedFile || isProcessing}
-            className="flex-1"
+            className="w-full"
           >
             {isProcessing ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Extracting...
+                Extracting Content...
               </>
             ) : (
               <>
                 <Upload className="h-4 w-4" />
-                Extract Tables
+                Extract Content
               </>
             )}
           </Button>
-            {extractionResult?.success && (
-              <Button
-                onClick={handleDownload}
-                variant="outline"
-                className="flex-1"
-              >
-                <Download className="h-4 w-4" />
-                Download Excel
-              </Button>
-            )}
-          </div>
 
           {/* Loading State */}
           {isProcessing && (
@@ -202,31 +207,116 @@ export function PDFExtraction() {
 
           {/* Success Result */}
           {extractionResult?.success && !isProcessing && (
-            <div className="flex items-start gap-3 p-4 bg-green-50 border border-green-200 rounded-lg">
-              <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <p className="text-sm font-medium text-green-900">Extraction Successful!</p>
-                <p className="text-sm text-green-700 mt-1">
-                  {(() => {
-                    // If there's a message but it's the generic one and we have table count, show table count
-                    if (extractionResult.message === 'Successfully extracted tables from PDF' && extractionResult.tablesCount !== undefined) {
-                      return `Found ${extractionResult.tablesCount} table${extractionResult.tablesCount !== 1 ? 's' : ''} in the document`;
-                    }
-                    // If there's any other message, show it (custom messages take priority)
-                    if (extractionResult.message) {
-                      return extractionResult.message;
-                    }
-                    // If no message but we have table count, show table count
-                    if (extractionResult.tablesCount !== undefined) {
-                      return `Found ${extractionResult.tablesCount} table${extractionResult.tablesCount !== 1 ? 's' : ''} in the document`;
-                    }
-                    // Fallback
-                    return 'Successfully extracted tables from PDF';
-                  })()}
-                </p>
-                <p className="text-xs text-green-600 mt-2">
-                  Click "Download Excel" to save the extracted data
-                </p>
+            <div className="space-y-4">
+              {/* Success Banner */}
+              <div className="flex items-start gap-3 p-4 bg-green-50 border border-green-200 rounded-lg">
+                <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-green-900">Extraction Successful!</p>
+                  <p className="text-sm text-green-700 mt-1">
+                    {extractionResult.message || 'PDF content extracted successfully'}
+                  </p>
+                  {extractionResult.stats && (
+                    <div className="mt-2 flex items-center gap-3 text-xs text-green-600">
+                      <span className="flex items-center gap-1">
+                        <FileText className="h-3 w-3" />
+                        {extractionResult.stats.imagesFound} image{extractionResult.stats.imagesFound !== 1 ? 's' : ''} found
+                      </span>
+                      {extractionResult.stats.graphsDetected > 0 && (
+                        <span className="flex items-center gap-1">
+                          <Image className="h-3 w-3" />
+                          {extractionResult.stats.graphsDetected} graph{extractionResult.stats.graphsDetected !== 1 ? 's' : ''} detected
+                        </span>
+                      )}
+                      <span>
+                        · Processed in {(extractionResult.stats.processingTimeMs / 1000).toFixed(1)}s
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Download Buttons */}
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-gray-700">Download Results:</p>
+                
+                {/* Markdown Download */}
+                {extractionResult.markdownBlob && (
+                  <Button
+                    onClick={() => handleDownload(
+                      extractionResult.markdownBlob!, 
+                      `${selectedFile?.name.replace('.pdf', '') || 'document'}.md`
+                    )}
+                    variant="outline"
+                    className="w-full justify-between"
+                  >
+                    <div className="flex items-center gap-2">
+                      <FileText className="h-4 w-4" />
+                      <span>Markdown Content</span>
+                    </div>
+                    <Download className="h-4 w-4 text-gray-400" />
+                  </Button>
+                )}
+
+                {/* JSON Response Download */}
+                {extractionResult.responseJsonBlob && (
+                  <Button
+                    onClick={() => handleDownload(
+                      extractionResult.responseJsonBlob!, 
+                      `${selectedFile?.name.replace('.pdf', '') || 'document'}-response.json`
+                    )}
+                    variant="outline"
+                    className="w-full justify-between"
+                  >
+                    <div className="flex items-center gap-2">
+                      <FileText className="h-4 w-4" />
+                      <span>Full API Response (JSON)</span>
+                    </div>
+                    <Download className="h-4 w-4 text-gray-400" />
+                  </Button>
+                )}
+
+                {/* GPT Analysis Download */}
+                {extractionResult.graphifyResults?.graphifyJsonBlob && (
+                  <Button
+                    onClick={() => handleDownload(
+                      extractionResult.graphifyResults!.graphifyJsonBlob!, 
+                      `${selectedFile?.name.replace('.pdf', '') || 'document'}-gpt-analysis.json`
+                    )}
+                    variant="outline"
+                    className="w-full justify-between"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Image className="h-4 w-4" />
+                      <span>GPT Graph Analysis (JSON)</span>
+                    </div>
+                    <Download className="h-4 w-4 text-gray-400" />
+                  </Button>
+                )}
+
+                {/* Summary of Graphs Detected */}
+                {extractionResult.graphifyResults && extractionResult.graphifyResults.summary.filter(r => r.isGraph).length > 0 && (
+                  <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <p className="text-xs font-medium text-blue-900 mb-2">
+                      Graph Detection Summary:
+                    </p>
+                    <div className="space-y-1">
+                      {extractionResult.graphifyResults.summary
+                        .filter(r => r.isGraph)
+                        .slice(0, 5)
+                        .map((result, idx) => (
+                          <div key={idx} className="text-xs text-blue-700">
+                            <span className="font-medium">{result.imageName}</span>: {result.graphType || 'graph'}
+                          </div>
+                        ))}
+                      {extractionResult.graphifyResults.summary.filter(r => r.isGraph).length > 5 && (
+                        <p className="text-xs text-blue-600 italic">
+                          +{extractionResult.graphifyResults.summary.filter(r => r.isGraph).length - 5} more graphs
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
