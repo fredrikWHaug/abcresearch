@@ -1,5 +1,11 @@
 // Vercel API Route for generating dynamic AI responses
 
+import { 
+  buildConversationContext, 
+  generateSearchSuggestions,
+  type ChatMessage 
+} from './utils/chatHelpers.js'
+
 interface GenerateResponseRequest {
   userQuery: string;
   chatHistory?: Array<{
@@ -79,11 +85,7 @@ export default async function handler(req: any, res: any) {
     }
 
     // Build conversation context from chat history (last 6 messages for context)
-    let conversationContext = '';
-    if (chatHistory && chatHistory.length > 0) {
-      conversationContext = '\n\nConversation so far:\n' + 
-        chatHistory.slice(-6).map(msg => `${msg.type === 'user' ? 'User' : 'Assistant'}: ${msg.message}`).join('\n');
-    }
+    const conversationContext = buildConversationContext(chatHistory || []);
 
     // If we have search results, generate a response about them
     if (searchResults) {
@@ -247,35 +249,16 @@ Generate your response now (respond to what they ACTUALLY said):`;
       .replace(/^\s+/, '') // Remove leading whitespace
       .trim();
 
-    // Detect if user wants to search and extract search terms
-    const searchKeywords = ['search', 'find', 'look for', 'show me', 'trials', 'studies', 'research', 'papers'];
-    const wantsToSearch = searchKeywords.some(keyword => userQuery.toLowerCase().includes(keyword));
-    
-    let searchSuggestions: Array<{id: string, label: string, query: string, description?: string}> = [];
-    
-    if (wantsToSearch) {
-      // Extract potential search terms from the query
-      // Remove common words and extract meaningful terms
-      const commonWords = ['please', 'can', 'you', 'help', 'me', 'search', 'for', 'find', 'look', 'show', 'clinical', 'trial', 'results', 'on', 'the', 'a', 'an', 'and', 'or', 'in', 'about'];
-      const words = userQuery.toLowerCase().split(/\s+/);
-      const searchTerms = words.filter(word => !commonWords.includes(word) && word.length > 2).join(' ');
-      
-      if (searchTerms) {
-        searchSuggestions = [{
-          id: 'search-1',
-          label: `Search for ${searchTerms}`,
-          query: searchTerms,
-          description: `Find clinical trials and research papers about ${searchTerms}`
-        }];
-      }
-    }
+    // Generate search suggestions using helper function
+    const searchSuggestions = generateSearchSuggestions(userQuery);
+    const shouldSearch = searchSuggestions.length > 0;
 
     return res.status(200).json({
       success: true,
       response: conversationalResult,
-      shouldSearch: wantsToSearch && searchSuggestions.length > 0,
+      shouldSearch: shouldSearch,
       searchSuggestions: searchSuggestions,
-      intent: wantsToSearch ? 'search_request' : 'general_question'
+      intent: shouldSearch ? 'search_request' : 'general_question'
     });
 
   } catch (error) {
