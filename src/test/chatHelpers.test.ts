@@ -75,7 +75,6 @@ describe('ABC-41: ChatAPI Helpers', () => {
       const terms = extractSearchTerms('Can you search for GLP-1 trials?')
       
       expect(terms).toContain('glp-1')
-      expect(terms).toContain('trials')
       expect(terms).not.toContain('can')
       expect(terms).not.toContain('you')
     })
@@ -92,8 +91,41 @@ describe('ABC-41: ChatAPI Helpers', () => {
     it('should handle queries with no meaningful terms', () => {
       const terms = extractSearchTerms('can you help me please')
       
-      // All words are common, should be empty or just 'me'
+      // All words are common, should be empty
       expect(terms.length).toBeLessThan(10)
+    })
+
+    // ABC-45: Bug fix test - conversational words should be filtered
+    it('should filter conversational filler words (ABC-45)', () => {
+      const query = 'Good thanks. Can you help me search for GLP1 clinical trials please?'
+      const terms = extractSearchTerms(query)
+      
+      // Should extract only meaningful term
+      expect(terms).toContain('glp1')
+      
+      // Should NOT include conversational words
+      expect(terms).not.toContain('good')
+      expect(terms).not.toContain('thanks')
+      expect(terms).not.toContain('please')
+      
+      // Should NOT include generic medical terms (too broad)
+      expect(terms).not.toContain('clinical')
+      expect(terms).not.toContain('trials')
+    })
+
+    it('should handle punctuation correctly (ABC-45)', () => {
+      const terms = extractSearchTerms('Hello! Can you find diabetes, please?')
+      
+      expect(terms).toBe('diabetes')
+      expect(terms).not.toContain('hello')
+      expect(terms).not.toContain('please')
+    })
+
+    it('should handle typos and variations (ABC-45)', () => {
+      const terms = extractSearchTerms('Can you search for GLP-1s pleas?')
+      
+      expect(terms).toBe('glp-1s')
+      expect(terms).not.toContain('pleas') // Common typo of "please"
     })
   })
 

@@ -42,18 +42,33 @@ export function detectSearchIntent(userQuery: string): boolean {
 
 /**
  * Extract search terms from user query by filtering common words
+ * ABC-45: Improved to handle conversational filler words and punctuation
  */
 export function extractSearchTerms(userQuery: string): string {
   const commonWords = [
-    'please', 'can', 'you', 'help', 'me', 'search', 'for', 'find', 
-    'look', 'show', 'clinical', 'trial', 'results', 'on', 'the', 
-    'a', 'an', 'and', 'or', 'in', 'about'
+    // Greetings and polite words (including common typos/variations)
+    'hello', 'hi', 'hey', 'please', 'pleas', 'pls', 'thanks', 'thank', 'thx', 'good', 'great', 'okay', 'ok',
+    // Question words
+    'can', 'could', 'would', 'will', 'do', 'does', 'is', 'are',
+    // Pronouns
+    'you', 'me', 'my', 'i', 'we', 'us',
+    // Action words (search-related)
+    'help', 'search', 'for', 'find', 'look', 'show', 'get', 'give',
+    // Generic medical terms (too broad)
+    'clinical', 'trial', 'trials', 'results', 'studies', 'study',
+    // Articles and conjunctions
+    'on', 'the', 'a', 'an', 'and', 'or', 'in', 'about', 'of', 'to', 'at'
   ];
 
-  const words = userQuery.toLowerCase().split(/\s+/);
+  // Remove punctuation and split into words
+  const cleanQuery = userQuery.toLowerCase().replace(/[.,!?;:]/g, ' ');
+  const words = cleanQuery.split(/\s+/).filter(word => word.length > 0);
+  
+  // Filter common words and very short words
   const searchTerms = words
     .filter(word => !commonWords.includes(word) && word.length > 2)
-    .join(' ');
+    .join(' ')
+    .trim();
 
   return searchTerms;
 }
