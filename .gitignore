@@ -45,3 +45,4 @@ venv/
 ENV/
 env/
 .vercel
+.env*.local
