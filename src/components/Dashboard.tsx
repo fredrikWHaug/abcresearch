@@ -294,8 +294,9 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
       setLoading(true);
       
       console.log('Sending request to generate-response API with query:', userMessage);
+      console.log('Chat history being sent:', chatHistory.length, 'messages');
       
-      // First, get intent classification and response
+      // First, get intent classification and response with conversation context
       const response = await fetch('/api/generate-response', {
         method: 'POST',
         headers: {
@@ -303,6 +304,7 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
         },
         body: JSON.stringify({
           userQuery: userMessage,
+          chatHistory: chatHistory,
           contextPapers: selectedPapers.length > 0 ? selectedPapers : undefined
         })
       });
