@@ -11,7 +11,8 @@
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:run": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "test:integration": "./run-integration-tests.sh"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.67.0",
