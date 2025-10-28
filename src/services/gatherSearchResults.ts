@@ -38,6 +38,32 @@ export interface GatherSearchResultsResponse {
   strategiesUsed: number;
 }
 
+/**
+ * Get API base URL - handles both browser and test environments
+ */
+function getApiBaseUrl(): string {
+  // In test environment, use TEST_SERVER_URL if provided
+  if (typeof process !== 'undefined' && process.env?.TEST_SERVER_URL) {
+    return process.env.TEST_SERVER_URL;
+  }
+  
+  // In browser, relative URLs work fine
+  if (typeof window !== 'undefined') {
+    return '';
+  }
+  
+  // In Node.js without TEST_SERVER_URL, use localhost (fallback)
+  return 'http://localhost:5173';
+}
+
+/**
+ * Build full API URL for fetch calls
+ */
+function buildApiUrl(path: string): string {
+  const baseUrl = getApiBaseUrl();
+  return `${baseUrl}${path}`;
+}
+
 export class GatherSearchResultsService {
   /**
    * Search for clinical trials via API proxy
@@ -49,7 +75,7 @@ export class GatherSearchResultsService {
     totalCount: number;
   }> {
     try {
-      const response = await fetch('/api/search-clinical-trials', {
+      const response = await fetch(buildApiUrl('/api/search-clinical-trials'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -149,7 +175,7 @@ export class GatherSearchResultsService {
    */
   private static async enhanceQuery(userQuery: string): Promise<SearchStrategy[]> {
     try {
-      const response = await fetch('/api/enhance-search', {
+      const response = await fetch(buildApiUrl('/api/enhance-search'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -216,14 +242,14 @@ export class GatherSearchResultsService {
 
   /**
    * Search for clinical trials using phrase-based discovery strategies
-   * Executes 5 LLM-generated queries to UNCOVER drugs across all stages
+   * Executes 5 LLM-generated queries that match user's phase requirements
    */
   private static async searchClinicalTrials(userQuery: string): Promise<{
     trials: ClinicalTrial[];
     searchStrategies: StrategyResult[];
   }> {
     try {
-      // Get 5 phrase-based discovery strategies from AI
+      // Get 5 phrase-based discovery strategies from AI (phase-aware)
       const strategies = await this.enhanceQuery(userQuery);
       
       console.log(`🔍 Executing ${strategies.length} discovery searches in parallel...`);

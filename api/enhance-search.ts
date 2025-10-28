@@ -145,26 +145,32 @@ export default async function handler(req: any, res: any) {
 
 /**
  * Generate prompt for discovery-focused phrase searches
- * Goal: UNCOVER drugs in all stages (discovery → approved) via concept/phrase searches
+ * Goal: UNCOVER drugs by matching the user's intent (including phase/stage if specified)
  */
 function generateInitialSearchPrompt(query: string): string {
-  return `You are a medical research expert specializing in drug discovery through clinical trial searches.
+  return `You are a pharmaceutical company research analyst generating search strategies for clinical trial discovery.
 
 USER QUERY: "${query}"
 
-Your goal is to DISCOVER drugs across all development stages (preclinical, Phase 1-4, approved) by searching for CONCEPTS and PHRASES, not specific drug names.
+PHASE/STAGE HANDLING:
+- If the user mentions a specific phase or stage (e.g., "Phase 2 trials", "Phase 3"), include that phase in ALL 5 search queries
+- If no phase is mentioned, generate diverse queries across different stages or without stage constraints
+- Match the user's intent exactly - if they want Phase 2 only, all queries should focus on Phase 2
 
-Generate EXACTLY 5 search strategies that cast a wide net to uncover drugs. Focus on:
+Your goal is to DISCOVER drugs by searching for CONCEPTS and PHRASES, not specific drug names.
+
+Generate EXACTLY 5 search strategies that uncover drugs. Focus on:
 
 1. **Therapeutic mechanisms** (e.g., "GLP-1 receptor agonist", "PD-1 inhibitor")
 2. **Disease + mechanism** (e.g., "diabetes incretin", "obesity GLP-1")
-3. **Development stage + mechanism** (e.g., "Phase 3 GLP-1", "novel incretin mimetic")
-4. **Alternative terminology** (e.g., "glucagon-like peptide", "incretin-based therapy")
-5. **Broad discovery** (e.g., "anti-obesity agent", "glucose-lowering therapy")
+3. **Alternative terminology** (e.g., "glucagon-like peptide", "incretin-based therapy")
+4. **Indication-based** (e.g., "anti-obesity agent", "glucose-lowering therapy")
+5. **Formulation/delivery** (e.g., "oral GLP-1", "subcutaneous incretin")
 
 CRITICAL RULES:
 - DO NOT search for specific drug names (e.g., NOT "semaglutide" or "tirzepatide")
 - DO search for drug CLASSES, MECHANISMS, INDICATIONS, CONCEPTS
+- Match the user's phase requirement: if they specify a phase, include it in ALL queries
 - Focus on discovering UNKNOWN/EMERGING drugs
 - Each query should discover different subsets of drugs
 - Limit to EXACTLY 5 strategies
@@ -186,7 +192,25 @@ Return ONLY a valid JSON array with EXACTLY 5 strategies (no markdown):
   }
 ]
 
-Example for "GLP-1":
+Example for "Alzheimer's drugs in Phase 2 trials":
+[
+  {"query": "Phase 2 Alzheimer beta-amyloid inhibitor", "description": "Primary mechanism in Phase 2", "priority": "high", "searchType": "mechanism"},
+  {"query": "Phase 2 Alzheimer tau protein", "description": "Alternative target in Phase 2", "priority": "high", "searchType": "mechanism"},
+  {"query": "Phase 2 cognitive decline neurodegeneration", "description": "Symptom-based Phase 2 trials", "priority": "medium", "searchType": "indication"},
+  {"query": "Phase 2 Alzheimer immunotherapy", "description": "Treatment approach in Phase 2", "priority": "medium", "searchType": "synonym"},
+  {"query": "Phase 2 dementia neuroprotection", "description": "Related indication in Phase 2", "priority": "medium", "searchType": "broad"}
+]
+
+Example for "GLP-1 oral drugs in Phase 3 trials":
+[
+  {"query": "Phase 3 oral GLP-1 receptor agonist", "description": "Oral delivery in Phase 3", "priority": "high", "searchType": "mechanism"},
+  {"query": "Phase 3 oral incretin mimetic", "description": "Alternative term oral Phase 3", "priority": "high", "searchType": "synonym"},
+  {"query": "Phase 3 oral glucagon-like peptide diabetes", "description": "Full name oral Phase 3", "priority": "medium", "searchType": "synonym"},
+  {"query": "Phase 3 oral GLP-1 weight loss", "description": "Secondary indication oral Phase 3", "priority": "medium", "searchType": "indication"},
+  {"query": "Phase 3 oral GLP-1 once-daily", "description": "Dosing variation oral Phase 3", "priority": "medium", "searchType": "broad"}
+]
+
+Example for "GLP-1 drugs" (no phase specified):
 [
   {"query": "GLP-1 receptor agonist diabetes", "description": "Primary mechanism + indication", "priority": "high", "searchType": "mechanism"},
   {"query": "incretin mimetic obesity", "description": "Alternative term + secondary indication", "priority": "high", "searchType": "synonym"},

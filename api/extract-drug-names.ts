@@ -79,10 +79,10 @@ export default async function handler(req: any, res: any) {
     };
 
     const userQueryContext = userQuery 
-      ? `\n\nUser's Original Query: "${userQuery}"\n\nConsider the user's query when determining which drugs are relevant. Focus on drugs that are most likely related to what the user is searching for.` 
+      ? `\n\nUser's Original Query: "${userQuery}"\n\nFocus on extracting drugs that are relevant to what the user is searching for.` 
       : '';
 
-    const prompt = `You are a medical AI expert specializing in pharmacology. Extract all drug names, medications, and therapeutic interventions from the following text that are relevant to the user's interests.
+    const prompt = `You are a pharmaceutical company research analyst extracting drug and therapeutic information from clinical trial and research data.
 
 Context: ${contextInstructions[context]}${userQueryContext}
 
@@ -101,13 +101,25 @@ Return ONLY a valid JSON object with this exact structure (no markdown, no expla
 }
 
 Rules:
-- Extract brand names and generic names
+- Extract brand names and generic names of actual pharmaceutical drugs
 - Include biological therapies, vaccines, and medical interventions
 - Set confidence to "high" for standard drug names, "medium" for less common, "low" for uncertain
 - For type: "drug" for pharmaceuticals, "intervention" for procedures, "therapy" for treatment approaches
 - Return empty array if no drugs found
-- Only extract drugs that are relevant to the user's query context
-- Only return the JSON object, nothing else`;
+- Only extract drugs that are relevant to the user's query
+
+EXCLUSIONS - DO NOT extract:
+- Placebo or placebo-controlled mentions
+- Diagnostic tests or procedures
+- Behavioral interventions or therapy
+- "No intervention" or control groups
+- Supplements (vitamins, minerals) unless specifically part of the user's query
+- Medical devices unless specifically part of the user's query
+- Sham treatments
+- Standard of care references
+- Control group comparators
+
+Only return the JSON object, nothing else.`;
 
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${geminiApiKey}`, {
       method: 'POST',
@@ -173,9 +185,29 @@ Rules:
     // Deduplicate the drugs to ensure a clean final list
     const deduplicatedDrugs = deduplicateDrugs(result.drugs || []);
 
+    // Filter out excluded terms unless they're in the user query
+    const excludedTerms = ['placebo', 'diagnostic', 'behavioral', 'no intervention', 'supplement', 'device', 'control', 'sham', 'standard of care'];
+    const userQueryLower = (userQuery || '').toLowerCase();
+    
+    const filteredDrugs = deduplicatedDrugs.filter((drug: DrugInfo) => {
+      const nameLower = drug.name.toLowerCase().trim();
+      
+      // Check if this drug name contains any excluded term
+      const containsExcludedTerm = excludedTerms.some(term => 
+        nameLower === term || nameLower.includes(term)
+      );
+      
+      if (!containsExcludedTerm) {
+        return true; // Not an excluded term, keep it
+      }
+      
+      // If it contains an excluded term, only keep it if the term is in the user query
+      return excludedTerms.some(term => userQueryLower.includes(term) && nameLower.includes(term));
+    });
+
     return res.status(200).json({
       success: true,
-      drugs: deduplicatedDrugs
+      drugs: filteredDrugs
     });
 
   } catch (error) {
