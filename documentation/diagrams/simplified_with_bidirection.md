@@ -15,12 +15,14 @@ graph TB
         ChatUI[Chat Interface]
         PipelineUI[Asset Pipeline View]
         MarketUI[Market Map View]
+        DataUI[Data Extraction<br/>View]
     end
     
     subgraph "Client Services"
         GatherService[Gather Search<br/>Service]
         PipelineService[Pipeline<br/>Service]
         ProjectService[Project<br/>Service]
+        PDFService[PDF Extraction<br/>Service]
     end
     
     subgraph "API Gateway - Vercel"
@@ -31,6 +33,7 @@ graph TB
         ChatAPI[Chat<br/>Proxy]
         SlideAPI[Slide Gen<br/>API]
         PipelineAPI[Pipeline Extract<br/>API]
+        PDFAPI[PDF Extract<br/>API]
     end
     
     subgraph "External APIs"
@@ -38,6 +41,8 @@ graph TB
         PubMed[PubMed<br/>E-utilities]
         Claude[Anthropic<br/>Claude API]
         Gemini[Google<br/>Gemini API]
+        Datalab[Datalab Marker<br/>API]
+        OpenAI[OpenAI GPT<br/>Vision API]
     end
     
     subgraph "Data Layer - Supabase"
@@ -64,11 +69,13 @@ graph TB
     Users -.->|interact| ChatUI
     Users -.->|view| PipelineUI
     Users -.->|analyze| MarketUI
+    Users -.->|extract| DataUI
     
     %% Frontend to Services (bidirectional)
     ReactApp <-->|orchestrate| GatherService
     PipelineUI <-->|process| PipelineService
     MarketUI <-->|save/load| ProjectService
+    DataUI <-->|extract| PDFService
     
     %% Auth flow (bidirectional)
     AuthUI <-->|JWT auth| AuthService
@@ -84,6 +91,9 @@ graph TB
     %% Chat flow (bidirectional)
     ChatUI <-->|messages| ChatAPI
     
+    %% PDF extraction (bidirectional)
+    PDFService <-->|extract| PDFAPI
+    
     %% Pipeline extraction (bidirectional)
     PipelineService <-->|extract| PipelineAPI
     PipelineService <-->|cache| Cache
@@ -96,6 +106,8 @@ graph TB
     ChatAPI <-->|conversation| Claude
     SlideAPI <-->|analysis| Claude
     PipelineAPI <-->|extraction| Claude
+    PDFAPI <-->|markdown+images| Datalab
+    PDFAPI <-->|graphify| OpenAI
     
     %% Project persistence (bidirectional)
     ProjectService <-->|CRUD| PostgreSQL
@@ -115,6 +127,7 @@ graph TB
     ChatAPI -.->|auto-logged| VercelLogs
     SlideAPI -.->|auto-logged| VercelLogs
     PipelineAPI -.->|auto-logged| VercelLogs
+    PDFAPI -.->|auto-logged| VercelLogs
     
     %% Application Event Logging (explicit)
     ProjectService -->|write events| LogsTable
@@ -133,6 +146,9 @@ graph TB
     GatherService -..- EnhanceAPI
     EnhanceAPI -..- Gemini
     PostgreSQL -..- ProjectsTable
+    DataUI -..- PDFService
+    PDFService -..- PDFAPI
+    PDFAPI -..- Datalab
     
     %% Styling
     classDef frontend fill:#e8f5e9,stroke:#333,stroke-width:2px
@@ -143,10 +159,10 @@ graph TB
     classDef user fill:#e0f2f1,stroke:#333,stroke-width:2px
     classDef logging fill:#fff9c4,stroke:#333,stroke-width:2px
     
-    class ReactApp,AuthUI,SearchUI,ChatUI,PipelineUI,MarketUI frontend
-    class GatherService,PipelineService,ProjectService service
-    class EnhanceAPI,TrialsAPI,PapersAPI,DrugAPI,ChatAPI,SlideAPI,PipelineAPI api
-    class ClinicalTrials,PubMed,Claude,Gemini external
+    class ReactApp,AuthUI,SearchUI,ChatUI,PipelineUI,MarketUI,DataUI frontend
+    class GatherService,PipelineService,ProjectService,PDFService service
+    class EnhanceAPI,TrialsAPI,PapersAPI,DrugAPI,ChatAPI,SlideAPI,PipelineAPI,PDFAPI api
+    class ClinicalTrials,PubMed,Claude,Gemini,Datalab,OpenAI external
     class AuthService,PostgreSQL,Cache,EdgeFunc,ProjectsTable,UsersTable,LogsTable database
     class Users user
     class VercelLogs,RealtimeEvents logging
