@@ -8,7 +8,10 @@ interface EnhancedSearchRequest {
 }
 
 interface SearchStrategy {
-  query: string;
+  query: string; // For backwards compatibility - will be deprecated
+  queryTerm?: string; // General search terms (excluding phase and drug names)
+  phase?: string; // Specific phase (e.g., "Phase 2", "Phase 1|Phase 2")
+  interventionName?: string; // Drug names with spelling corrections and synonyms
   description: string;
   priority: 'high' | 'medium' | 'low';
   searchType: 'targeted' | 'broad' | 'synonym' | 'brand' | 'indication' | 'combination';
@@ -73,6 +76,9 @@ export default async function handler(req: any, res: any) {
         strategies: [
           {
             query: query,
+            queryTerm: query,
+            phase: '',
+            interventionName: '',
             description: 'Original query',
             priority: 'high',
             searchType: 'targeted'
@@ -124,6 +130,9 @@ export default async function handler(req: any, res: any) {
       strategies = [
         {
           query: query,
+          queryTerm: query,
+          phase: '',
+          interventionName: '',
           description: 'Original query',
           priority: 'high',
           searchType: 'targeted'
@@ -148,75 +157,91 @@ export default async function handler(req: any, res: any) {
  * Goal: UNCOVER drugs by matching the user's intent (including phase/stage if specified)
  */
 function generateInitialSearchPrompt(query: string): string {
-  return `You are a pharmaceutical company research analyst generating search strategies for clinical trial discovery.
+  return `You are a pharmaceutical company research analyst generating STRUCTURED search strategies for ClinicalTrials.gov API v2.
 
 USER QUERY: "${query}"
 
-PHASE/STAGE HANDLING:
-- If the user mentions a specific phase or stage (e.g., "Phase 2 trials", "Phase 3"), include that phase in ALL 5 search queries
-- If no phase is mentioned, generate diverse queries across different stages or without stage constraints
-- Match the user's intent exactly - if they want Phase 2 only, all queries should focus on Phase 2
+CRITICAL: You must generate STRUCTURED queries using the ClinicalTrials.gov API v2 field system.
 
-Your goal is to DISCOVER drugs by searching for CONCEPTS and PHRASES, not specific drug names.
+QUERY STRUCTURE:
+1. **phase**: Extract phase information and put it in a SEPARATE field
+   - Examples: "Phase 1", "Phase 2", "Phase 3", "Phase 4", "Phase 1|Phase 2" (for multiple phases)
+   - If user specifies phase, extract it. If no phase specified, leave this field empty or use strategic phases
+   
+2. **interventionName**: For SPECIFIC drug names (if mentioned), put corrected spelling and key synonyms here
+   - Correct any spelling errors in drug names
+   - Include brand names and generic names as synonyms (use | separator)
+   - Example: "semaglutide|Ozempic|Wegovy" or "tirzepatide|Mounjaro"
+   - Leave EMPTY if searching by mechanism/class (discovery searches)
+   
+3. **queryTerm**: General search terms EXCLUDING phase and specific drug names
+   - Mechanisms (e.g., "GLP-1 receptor agonist")
+   - Indications (e.g., "diabetes", "obesity")
+   - Drug classes and therapeutic approaches
+   - DO NOT repeat phase or drug names here
+
+4. **query**: Deprecated fallback - combine all terms if structured fields aren't suitable
+
+SEARCH STRATEGY TYPES:
+- For DISCOVERY searches (no specific drug): Use queryTerm with mechanisms/classes, leave interventionName empty
+- For SPECIFIC drug searches: Extract drug name to interventionName, use queryTerm for mechanism/indication
+- ALWAYS extract phase to separate phase field if mentioned
 
 Generate EXACTLY 5 search strategies that uncover drugs. Focus on:
 
-1. **Therapeutic mechanisms** (e.g., "GLP-1 receptor agonist", "PD-1 inhibitor")
-2. **Disease + mechanism** (e.g., "diabetes incretin", "obesity GLP-1")
-3. **Alternative terminology** (e.g., "glucagon-like peptide", "incretin-based therapy")
-4. **Indication-based** (e.g., "anti-obesity agent", "glucose-lowering therapy")
-5. **Formulation/delivery** (e.g., "oral GLP-1", "subcutaneous incretin")
+1. **Therapeutic mechanisms** (queryTerm: "GLP-1 receptor agonist", phase: "Phase 2")
+2. **Disease + mechanism** (queryTerm: "diabetes incretin therapy", phase: "Phase 2")
+3. **Alternative terminology** (queryTerm: "glucagon-like peptide", phase: "Phase 2")
+4. **Indication-based** (queryTerm: "anti-obesity agent", phase: "Phase 2")
+5. **Formulation variations** (queryTerm: "oral GLP-1", phase: "Phase 2")
 
 CRITICAL RULES:
-- DO NOT search for specific drug names (e.g., NOT "semaglutide" or "tirzepatide")
-- DO search for drug CLASSES, MECHANISMS, INDICATIONS, CONCEPTS
-- Match the user's phase requirement: if they specify a phase, include it in ALL queries
-- Focus on discovering UNKNOWN/EMERGING drugs
-- Each query should discover different subsets of drugs
+- ALWAYS extract phase to the "phase" field if specified by user
+- ALWAYS extract specific drug names to "interventionName" field with synonyms
+- Use "queryTerm" for mechanisms, indications, and classes (NOT phase or drug names)
+- For discovery: leave interventionName empty, use queryTerm for mechanism/class
+- Match user's phase requirement: if they specify Phase 2, ALL queries should have "phase": "Phase 2"
 - Limit to EXACTLY 5 strategies
-
-For each strategy, provide:
-- query: Phrase-based search string (NO specific drug names)
-- description: What types of drugs this will uncover
-- priority: "high" (essential), "medium" (important), "low" (exploratory)
-- searchType: "mechanism", "indication", "stage", "synonym", or "broad"
 
 Return ONLY a valid JSON array with EXACTLY 5 strategies (no markdown):
 
 [
   {
-    "query": "phrase here (no drug names)",
-    "description": "discovers X type of drugs",
+    "queryTerm": "mechanism or class here",
+    "phase": "Phase X" or "",
+    "interventionName": "drugName|synonym|brandName" or "",
+    "query": "fallback combined query",
+    "description": "what this discovers",
     "priority": "high|medium|low",
     "searchType": "mechanism|indication|stage|synonym|broad"
   }
 ]
 
-Example for "Alzheimer's drugs in Phase 2 trials":
+Example for "Phase 2 GLP-1 receptor agonist":
 [
-  {"query": "Phase 2 Alzheimer beta-amyloid inhibitor", "description": "Primary mechanism in Phase 2", "priority": "high", "searchType": "mechanism"},
-  {"query": "Phase 2 Alzheimer tau protein", "description": "Alternative target in Phase 2", "priority": "high", "searchType": "mechanism"},
-  {"query": "Phase 2 cognitive decline neurodegeneration", "description": "Symptom-based Phase 2 trials", "priority": "medium", "searchType": "indication"},
-  {"query": "Phase 2 Alzheimer immunotherapy", "description": "Treatment approach in Phase 2", "priority": "medium", "searchType": "synonym"},
-  {"query": "Phase 2 dementia neuroprotection", "description": "Related indication in Phase 2", "priority": "medium", "searchType": "broad"}
+  {"queryTerm": "GLP-1 receptor agonist", "phase": "Phase 2", "interventionName": "", "query": "Phase 2 GLP-1 receptor agonist", "description": "Primary mechanism in Phase 2", "priority": "high", "searchType": "mechanism"},
+  {"queryTerm": "incretin mimetic", "phase": "Phase 2", "interventionName": "", "query": "Phase 2 incretin mimetic", "description": "Alternative term in Phase 2", "priority": "high", "searchType": "synonym"},
+  {"queryTerm": "glucagon-like peptide diabetes", "phase": "Phase 2", "interventionName": "", "query": "Phase 2 glucagon-like peptide diabetes", "description": "Full name + indication Phase 2", "priority": "medium", "searchType": "synonym"},
+  {"queryTerm": "GLP-1 obesity", "phase": "Phase 2", "interventionName": "", "query": "Phase 2 GLP-1 obesity", "description": "Secondary indication Phase 2", "priority": "medium", "searchType": "indication"},
+  {"queryTerm": "oral GLP-1 receptor agonist", "phase": "Phase 2", "interventionName": "", "query": "Phase 2 oral GLP-1", "description": "Oral delivery Phase 2", "priority": "medium", "searchType": "broad"}
 ]
 
-Example for "GLP-1 oral drugs in Phase 3 trials":
+Example for "semaglutide Phase 3 trials":
 [
-  {"query": "Phase 3 oral GLP-1 receptor agonist", "description": "Oral delivery in Phase 3", "priority": "high", "searchType": "mechanism"},
-  {"query": "Phase 3 oral incretin mimetic", "description": "Alternative term oral Phase 3", "priority": "high", "searchType": "synonym"},
-  {"query": "Phase 3 oral glucagon-like peptide diabetes", "description": "Full name oral Phase 3", "priority": "medium", "searchType": "synonym"},
-  {"query": "Phase 3 oral GLP-1 weight loss", "description": "Secondary indication oral Phase 3", "priority": "medium", "searchType": "indication"},
-  {"query": "Phase 3 oral GLP-1 once-daily", "description": "Dosing variation oral Phase 3", "priority": "medium", "searchType": "broad"}
+  {"queryTerm": "", "phase": "Phase 3", "interventionName": "semaglutide|Ozempic|Wegovy", "query": "Phase 3 semaglutide", "description": "Direct semaglutide search Phase 3", "priority": "high", "searchType": "targeted"},
+  {"queryTerm": "GLP-1 receptor agonist", "phase": "Phase 3", "interventionName": "", "query": "Phase 3 GLP-1 receptor agonist", "description": "Mechanism class Phase 3", "priority": "high", "searchType": "mechanism"},
+  {"queryTerm": "", "phase": "Phase 3", "interventionName": "semaglutide", "query": "Phase 3 semaglutide diabetes", "description": "Semaglutide diabetes trials", "priority": "medium", "searchType": "indication"},
+  {"queryTerm": "", "phase": "Phase 3", "interventionName": "semaglutide", "query": "Phase 3 semaglutide obesity", "description": "Semaglutide weight loss trials", "priority": "medium", "searchType": "indication"},
+  {"queryTerm": "incretin mimetic", "phase": "Phase 3", "interventionName": "", "query": "Phase 3 incretin", "description": "Alternative term Phase 3", "priority": "low", "searchType": "synonym"}
 ]
 
-Example for "GLP-1 drugs" (no phase specified):
+Example for "Alzheimer's Phase 1 trials":
 [
-  {"query": "GLP-1 receptor agonist diabetes", "description": "Primary mechanism + indication", "priority": "high", "searchType": "mechanism"},
-  {"query": "incretin mimetic obesity", "description": "Alternative term + secondary indication", "priority": "high", "searchType": "synonym"},
-  {"query": "glucagon-like peptide cardiovascular", "description": "Full name + CV outcomes", "priority": "medium", "searchType": "synonym"},
-  {"query": "Phase 3 GLP-1 weight loss", "description": "Late-stage trials", "priority": "medium", "searchType": "stage"},
-  {"query": "novel GLP-1 oral formulation", "description": "Emerging delivery methods", "priority": "medium", "searchType": "broad"}
+  {"queryTerm": "Alzheimer beta-amyloid inhibitor", "phase": "Phase 1", "interventionName": "", "query": "Phase 1 Alzheimer beta-amyloid", "description": "Primary mechanism Phase 1", "priority": "high", "searchType": "mechanism"},
+  {"queryTerm": "Alzheimer tau protein", "phase": "Phase 1", "interventionName": "", "query": "Phase 1 Alzheimer tau", "description": "Alternative target Phase 1", "priority": "high", "searchType": "mechanism"},
+  {"queryTerm": "cognitive decline neurodegeneration", "phase": "Phase 1", "interventionName": "", "query": "Phase 1 cognitive decline", "description": "Symptom-based Phase 1", "priority": "medium", "searchType": "indication"},
+  {"queryTerm": "Alzheimer immunotherapy", "phase": "Phase 1", "interventionName": "", "query": "Phase 1 Alzheimer immunotherapy", "description": "Treatment approach Phase 1", "priority": "medium", "searchType": "synonym"},
+  {"queryTerm": "dementia neuroprotection", "phase": "Phase 1", "interventionName": "", "query": "Phase 1 dementia neuroprotection", "description": "Related indication Phase 1", "priority": "medium", "searchType": "broad"}
 ]`;
 }
 
