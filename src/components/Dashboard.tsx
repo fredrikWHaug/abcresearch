@@ -11,6 +11,7 @@ import { DrugsList } from '@/components/DrugsList'
 import { DrugDetail } from '@/components/DrugDetail'
 import { DrugDetailModal } from '@/components/DrugDetailModal'
 import { AssetDevelopmentPipeline } from '@/components/AssetDevelopmentPipeline'
+import { PDFExtraction } from '@/components/PDFExtraction'
 import { GatherSearchResultsService } from '@/services/gatherSearchResults'
 import type { PubMedArticle } from '@/types/papers'
 import { MarketMapService, type SavedMarketMap } from '@/services/marketMapService'
@@ -148,7 +149,7 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
   const [hasSearched, setHasSearched] = useState(false)
   const [papers, setPapers] = useState<PubMedArticle[]>([])
   const [papersLoading, setPapersLoading] = useState(false)
-  const [viewMode, setViewMode] = useState<'research' | 'marketmap' | 'savedmaps' | 'pipeline'>(initialShowSavedMaps ? 'savedmaps' : 'research')
+  const [viewMode, setViewMode] = useState<'research' | 'marketmap' | 'savedmaps' | 'pipeline' | 'dataextraction'>(initialShowSavedMaps ? 'savedmaps' : 'research')
   const [researchTab, setResearchTab] = useState<'trials' | 'papers'>('papers')
   const [slideData, setSlideData] = useState<SlideData | null>(null)
   const [generatingSlide, setGeneratingSlide] = useState(false)
@@ -543,12 +544,12 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
       </div>
       
       {/* Toggle Buttons - Absolutely positioned center with equal widths */}
-      {(hasSearched || viewMode === 'savedmaps' || viewMode === 'pipeline') && (
+      {(hasSearched || viewMode === 'savedmaps' || viewMode === 'pipeline' || viewMode === 'dataextraction') && (
         <div 
           className="absolute z-20"
           style={{ left: '50%', transform: 'translateX(-50%)' }}
         >
-          <div className="flex rounded-lg bg-gray-100 p-1 w-[40rem]">
+          <div className="flex rounded-lg bg-gray-100 p-1 w-[50rem]">
             <div className="relative flex-1 projects-dropdown-container">
               <button
                 onClick={() => setShowProjectsDropdown(!showProjectsDropdown)}
@@ -640,6 +641,16 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
               }`}
             >
               Saved Maps
+            </button>
+            <button
+              onClick={() => setViewMode('dataextraction')}
+              className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
+                viewMode === 'dataextraction'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Data Extraction
             </button>
           </div>
         </div>
@@ -908,6 +919,20 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
             onAddPaperToContext={handleAddPaperToContext}
             isPaperInContext={isPaperInContext}
           />
+        </div>
+      </div>
+    );
+  }
+
+  // Data Extraction mode
+  if (viewMode === 'dataextraction') {
+    return (
+      <div className="h-screen flex flex-col overflow-hidden">
+        <Header onStartNewProject={handleStartNewProject} currentProjectId={currentProjectId} />
+        
+        {/* PDF Data Extraction Content */}
+        <div className="flex-1 overflow-hidden">
+          <PDFExtraction />
         </div>
       </div>
     );
