@@ -4,7 +4,10 @@ import {
   detectSearchIntent,
   extractSearchTerms,
   generateSearchSuggestions,
-  type ChatMessage
+  buildSystemPrompt,
+  buildMessagesFromHistory,
+  type ChatMessage,
+  type ContextPaper
 } from '../../api/utils/chatHelpers'
 
 /**
@@ -211,6 +214,182 @@ describe('ABC-41: ChatAPI Helpers', () => {
       const suggestions = generateSearchSuggestions('find diabetes trials')
       
       expect(suggestions[0].description).toContain('Find clinical trials')
+    })
+  })
+
+  // ABC-39: Unified Context System Tests
+  describe('buildSystemPrompt (ABC-39)', () => {
+    const mockPaper: ContextPaper = {
+      pmid: '12345678',
+      title: 'Effect of semaglutide on cardiovascular outcomes',
+      abstract: 'This study examined the cardiovascular effects of semaglutide in patients with type 2 diabetes.',
+      journal: 'New England Journal of Medicine',
+      publicationDate: '2024-01-15',
+      authors: ['Smith J', 'Johnson A', 'Williams B']
+    }
+
+    it('should build basic prompt without papers', () => {
+      const prompt = buildSystemPrompt()
+      
+      expect(prompt).toContain('thoughtful medical research consultant')
+      expect(prompt).toContain('CRITICAL RULES')
+      expect(prompt).not.toContain('[1]')
+    })
+
+    it('should build prompt with one paper and [1] citation', () => {
+      const prompt = buildSystemPrompt([mockPaper])
+      
+      expect(prompt).toContain('[1]')
+      expect(prompt).toContain('Effect of semaglutide')
+      expect(prompt).toContain('REFERENCE PAPERS')
+    })
+
+    it('should build prompt with multiple papers [1], [2], [3]', () => {
+      const paper2 = { ...mockPaper, pmid: '87654321', title: 'GLP-1 receptor agonists in diabetes' }
+      const paper3 = { ...mockPaper, pmid: '11223344', title: 'Tirzepatide efficacy study' }
+      
+      const prompt = buildSystemPrompt([mockPaper, paper2, paper3])
+      
+      expect(prompt).toContain('[1]')
+      expect(prompt).toContain('[2]')
+      expect(prompt).toContain('[3]')
+      expect(prompt).toContain('Effect of semaglutide')
+      expect(prompt).toContain('GLP-1 receptor')
+      expect(prompt).toContain('Tirzepatide')
+    })
+
+    it('should include paper metadata (title, authors, journal, PMID)', () => {
+      const prompt = buildSystemPrompt([mockPaper])
+      
+      expect(prompt).toContain('Effect of semaglutide')
+      expect(prompt).toContain('Smith J, Johnson A, Williams B')
+      expect(prompt).toContain('New England Journal of Medicine')
+      expect(prompt).toContain('12345678')
+      expect(prompt).toContain('2024-01-15')
+    })
+
+    it('should include paper abstract', () => {
+      const prompt = buildSystemPrompt([mockPaper])
+      
+      expect(prompt).toContain('cardiovascular effects of semaglutide')
+      expect(prompt).toContain('type 2 diabetes')
+    })
+
+    it('should instruct AI to cite papers with [N] notation', () => {
+      const prompt = buildSystemPrompt([mockPaper])
+      
+      expect(prompt).toContain('cite it using its number: [1], [2]')
+      expect(prompt).toContain('According to [1]')
+    })
+
+    it('should handle papers with many authors (et al.)', () => {
+      const manyAuthorsPaper = {
+        ...mockPaper,
+        authors: ['Author1', 'Author2', 'Author3', 'Author4', 'Author5']
+      }
+      
+      const prompt = buildSystemPrompt([manyAuthorsPaper])
+      
+      expect(prompt).toContain('Author1, Author2, Author3 et al.')
+      expect(prompt).not.toContain('Author4')
+    })
+
+    it('should provide clear instructions for paper references', () => {
+      const prompt = buildSystemPrompt([mockPaper])
+      
+      expect(prompt).toContain('INSTRUCTIONS FOR USING PAPERS')
+      expect(prompt).toContain('first paper')
+      expect(prompt).toContain('Paper 2')
+    })
+  })
+
+  describe('buildMessagesFromHistory (ABC-39)', () => {
+    it('should convert empty history with current query', () => {
+      const messages = buildMessagesFromHistory([], 'What is GLP-1?')
+      
+      expect(messages).toHaveLength(1)
+      expect(messages[0].role).toBe('user')
+      expect(messages[0].content).toBe('What is GLP-1?')
+    })
+
+    it('should convert user/assistant messages to proper Anthropic format', () => {
+      const history: ChatMessage[] = [
+        { type: 'user', message: 'Hello' },
+        { type: 'system', message: 'Hi there!' },
+        { type: 'user', message: 'How are you?' }
+      ]
+      
+      const messages = buildMessagesFromHistory(history, 'Tell me about diabetes')
+      
+      expect(messages).toHaveLength(4) // 3 history + 1 current
+      expect(messages[0].role).toBe('user')
+      expect(messages[0].content).toBe('Hello')
+      expect(messages[1].role).toBe('assistant')
+      expect(messages[1].content).toBe('Hi there!')
+      expect(messages[2].role).toBe('user')
+      expect(messages[2].content).toBe('How are you?')
+    })
+
+    it('should include current query as final message', () => {
+      const history: ChatMessage[] = [
+        { type: 'user', message: 'Hello' },
+        { type: 'system', message: 'Hi!' }
+      ]
+      
+      const messages = buildMessagesFromHistory(history, 'What about GLP-1?')
+      
+      const lastMessage = messages[messages.length - 1]
+      expect(lastMessage.role).toBe('user')
+      expect(lastMessage.content).toBe('What about GLP-1?')
+    })
+
+    it('should limit to last 6 messages from history', () => {
+      const history: ChatMessage[] = Array.from({ length: 10 }, (_, i) => ({
+        type: i % 2 === 0 ? 'user' : 'system',
+        message: `Message ${i}`
+      }))
+      
+      const messages = buildMessagesFromHistory(history, 'Current query')
+      
+      // Should have 6 history messages + 1 current = 7 total
+      expect(messages).toHaveLength(7)
+      
+      // Should NOT contain early messages
+      expect(messages.find(m => m.content === 'Message 0')).toBeUndefined()
+      expect(messages.find(m => m.content === 'Message 1')).toBeUndefined()
+      
+      // Should contain last 6 history messages
+      expect(messages.find(m => m.content === 'Message 4')).toBeDefined()
+      expect(messages.find(m => m.content === 'Message 9')).toBeDefined()
+    })
+
+    it('should properly map system messages to assistant role', () => {
+      const history: ChatMessage[] = [
+        { type: 'system', message: 'AI response here' }
+      ]
+      
+      const messages = buildMessagesFromHistory(history, 'Follow up')
+      
+      expect(messages[0].role).toBe('assistant')
+      expect(messages[0].content).toBe('AI response here')
+    })
+
+    it('should handle alternating conversation correctly', () => {
+      const history: ChatMessage[] = [
+        { type: 'user', message: 'Question 1' },
+        { type: 'system', message: 'Answer 1' },
+        { type: 'user', message: 'Question 2' },
+        { type: 'system', message: 'Answer 2' }
+      ]
+      
+      const messages = buildMessagesFromHistory(history, 'Question 3')
+      
+      expect(messages).toHaveLength(5)
+      expect(messages[0].role).toBe('user')
+      expect(messages[1].role).toBe('assistant')
+      expect(messages[2].role).toBe('user')
+      expect(messages[3].role).toBe('assistant')
+      expect(messages[4].role).toBe('user')
     })
   })
 })
