@@ -3,7 +3,10 @@
 import { 
   buildConversationContext, 
   generateSearchSuggestions,
-  type ChatMessage 
+  buildSystemPrompt,
+  buildMessagesFromHistory,
+  type ChatMessage,
+  type ContextPaper
 } from './utils/chatHelpers.js'
 
 interface GenerateResponseRequest {
@@ -84,8 +87,11 @@ export default async function handler(req: any, res: any) {
       });
     }
 
-    // Build conversation context from chat history (last 6 messages for context)
-    const conversationContext = buildConversationContext(chatHistory || []);
+    // ABC-39: Build system prompt with context papers (persistent)
+    const systemPrompt = buildSystemPrompt(contextPapers);
+    
+    // ABC-39: Build messages array from chat history and current query
+    const messages = buildMessagesFromHistory(chatHistory || [], userQuery);
 
     // If we have search results, generate a response about them
     if (searchResults) {
@@ -158,59 +164,7 @@ Keep the response concise (2-3 sentences) and natural. Don't use bullet points o
       });
     }
 
-    // Build context papers section if available (for future use)
-    let contextSection = '';
-    if (contextPapers && contextPapers.length > 0) {
-      contextSection = `\n\nThe user has selected ${contextPapers.length} paper(s) as relevant context for this conversation:\n\n`;
-      contextPapers.forEach((paper, index) => {
-        contextSection += `Paper ${index + 1}:
-Title: ${paper.title}
-Journal: ${paper.journal}
-Publication Date: ${paper.publicationDate}
-Authors: ${paper.authors.slice(0, 3).join(', ')}${paper.authors.length > 3 ? ' et al.' : ''}
-Abstract: ${paper.abstract}
-
----
-
-`;
-      });
-      contextSection += '\nWhen answering the user\'s question, reference these papers if relevant. Cite them by their title or as "Paper 1", "Paper 2", etc.';
-    }
-
-    // Generate dynamic conversational response with context awareness
-    const conversationalPrompt = `You are a thoughtful medical research consultant having a natural conversation with a user. Your goal is to LISTEN and respond naturally to what they're actually saying.
-
-Current user message: "${userQuery}"
-${conversationContext}
-${contextSection}
-
-CRITICAL RULES:
-1. ACTUALLY READ what the user just said - respond to their ACTUAL message, not what you assume they want
-2. If they ask you a question, ANSWER IT directly first before asking anything else
-3. If they challenge you or seem frustrated, acknowledge it and adjust your approach
-4. If they're just greeting you casually, have a normal conversation - DON'T assume they want research help unless they indicate it
-5. If they tell you something, BUILD ON IT naturally - don't just pivot to your agenda
-6. Be conversational and human-like, not robotic or formulaic
-7. Only ask about research specifics when they've clearly expressed interest in searching for trials/papers
-
-Response approach based on situation:
-- If they're GREETING you casually: Respond warmly and naturally. Ask what brings them here TODAY (not assumptions about research)
-- If they ASK YOU A QUESTION: Answer it directly and thoughtfully
-- If they CHALLENGE or CRITICIZE you: Acknowledge their point, apologize if needed, adjust your approach
-- If they EXPRESS INTEREST in a topic: THEN ask a thoughtful follow-up question to help refine it
-- If they seem FRUSTRATED: Back off the questioning, be more conversational
-
-When asking questions (only when appropriate):
-- Make it feel like a colleague brainstorming together, not an interrogation
-- Ask about aspects they might not have considered: patient populations, trial phases, outcome measures, geographic regions, time horizons, safety vs efficacy
-- But ONLY if they've shown interest in research - don't force it
-
-Tone: Natural, conversational, genuinely helpful. Like a smart colleague, not a scripted chatbot.
-
-IMPORTANT: Write ONLY the actual words you would say. Do NOT include stage directions like "*smiles*", "*responds warmly*", or any actions in asterisks or brackets. Just write natural dialogue.
-
-Generate your response now (respond to what they ACTUALLY said):`;
-
+    // ABC-39: Use proper Anthropic API structure with system prompt and messages array
     const conversationalResponse = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -222,12 +176,8 @@ Generate your response now (respond to what they ACTUALLY said):`;
         model: 'claude-3-haiku-20240307',
         max_tokens: 500,
         temperature: 0.7,
-        messages: [
-          {
-            role: 'user',
-            content: conversationalPrompt
-          }
-        ]
+        system: systemPrompt,  // Papers persist here (ABC-39)
+        messages: messages     // Conversation flows here (ABC-39)
       })
     });
 
