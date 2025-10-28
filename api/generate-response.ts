@@ -2,6 +2,10 @@
 
 interface GenerateResponseRequest {
   userQuery: string;
+  chatHistory?: Array<{
+    type: 'user' | 'system';
+    message: string;
+  }>;
   contextPapers?: Array<{
     pmid: string;
     title: string;
@@ -45,8 +49,9 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    const { userQuery, searchResults, contextPapers }: GenerateResponseRequest = req.body;
+    const { userQuery, chatHistory, searchResults, contextPapers }: GenerateResponseRequest = req.body;
     console.log('Parsed userQuery:', userQuery);
+    console.log('Parsed chatHistory:', chatHistory?.length || 0, 'messages');
     console.log('Parsed searchResults:', searchResults);
     console.log('Context papers count:', contextPapers?.length || 0);
 
@@ -73,93 +78,11 @@ export default async function handler(req: any, res: any) {
       });
     }
 
-    console.log('Starting intent classification...');
-    // First, classify the user's intent
-    const intentPrompt = `You are a medical research assistant. Classify the user's message and determine if they want to search for research.
-
-User message: "${userQuery}"
-
-Classify this as one of these intents:
-- "greeting": Hello, hi, how are you, good morning, etc.
-- "search_request": Looking for papers, trials, research on [topic], find studies about [topic], etc.
-- "follow_up": Tell me more, what about [topic], explain that, etc.
-- "clarification": I meant [topic], focus on [topic], etc.
-- "general_question": What can you help with, how does this work, etc.
-
-Also determine:
-1. Should we search for research? (true/false)
-2. If yes, what search terms should we use? (extract key medical/research terms)
-3. What type of response should we give? (conversational, search suggestion, clarification request)
-
-Return ONLY a JSON object with this exact structure:
-{
-  "intent": "greeting|search_request|follow_up|clarification|general_question",
-  "shouldSearch": true|false,
-  "searchQuery": "extracted search terms or null",
-  "searchSuggestions": [
-    {
-      "id": "unique_id",
-      "label": "Button text",
-      "query": "search terms",
-      "description": "optional description"
-    }
-  ],
-  "responseType": "conversational|search_suggestion|clarification_request"
-}`;
-
-    const intentResponse = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': anthropicApiKey,
-        'anthropic-version': '2023-06-01'
-      },
-      body: JSON.stringify({
-        model: 'claude-3-haiku-20240307',
-        max_tokens: 300,
-        temperature: 0.3,
-        messages: [
-          {
-            role: 'user',
-            content: intentPrompt
-          }
-        ]
-      })
-    });
-
-    if (!intentResponse.ok) {
-      const errorText = await intentResponse.text();
-      console.error('Anthropic API error:', intentResponse.status, errorText);
-      throw new Error(`Failed to classify intent: ${intentResponse.status} - ${errorText}`);
-    }
-
-    const intentData = await intentResponse.json();
-    console.log('Intent API response:', intentData);
-    
-    let intentResult;
-    try {
-      const rawText = intentData.content[0].text;
-      console.log('Raw intent text:', rawText);
-      
-      // Clean the response - remove any markdown formatting
-      let cleanedText = rawText.trim();
-      if (cleanedText.startsWith('```json')) {
-        cleanedText = cleanedText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
-      } else if (cleanedText.startsWith('```')) {
-        cleanedText = cleanedText.replace(/^```\s*/, '').replace(/\s*```$/, '');
-      }
-      
-      // Find JSON object in the response
-      const jsonMatch = cleanedText.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        cleanedText = jsonMatch[0];
-      }
-      
-      intentResult = JSON.parse(cleanedText);
-    } catch (parseError) {
-      console.error('Failed to parse intent response:', parseError);
-      console.error('Raw response:', intentData.content[0].text);
-      throw new Error(`Failed to parse intent response: ${parseError.message}`);
+    // Build conversation context from chat history (last 6 messages for context)
+    let conversationContext = '';
+    if (chatHistory && chatHistory.length > 0) {
+      conversationContext = '\n\nConversation so far:\n' + 
+        chatHistory.slice(-6).map(msg => `${msg.type === 'user' ? 'User' : 'Assistant'}: ${msg.message}`).join('\n');
     }
 
     // If we have search results, generate a response about them
@@ -169,7 +92,7 @@ Return ONLY a JSON object with this exact structure:
       // Analyze the results for the AI
       const recruitingCount = trials.filter((t: any) => t.overallStatus === 'RECRUITING').length;
       const phase3Count = trials.filter((t: any) => t.phase?.some((p: string) => p.includes('3'))).length;
-      const topSponsors = [...new Set(trials.map((t: any) => t.sponsors?.lead).filter(Boolean))].slice(0, 3);
+      const topSponsors = Array.from(new Set(trials.map((t: any) => t.sponsors?.lead).filter(Boolean))).slice(0, 3);
       const recentPapers = papers.filter((p: any) => {
         const year = new Date(p.publicationDate).getFullYear();
         return year >= new Date().getFullYear() - 2;
@@ -228,11 +151,12 @@ Keep the response concise (2-3 sentences) and natural. Don't use bullet points o
         success: true,
         response: searchResult,
         shouldSearch: false,
-        intent: intentResult.intent
+        searchSuggestions: [],
+        intent: 'search_request'
       });
     }
 
-    // Build context papers section if available
+    // Build context papers section if available (for future use)
     let contextSection = '';
     if (contextPapers && contextPapers.length > 0) {
       contextSection = `\n\nThe user has selected ${contextPapers.length} paper(s) as relevant context for this conversation:\n\n`;
@@ -251,24 +175,39 @@ Abstract: ${paper.abstract}
       contextSection += '\nWhen answering the user\'s question, reference these papers if relevant. Cite them by their title or as "Paper 1", "Paper 2", etc.';
     }
 
-    // Generate conversational response based on intent
-    const conversationalPrompt = `You are a helpful medical research assistant. The user said: "${userQuery}"
+    // Generate dynamic conversational response with context awareness
+    const conversationalPrompt = `You are a thoughtful medical research consultant having a natural conversation with a user. Your goal is to LISTEN and respond naturally to what they're actually saying.
 
-Intent: ${intentResult.intent}
-Response type: ${intentResult.responseType}${contextSection}
+Current user message: "${userQuery}"
+${conversationContext}
+${contextSection}
 
-Generate an appropriate response:
-- If greeting: Be friendly and explain what you can help with
-- If search_request: Acknowledge their request and suggest conducting a search
-- If follow_up: Respond to their follow-up question, referencing the context papers if relevant
-- If clarification: Ask for clarification about what they want to search for
-- If general_question: Answer their question about your capabilities, referencing context papers if relevant
+CRITICAL RULES:
+1. ACTUALLY READ what the user just said - respond to their ACTUAL message, not what you assume they want
+2. If they ask you a question, ANSWER IT directly first before asking anything else
+3. If they challenge you or seem frustrated, acknowledge it and adjust your approach
+4. If they're just greeting you casually, have a normal conversation - DON'T assume they want research help unless they indicate it
+5. If they tell you something, BUILD ON IT naturally - don't just pivot to your agenda
+6. Be conversational and human-like, not robotic or formulaic
+7. Only ask about research specifics when they've clearly expressed interest in searching for trials/papers
 
-${contextPapers && contextPapers.length > 0 ? 
-  'IMPORTANT: The user has provided specific papers for context. If their question relates to these papers (e.g., comparing them, asking about specific findings, analyzing them), make sure to reference the papers in your response.' : 
-  ''}
+Response approach based on situation:
+- If they're GREETING you casually: Respond warmly and naturally. Ask what brings them here TODAY (not assumptions about research)
+- If they ASK YOU A QUESTION: Answer it directly and thoughtfully
+- If they CHALLENGE or CRITICIZE you: Acknowledge their point, apologize if needed, adjust your approach
+- If they EXPRESS INTEREST in a topic: THEN ask a thoughtful follow-up question to help refine it
+- If they seem FRUSTRATED: Back off the questioning, be more conversational
 
-Keep it conversational, helpful, and professional. 1-2 sentences max unless analyzing the context papers.`;
+When asking questions (only when appropriate):
+- Make it feel like a colleague brainstorming together, not an interrogation
+- Ask about aspects they might not have considered: patient populations, trial phases, outcome measures, geographic regions, time horizons, safety vs efficacy
+- But ONLY if they've shown interest in research - don't force it
+
+Tone: Natural, conversational, genuinely helpful. Like a smart colleague, not a scripted chatbot.
+
+IMPORTANT: Write ONLY the actual words you would say. Do NOT include stage directions like "*smiles*", "*responds warmly*", or any actions in asterisks or brackets. Just write natural dialogue.
+
+Generate your response now (respond to what they ACTUALLY said):`;
 
     const conversationalResponse = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -279,7 +218,7 @@ Keep it conversational, helpful, and professional. 1-2 sentences max unless anal
       },
       body: JSON.stringify({
         model: 'claude-3-haiku-20240307',
-        max_tokens: 300,
+        max_tokens: 500,
         temperature: 0.7,
         messages: [
           {
@@ -299,15 +238,44 @@ Keep it conversational, helpful, and professional. 1-2 sentences max unless anal
     const conversationalData = await conversationalResponse.json();
     console.log('Conversational API response:', conversationalData);
     
-    const conversationalResult = conversationalData.content[0].text;
+    let conversationalResult = conversationalData.content[0].text;
+    
+    // Clean up any stage directions or action notations (e.g., "*responds warmly*", "*smiles*")
+    conversationalResult = conversationalResult
+      .replace(/\*[^*]+\*/g, '') // Remove anything between asterisks
+      .replace(/\[[^\]]+\]/g, '') // Remove anything between brackets
+      .replace(/^\s+/, '') // Remove leading whitespace
+      .trim();
+
+    // Detect if user wants to search and extract search terms
+    const searchKeywords = ['search', 'find', 'look for', 'show me', 'trials', 'studies', 'research', 'papers'];
+    const wantsToSearch = searchKeywords.some(keyword => userQuery.toLowerCase().includes(keyword));
+    
+    let searchSuggestions: Array<{id: string, label: string, query: string, description?: string}> = [];
+    
+    if (wantsToSearch) {
+      // Extract potential search terms from the query
+      // Remove common words and extract meaningful terms
+      const commonWords = ['please', 'can', 'you', 'help', 'me', 'search', 'for', 'find', 'look', 'show', 'clinical', 'trial', 'results', 'on', 'the', 'a', 'an', 'and', 'or', 'in', 'about'];
+      const words = userQuery.toLowerCase().split(/\s+/);
+      const searchTerms = words.filter(word => !commonWords.includes(word) && word.length > 2).join(' ');
+      
+      if (searchTerms) {
+        searchSuggestions = [{
+          id: 'search-1',
+          label: `Search for ${searchTerms}`,
+          query: searchTerms,
+          description: `Find clinical trials and research papers about ${searchTerms}`
+        }];
+      }
+    }
 
     return res.status(200).json({
       success: true,
       response: conversationalResult,
-      shouldSearch: intentResult.shouldSearch,
-      searchQuery: intentResult.searchQuery,
-      searchSuggestions: intentResult.searchSuggestions || [],
-      intent: intentResult.intent
+      shouldSearch: wantsToSearch && searchSuggestions.length > 0,
+      searchSuggestions: searchSuggestions,
+      intent: wantsToSearch ? 'search_request' : 'general_question'
     });
 
   } catch (error) {
