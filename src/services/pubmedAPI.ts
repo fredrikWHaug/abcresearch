@@ -3,6 +3,32 @@
 
 import type { PubMedArticle, PubMedSearchParams } from '@/types/papers';
 
+/**
+ * Get API base URL - handles both browser and test environments
+ */
+function getApiBaseUrl(): string {
+  // In test environment, use TEST_SERVER_URL if provided
+  if (typeof process !== 'undefined' && process.env?.TEST_SERVER_URL) {
+    return process.env.TEST_SERVER_URL;
+  }
+  
+  // In browser, relative URLs work fine
+  if (typeof window !== 'undefined') {
+    return '';
+  }
+  
+  // In Node.js without TEST_SERVER_URL, use localhost (fallback)
+  return 'http://localhost:5173';
+}
+
+/**
+ * Build full API URL for fetch calls
+ */
+function buildApiUrl(path: string): string {
+  const baseUrl = getApiBaseUrl();
+  return `${baseUrl}${path}`;
+}
+
 export class PubMedAPI {
   private readonly BASE_URL = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils';
   private readonly API_KEY = import.meta.env.VITE_PUBMED_API_KEY || '';
@@ -14,7 +40,7 @@ export class PubMedAPI {
    */
   async searchPapers(params: PubMedSearchParams): Promise<PubMedArticle[]> {
     try {
-      const response = await fetch('/api/search-papers', {
+      const response = await fetch(buildApiUrl('/api/search-papers'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

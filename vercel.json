@@ -3,8 +3,8 @@
     "api/generate-slide.ts": {
       "maxDuration": 30
     },
-    "api/extract_tables.js": {
-      "maxDuration": 30
+    "api/extract-pdf-content.ts": {
+      "maxDuration": 300
     }
   },
   "headers": [

@@ -1,205 +1,116 @@
-export interface ExtractedTable {
-  data: string[][];
-  pageNumber: number;
-  tableNumber: number;
-  rows?: number;
-  columns?: number;
-}
+/**
+ * PDF Extraction Service
+ * 
+ * This service handles PDF content extraction using Datalab Marker API
+ * and GPT Vision for graph detection.
+ */
 
-export interface ExtractionResult {
-  success: boolean;
-  tables: ExtractedTable[];
-  error?: string;
-  excelBlob?: Blob;
-  message?: string;
-}
+import type { PDFExtractionResult, ExtractionOptions } from '@/types/extraction'
+
+export type { PDFExtractionResult, ExtractionOptions }
 
 export class PDFExtractionService {
-
   /**
-   * Extract all tables from a PDF file using Supabase Edge Function as proxy
+   * Extract content from a PDF file
+   * 
+   * @param file - The PDF file to process
+   * @param options - Extraction options (graphify, OCR, max images)
+   * @returns Promise<PDFExtractionResult> - Extraction result with markdown, JSON, and GPT analysis
    */
-  static async extractTablesFromPDF(file: File): Promise<ExtractionResult> {
+  static async extractContent(
+    file: File, 
+    options: ExtractionOptions = {}
+  ): Promise<PDFExtractionResult> {
     try {
-      // Check if we're running locally or in production
-      const isLocal = window.location.hostname === 'localhost';
-      
-      if (isLocal) {
-        // For local testing, call Python API directly
-        console.log('Starting PDF table extraction via direct Python API...');
-        return await this.extractTablesDirectly(file);
-      } else {
-        // For production, use Supabase Edge Function as proxy
-        console.log('Starting PDF table extraction via Supabase Edge Function...');
-        return await this.extractTablesViaEdgeFunction(file);
-      }
-    } catch (error) {
-      console.error('PDF extraction error:', error);
-      return {
-        success: false,
-        tables: [],
-        error: `Failed to process PDF: ${error instanceof Error ? error.message : 'Unknown error'}`
-      };
-    }
-  }
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('enableGraphify', String(options.enableGraphify ?? true))
+      formData.append('forceOCR', String(options.forceOCR ?? false))
+      formData.append('maxGraphifyImages', String(options.maxGraphifyImages ?? 10))
 
-  /**
-   * Extract tables directly from Python API (for local testing)
-   */
-  private static async extractTablesDirectly(file: File): Promise<ExtractionResult> {
-    // Convert file to base64 using a more reliable method
-    const arrayBuffer = await file.arrayBuffer();
-    const uint8Array = new Uint8Array(arrayBuffer);
-    
-    // Convert to base64 using a binary string approach
-    let binaryString = '';
-    for (let i = 0; i < uint8Array.length; i++) {
-      binaryString += String.fromCharCode(uint8Array[i]);
-    }
-    const base64 = btoa(binaryString);
-
-    // Use local Python server when running locally
-    const isLocal = window.location.hostname === 'localhost';
-    const pythonApiUrl = isLocal 
-      ? 'http://localhost:3000/api/extract_tables'
-      : (import.meta.env.VITE_PYTHON_API_URL || 'https://developent.guru/api/extract_tables');
-    console.log('Using Python API URL:', pythonApiUrl);
-
-    const response = await fetch(pythonApiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        pdf_data: base64,
-        filename: file.name
+      console.log('Uploading PDF to extraction API...', {
+        fileName: file.name,
+        fileSize: file.size,
+        options
       })
-    });
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-      throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
-    }
+      const response = await fetch('/api/extract-pdf-content', {
+        method: 'POST',
+        body: formData
+      })
 
-    const result = await response.json();
-    
-    if (!result.success) {
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || errorData.error || 'Extraction failed')
+      }
+
+      const data = await response.json()
+      console.log('Extraction API response:', data)
+
+      // Convert base64 blobs to Blob objects
+      const result: PDFExtractionResult = {
+        success: data.success,
+        jobId: data.jobId,
+        markdownContent: data.markdown,
+        markdownBlob: data.markdownBlob 
+          ? this.base64ToBlob(data.markdownBlob, 'text/markdown') 
+          : undefined,
+        responseJson: data.responseJson,
+        responseJsonBlob: data.responseJsonBlob 
+          ? this.base64ToBlob(data.responseJsonBlob, 'application/json') 
+          : undefined,
+        graphifyResults: data.graphifyResults ? {
+          summary: data.graphifyResults.summary,
+          graphifyJsonBlob: data.graphifyResults.graphifyJsonBlob
+            ? this.base64ToBlob(data.graphifyResults.graphifyJsonBlob, 'application/json')
+            : undefined
+        } : undefined,
+        stats: data.stats,
+        message: data.message
+      }
+
+      return result
+    } catch (error) {
+      console.error('Error in PDFExtractionService:', error)
       return {
         success: false,
-        tables: [],
-        error: result.error || 'PDF processing failed'
-      };
+        message: error instanceof Error ? error.message : 'Failed to extract PDF content'
+      }
     }
-
-    // Convert base64 Excel data to Blob
-    let excelBlob: Blob | undefined;
-    if (result.excel_data) {
-      const excelBytes = this.base64ToArrayBuffer(result.excel_data);
-      excelBlob = new Blob([excelBytes], { 
-        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
-      });
-    }
-
-    // Convert tables to our expected format
-    const tables: ExtractedTable[] = result.tables.map((table: any) => ({
-      data: table.data,
-      pageNumber: table.page_number,
-      tableNumber: table.table_number,
-      rows: table.rows,
-      columns: table.columns
-    }));
-
-    console.log(`Successfully extracted ${tables.length} tables from PDF`);
-
-    return {
-      success: true,
-      tables,
-      excelBlob,
-      message: result.message
-    };
   }
 
   /**
-   * Extract tables via Supabase Edge Function (for production)
+   * Convert base64 string to Blob
    */
-  private static async extractTablesViaEdgeFunction(file: File): Promise<ExtractionResult> {
-    // Import the configured Supabase client
-    const { supabase } = await import('../lib/supabase');
-    
-    // Create FormData for the Edge Function
-    const formData = new FormData();
-    formData.append('file', file);
-    
-    console.log('Calling Supabase Edge Function...');
-    
-    const { data, error } = await supabase.functions.invoke('extract-pdf-tables', {
-      body: formData
-    });
-    
-    if (error) {
-      throw new Error(`Edge Function error: ${error.message}`);
+  private static base64ToBlob(base64: string, mimeType: string): Blob {
+    try {
+      const byteCharacters = atob(base64)
+      const byteNumbers = new Array(byteCharacters.length)
+      
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i)
+      }
+      
+      const byteArray = new Uint8Array(byteNumbers)
+      return new Blob([byteArray], { type: mimeType })
+    } catch (error) {
+      console.error('Error converting base64 to blob:', error)
+      throw new Error('Failed to convert data to downloadable file')
     }
-    
-    if (!data.success) {
-      return {
-        success: false,
-        tables: [],
-        error: data.error || 'PDF processing failed'
-      };
-    }
-    
-    // Convert base64 Excel data to Blob
-    let excelBlob: Blob | undefined;
-    if (data.excel_data) {
-      const excelBytes = this.base64ToArrayBuffer(data.excel_data);
-      excelBlob = new Blob([excelBytes], { 
-        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
-      });
-    }
-    
-    // Convert tables to our expected format
-    const tables: ExtractedTable[] = data.tables.map((table: any) => ({
-      data: table.data,
-      pageNumber: table.page_number,
-      tableNumber: table.table_number,
-      rows: table.rows,
-      columns: table.columns
-    }));
-    
-    console.log(`Successfully extracted ${tables.length} tables from PDF`);
-    
-    return {
-      success: true,
-      tables,
-      excelBlob,
-      message: data.message
-    };
   }
 
-  
   /**
-   * Convert base64 string to ArrayBuffer
+   * Trigger download of a blob
    */
-  private static base64ToArrayBuffer(base64: string): ArrayBuffer {
-    const binaryString = atob(base64);
-    const bytes = new Uint8Array(binaryString.length);
-    for (let i = 0; i < binaryString.length; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
-    }
-    return bytes.buffer;
-  }
-  
-  /**
-   * Download Excel file
-   */
-  static downloadExcelFile(blob: Blob, filename: string = 'extracted_tables.xlsx'): void {
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+  static downloadBlob(blob: Blob, fileName: string): void {
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = fileName
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
   }
 }
+

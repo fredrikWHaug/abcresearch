@@ -45,3 +45,5 @@ venv/
 ENV/
 env/
 .vercel
+.env*.local
+.playwright-mcp/

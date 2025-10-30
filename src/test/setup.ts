@@ -6,4 +6,3 @@ import '@testing-library/jest-dom/vitest'
 afterEach(() => {
   cleanup()
 })
-
