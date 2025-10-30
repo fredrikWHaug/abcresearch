@@ -81,8 +81,8 @@ async function parseForm(req: VercelRequest): Promise<{
     
     // Extract options from fields
     const options = {
-      enableGraphify: fields.enableGraphify?.[0] === 'true' ?? true,
-      forceOCR: fields.forceOCR?.[0] === 'true' ?? false,
+      enableGraphify: (fields.enableGraphify?.[0] ?? 'true') === 'true',
+      forceOCR: (fields.forceOCR?.[0] ?? 'false') === 'true',
       maxGraphifyImages: fields.maxGraphifyImages?.[0] ? parseInt(fields.maxGraphifyImages[0], 10) : 10
     }
 
@@ -118,8 +118,8 @@ async function submitToDatalab(
   apiKey: string,
   forceOCR: boolean
 ): Promise<DatalabJobSubmission> {
-  // Create a Blob from the buffer
-  const blob = new Blob([fileBuffer], { type: 'application/pdf' })
+  // Create a Blob from the buffer (convert Buffer to Uint8Array for TypeScript compatibility)
+  const blob = new Blob([new Uint8Array(fileBuffer)], { type: 'application/pdf' })
   
   // Use FormData (globally available in Node.js 18+)
   const form = new FormData()
