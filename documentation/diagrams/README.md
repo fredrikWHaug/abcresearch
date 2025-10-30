@@ -1,33 +1,55 @@
-# ABCResearch Diagrams
+# ABCResearch Architecture Diagram
 
-This directory contains visual diagrams of the ABCResearch system architecture and workflows, created using Mermaid.
+This directory contains the official architecture diagram for the ABCResearch system, created using Mermaid.
 
-## Files
+## File
 
-- **`single_overarching_architecture.md`** - **[RECOMMENDED]** Comprehensive single-diagram view of the entire platform including all layers, discovery flow, and performance metrics
-- **`simplified_with_bidirection.md`** - Simplified architecture emphasizing bidirectional request-response patterns between layers
-- **`abcresearch_architecture.md`** - Complete system architecture showing all components, layers, and their relationships
-- **`abcresearch_data_flow.md`** - End-to-end data flow from user query through AI enhancement, parallel searches, deduplication, and presentation
-- **`abcresearch_tech_stack.md`** - Complete technology stack including frameworks, libraries, external services, and infrastructure
-- **`architecture_example.md`** - Generic AWS cloud architecture reference example
+- **`architecture_diagram.md`** - **Official architecture diagram** with bidirectional data flow and component ownership mapping
+  - Comprehensive system architecture showing all layers and components
+  - Bidirectional request-response patterns between layers
+  - **Component ownership mapping** for Fredrik and Sofie based on git history
+  - Elements, interfaces, and interactions clearly assigned to owners
+  - Task mapping for ABC-41, ABC-45, and ABC-46
 
-## Viewing Diagrams
+## Key Sections
 
-These diagrams use Mermaid syntax embedded in markdown files.
+The architecture diagram includes:
+
+1. **System Architecture (Mermaid Diagram)**
+   - Frontend Layer (React components)
+   - Client Services (business logic)
+   - API Gateway (Vercel serverless functions)
+   - External APIs (ClinicalTrials.gov, PubMed, Claude, Gemini)
+   - Data Layer (Supabase, PostgreSQL)
+   - Observability & Events
+
+2. **Component Ownership**
+   - Fredrik's components: ChatAPI, ChatUI, ProjectService
+   - Sofie's components: PipelineAPI, PipelineUI, EnhanceAPI, DrugAPI, GatherService, PipelineService
+   - Shared components and external dependencies clearly marked
+
+3. **Task Mapping**
+   - ABC-41: Dynamic AI Response Generation
+   - ABC-45: Search Term Extraction Bug Fix
+   - ABC-46: Intelligent Medical Term Detection
+
+## Viewing the Diagram
+
+The diagram uses Mermaid syntax embedded in markdown.
 
 **To preview in VSCode:**
-1. Open any `.md` file in this directory
+1. Open `architecture_diagram.md`
 2. Press `Cmd+Shift+V` (Mac) or `Ctrl+Shift+V` (Windows/Linux)
 3. The diagram will render in the preview panel
 
 **Required Extension:**
 - Install **"Markdown Preview Mermaid Support"** from the VSCode marketplace for diagram rendering
 
-## Format
+## Diagram Features
 
-All diagrams include:
-- Color-coded nodes for visual clarity
-- Font Awesome icons for component identification
-- Detailed labels with descriptions
-- Clear directional flow arrows
+- **Color-coded nodes** for visual component categorization
+- **Bidirectional arrows** showing request-response patterns
+- **Interface dots** at major connection points
+- **Line references** for precise component location in documentation
+- **Ownership attribution** with file paths and implementation details
 
