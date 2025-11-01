@@ -5,8 +5,20 @@
     },
     "api/extract-pdf-content.ts": {
       "maxDuration": 300
+    },
+    "api/cron-check-rss-feeds.ts": {
+      "maxDuration": 300
+    },
+    "api/rss-feed-refresh.ts": {
+      "maxDuration": 300
     }
   },
+  "crons": [
+    {
+      "path": "/api/cron-check-rss-feeds",
+      "schedule": "0 0 * * *"
+    }
+  ],
   "headers": [
     {
       "source": "/api/(.*)",
