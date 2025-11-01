@@ -12,6 +12,7 @@ import { DrugDetail } from '@/components/DrugDetail'
 import { DrugDetailModal } from '@/components/DrugDetailModal'
 import { AssetDevelopmentPipeline } from '@/components/AssetDevelopmentPipeline'
 import { PDFExtraction } from '@/components/PDFExtraction'
+import { RealtimeFeed } from '@/components/RealtimeFeed'
 import { GatherSearchResultsService } from '@/services/gatherSearchResults'
 import type { PubMedArticle } from '@/types/papers'
 import { MarketMapService, type SavedMarketMap } from '@/services/marketMapService'
@@ -149,7 +150,7 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
   const [hasSearched, setHasSearched] = useState(false)
   const [papers, setPapers] = useState<PubMedArticle[]>([])
   const [papersLoading, setPapersLoading] = useState(false)
-  const [viewMode, setViewMode] = useState<'research' | 'marketmap' | 'savedmaps' | 'pipeline' | 'dataextraction'>(initialShowSavedMaps ? 'savedmaps' : 'research')
+  const [viewMode, setViewMode] = useState<'research' | 'marketmap' | 'savedmaps' | 'pipeline' | 'dataextraction' | 'realtimefeed'>(initialShowSavedMaps ? 'savedmaps' : 'research')
   const [researchTab, setResearchTab] = useState<'trials' | 'papers'>('papers')
   const [slideData, setSlideData] = useState<SlideData | null>(null)
   const [generatingSlide, setGeneratingSlide] = useState(false)
@@ -546,12 +547,12 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
       </div>
       
       {/* Toggle Buttons - Absolutely positioned center with equal widths */}
-      {(hasSearched || viewMode === 'savedmaps' || viewMode === 'pipeline' || viewMode === 'dataextraction') && (
+      {(hasSearched || viewMode === 'savedmaps' || viewMode === 'pipeline' || viewMode === 'dataextraction' || viewMode === 'realtimefeed') && (
         <div 
           className="absolute z-20"
           style={{ left: '50%', transform: 'translateX(-50%)' }}
         >
-          <div className="flex rounded-lg bg-gray-100 p-1 w-[50rem]">
+          <div className="flex rounded-lg bg-gray-100 p-1 w-[60rem]">
             <div className="relative flex-1 projects-dropdown-container">
               <button
                 onClick={() => setShowProjectsDropdown(!showProjectsDropdown)}
@@ -654,6 +655,16 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
             >
               Data Extraction
             </button>
+            <button
+              onClick={() => setViewMode('realtimefeed')}
+              className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
+                viewMode === 'realtimefeed'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Realtime Feed
+            </button>
           </div>
         </div>
       )}
@@ -722,7 +733,7 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
     );
   };
 
-  if (!hasSearched && viewMode !== 'savedmaps' && viewMode !== 'pipeline') {
+  if (!hasSearched && viewMode !== 'savedmaps' && viewMode !== 'pipeline' && viewMode !== 'realtimefeed') {
     // Initial centered search bar layout (skip if showing saved maps)
     console.log('Rendering initial centered search. hasSearched:', hasSearched, 'viewMode:', viewMode);
     return (
@@ -935,6 +946,20 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
         {/* PDF Data Extraction Content */}
         <div className="flex-1 overflow-hidden">
           <PDFExtraction />
+        </div>
+      </div>
+    );
+  }
+
+  // Realtime Feed mode
+  if (viewMode === 'realtimefeed') {
+    return (
+      <div className="h-screen flex flex-col overflow-hidden">
+        <Header onStartNewProject={handleStartNewProject} currentProjectId={currentProjectId} />
+        
+        {/* Realtime Feed Content */}
+        <div className="flex-1 overflow-y-auto">
+          <RealtimeFeed />
         </div>
       </div>
     );
