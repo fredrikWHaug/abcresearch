@@ -104,18 +104,19 @@ export function PDFExtraction() {
   }
 
   return (
-    <div className="h-full flex items-center justify-center bg-gray-50 p-6">
-      <Card className="w-full max-w-2xl">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileText className="h-6 w-6" />
-            PDF Table Extraction
-          </CardTitle>
-          <CardDescription>
-            Upload a PDF document to extract tabular data into markdown format and reconstruct graphs using GPT Vision.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
+    <div className="min-h-screen w-full overflow-y-auto bg-gray-50">
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-6 py-10">
+        <Card className="w-full">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-6 w-6" />
+              PDF Table Extraction
+            </CardTitle>
+            <CardDescription>
+              Upload a PDF document to extract tabular data into markdown format and reconstruct graphs using GPT Vision.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
           {/* File Input Section */}
           <div
             onDragEnter={handleDragEnter}
@@ -259,7 +260,7 @@ export function PDFExtraction() {
             <div className="space-y-4">
               {/* Success Banner */}
               <div className="flex items-start gap-3 p-4 bg-green-50 border border-green-200 rounded-lg">
-                <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
+                <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0 mt-0.5" />
                 <div className="flex-1">
                   <p className="text-sm font-medium text-green-900">Extraction Successful!</p>
                   <p className="text-sm text-green-700 mt-1">
@@ -373,7 +374,7 @@ export function PDFExtraction() {
           {/* Error Result */}
           {extractionResult && !extractionResult.success && !isProcessing && (
             <div className="flex items-start gap-3 p-4 bg-red-50 border border-red-200 rounded-lg">
-              <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+              <AlertCircle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
               <div className="flex-1">
                 <p className="text-sm font-medium text-red-900">Extraction Failed</p>
                 <p className="text-sm text-red-700 mt-1">
@@ -394,8 +395,9 @@ export function PDFExtraction() {
               Clear and Start Over
             </Button>
           )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   )
 }
