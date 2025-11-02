@@ -244,7 +244,7 @@ Rules:
       },
       body: JSON.stringify({
         model: gptModel,
-        temperature: 0.3,
+        temperature: 1,
         response_format: { type: 'json_object' },
         messages: [
           {
