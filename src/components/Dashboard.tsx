@@ -929,11 +929,11 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
   // Data Extraction mode
   if (viewMode === 'dataextraction') {
     return (
-      <div className="h-screen flex flex-col overflow-hidden">
+      <div className="h-screen flex flex-col bg-gray-50">
         <Header onStartNewProject={handleStartNewProject} currentProjectId={currentProjectId} />
         
         {/* PDF Data Extraction Content */}
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 overflow-y-auto">
           <PDFExtraction />
         </div>
       </div>
