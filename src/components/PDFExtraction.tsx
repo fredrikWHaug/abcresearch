@@ -10,6 +10,7 @@ export function PDFExtraction() {
   const [extractionResult, setExtractionResult] = useState<PDFExtractionResult | null>(null)
   const [enableGraphify, setEnableGraphify] = useState(true)
   const [maxImages, setMaxImages] = useState(10)
+  const [isDragging, setIsDragging] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -17,6 +18,41 @@ export function PDFExtraction() {
     if (file && file.type === 'application/pdf') {
       setSelectedFile(file)
       setExtractionResult(null) // Clear previous results
+    }
+  }
+
+  const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!isProcessing) {
+      setIsDragging(true)
+    }
+  }
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+  }
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+  }
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+
+    if (isProcessing) return
+
+    const file = e.dataTransfer.files?.[0]
+    if (file && file.type === 'application/pdf') {
+      setSelectedFile(file)
+      setExtractionResult(null) // Clear previous results
+    } else if (file) {
+      alert('Please drop a PDF file')
     }
   }
 
@@ -81,7 +117,12 @@ export function PDFExtraction() {
         </CardHeader>
         <CardContent className="space-y-6">
           {/* File Input Section */}
-          <div>
+          <div
+            onDragEnter={handleDragEnter}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+          >
             <input
               ref={fileInputRef}
               type="file"
@@ -94,14 +135,22 @@ export function PDFExtraction() {
             <label htmlFor="pdf-upload">
               <Button
                 variant="outline"
-                className="w-full h-32 border-2 border-dashed cursor-pointer hover:border-primary hover:bg-accent"
+                className={`w-full h-32 border-2 border-dashed cursor-pointer transition-colors ${
+                  isDragging 
+                    ? 'border-primary bg-primary/10 border-solid' 
+                    : 'hover:border-primary hover:bg-accent'
+                }`}
                 asChild
                 disabled={isProcessing}
               >
                 <div className="flex flex-col items-center gap-2">
-                  <Upload className="h-8 w-8 text-muted-foreground" />
+                  <Upload className={`h-8 w-8 ${isDragging ? 'text-primary' : 'text-muted-foreground'}`} />
                   <span className="text-sm font-medium">
-                    {selectedFile ? 'Change PDF file' : 'Click to upload PDF file'}
+                    {isDragging 
+                      ? 'Drop PDF file here' 
+                      : selectedFile 
+                        ? 'Change PDF file' 
+                        : 'Click or drag to upload PDF file'}
                   </span>
                   <span className="text-xs text-muted-foreground">
                     Only PDF files are accepted
