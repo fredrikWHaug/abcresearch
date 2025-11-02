@@ -76,7 +76,7 @@ export function PDFExtraction() {
             PDF Table Extraction
           </CardTitle>
           <CardDescription>
-            Upload a PDF document to extract tabular data into a structured Excel format
+            Upload a PDF document to extract tabular data into markdown format and reconstruct graphs using GPT Vision.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
