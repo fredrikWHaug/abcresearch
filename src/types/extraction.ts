@@ -12,6 +12,10 @@ export interface GraphifyResult {
   data?: Record<string, unknown>
   assumptions?: string
   error?: string
+  // Added for Pyodide rendering
+  renderedImage?: string  // Base64 data URL of AI-reconstructed graph
+  renderError?: string     // Error message if rendering failed
+  renderTimeMs?: number    // Time taken to render (for debugging)
 }
 
 export interface ExtractionStats {

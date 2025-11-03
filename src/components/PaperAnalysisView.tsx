@@ -23,11 +23,14 @@ import {
   BarChart3,
   ZoomIn,
   ZoomOut,
-  Undo2
+  Undo2,
+  Loader2,
+  Sparkles
 } from 'lucide-react'
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch'
 import type { PDFExtractionResult } from '@/services/pdfExtractionService'
 import type { TableData } from '@/types/extraction'
+import { pyodideRenderer } from '@/services/pyodideGraphRenderer'
 
 interface PaperAnalysisViewProps {
   result: PDFExtractionResult
@@ -43,6 +46,13 @@ export function PaperAnalysisView({ result, fileName, onBack }: PaperAnalysisVie
   const [markdownView, setMarkdownView] = useState<MarkdownView>('rendered')
   const [selectedDataView, setSelectedDataView] = useState<'original' | 'response' | 'gpt'>('original')
   const [tables, setTables] = React.useState<TableData[] | null>(null)
+  
+  // Pyodide rendering state
+  const [renderedGraphs, setRenderedGraphs] = useState<Map<string, string>>(new Map())
+  const [renderingGraph, setRenderingGraph] = useState<string | null>(null)
+  const [renderErrors, setRenderErrors] = useState<Map<string, string>>(new Map())
+  const [isPyodideInitialized, setIsPyodideInitialized] = useState(false)
+  const [pyodideInitMessage, setPyodideInitMessage] = useState('Python environment not loaded')
 
   const documentName = fileName.replace('.pdf', '')
 
@@ -164,6 +174,52 @@ export function PaperAnalysisView({ result, fileName, onBack }: PaperAnalysisVie
     link.download = fileName
     link.click()
     URL.revokeObjectURL(url)
+  }
+
+  // Handle rendering a graph with Pyodide
+  const handleRenderGraph = async (imageName: string, pythonCode: string) => {
+    if (!pythonCode) {
+      console.error('No Python code available for rendering')
+      return
+    }
+
+    setRenderingGraph(imageName)
+    setPyodideInitMessage('Initializing Python environment (first time: ~10-15 seconds)...')
+
+    try {
+      // Initialize Pyodide if needed (expensive first time, instant after)
+      if (!isPyodideInitialized) {
+        console.log('[UI] Initializing Pyodide...')
+        await pyodideRenderer.initialize()
+        setIsPyodideInitialized(true)
+        setPyodideInitMessage('Python environment ready')
+        console.log('[UI] Pyodide initialized')
+      }
+
+      // Render the graph
+      console.log(`[UI] Rendering graph: ${imageName}`)
+      const renderResult = await pyodideRenderer.renderGraph(pythonCode)
+
+      if (renderResult.success && renderResult.imageDataUrl) {
+        // Store the rendered image
+        setRenderedGraphs(prev => new Map(prev).set(imageName, renderResult.imageDataUrl!))
+        // Clear any previous errors
+        setRenderErrors(prev => {
+          const newMap = new Map(prev)
+          newMap.delete(imageName)
+          return newMap
+        })
+        console.log(`[UI] Successfully rendered graph in ${renderResult.executionTimeMs}ms`)
+      } else {
+        throw new Error(renderResult.error || 'Rendering failed')
+      }
+    } catch (error) {
+      console.error(`[UI] Error rendering graph ${imageName}:`, error)
+      const errorMessage = error instanceof Error ? error.message : 'Unknown rendering error'
+      setRenderErrors(prev => new Map(prev).set(imageName, errorMessage))
+    } finally {
+      setRenderingGraph(null)
+    }
   }
 
   return (
@@ -631,6 +687,129 @@ export function PaperAnalysisView({ result, fileName, onBack }: PaperAnalysisVie
                                     {gptAnalysis.pythonCode}
                                   </SyntaxHighlighter>
                                 </div>
+                                
+                                {/* Render Button */}
+                                <div className="mt-3 flex items-start gap-3">
+                                  <Button
+                                    onClick={() => handleRenderGraph(imageName, gptAnalysis.pythonCode!)}
+                                    disabled={renderingGraph === imageName}
+                                    size="sm"
+                                    className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+                                  >
+                                    {renderingGraph === imageName ? (
+                                      <>
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                        {isPyodideInitialized ? 'Rendering...' : 'Loading Python...'}
+                                      </>
+                                    ) : renderedGraphs.has(imageName) ? (
+                                      <>
+                                        <Sparkles className="h-4 w-4" />
+                                        Re-render Graph
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Sparkles className="h-4 w-4" />
+                                        Render Graph in Browser
+                                      </>
+                                    )}
+                                  </Button>
+                                  {renderingGraph === imageName && !isPyodideInitialized && (
+                                    <div className="flex-1 rounded-lg bg-blue-50 border border-blue-200 px-3 py-2">
+                                      <p className="text-xs text-blue-700">
+                                        {pyodideInitMessage}
+                                      </p>
+                                      <p className="text-xs text-blue-600 mt-1">
+                                        This only happens once per session. Subsequent renders will be instant.
+                                      </p>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Rendered Graph Result */}
+                            {renderedGraphs.has(imageName) && (
+                              <div className="bg-gradient-to-br from-purple-50 to-blue-50 border-2 border-purple-200 rounded-lg p-4">
+                                <div className="flex items-center gap-2 mb-3">
+                                  <Sparkles className="h-5 w-5 text-purple-600" />
+                                  <h4 className="text-sm font-medium text-purple-900">
+                                    AI-Reconstructed Graph
+                                  </h4>
+                                  <span className="ml-auto text-xs text-purple-600 bg-purple-100 px-2 py-1 rounded">
+                                    Rendered by Pyodide
+                                  </span>
+                                </div>
+                                <TransformWrapper
+                                  initialScale={1}
+                                  minScale={0.5}
+                                  maxScale={10}
+                                  doubleClick={{ disabled: true }}
+                                  wheel={{ step: 0.1 }}
+                                  pinch={{ step: 0.12 }}
+                                  panning={{ velocityDisabled: true }}
+                                >
+                                  {({ zoomIn, zoomOut, resetTransform }) => (
+                                    <div className="relative rounded-lg border-2 border-purple-300 bg-white">
+                                      <div className="absolute right-3 top-3 z-10 flex gap-2 rounded-md bg-white/90 p-1 shadow-sm">
+                                        <button
+                                          type="button"
+                                          onClick={() => zoomOut()}
+                                          className="inline-flex h-8 w-8 items-center justify-center rounded border border-purple-200 text-purple-600 transition-colors hover:bg-purple-100"
+                                          aria-label="Zoom out"
+                                        >
+                                          <ZoomOut className="h-4 w-4" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => resetTransform()}
+                                          className="inline-flex h-8 w-8 items-center justify-center rounded border border-purple-200 text-purple-600 transition-colors hover:bg-purple-100"
+                                          aria-label="Reset zoom"
+                                        >
+                                          <Undo2 className="h-4 w-4" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => zoomIn()}
+                                          className="inline-flex h-8 w-8 items-center justify-center rounded border border-purple-200 text-purple-600 transition-colors hover:bg-purple-100"
+                                          aria-label="Zoom in"
+                                        >
+                                          <ZoomIn className="h-4 w-4" />
+                                        </button>
+                                      </div>
+                                      <TransformComponent
+                                        wrapperClass="max-h-[520px] overflow-hidden rounded-lg"
+                                        contentClass="flex items-center justify-center p-4"
+                                      >
+                                        <img
+                                          src={renderedGraphs.get(imageName)}
+                                          alt={`Rendered ${imageName}`}
+                                          className="max-w-full select-none"
+                                          draggable={false}
+                                        />
+                                      </TransformComponent>
+                                    </div>
+                                  )}
+                                </TransformWrapper>
+                                <p className="mt-2 text-xs text-purple-600">
+                                  This graph was reconstructed from GPT-extracted data using Python and matplotlib. 
+                                  Compare with the original image above to verify accuracy.
+                                </p>
+                              </div>
+                            )}
+
+                            {/* Render Error */}
+                            {renderErrors.has(imageName) && (
+                              <div className="bg-red-50 border border-red-200 p-3 rounded-lg">
+                                <h4 className="text-sm font-medium text-red-900 mb-1">
+                                  Rendering Error
+                                </h4>
+                                <p className="text-sm text-red-700">
+                                  {renderErrors.get(imageName)}
+                                </p>
+                                <p className="text-xs text-red-600 mt-2">
+                                  The Python code may have errors or the data structure might not match the expected format. 
+                                  You can still download the code and run it locally.
+                                </p>
                               </div>
                             )}
 
