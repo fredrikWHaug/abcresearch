@@ -155,7 +155,25 @@ When asking questions (only when appropriate):
 
 Tone: Natural, conversational, genuinely helpful. Like a smart colleague, not a scripted chatbot.
 
-IMPORTANT: Write ONLY the actual words you would say. Do NOT include stage directions like "*smiles*", "*responds warmly*", or any actions in asterisks or brackets. Just write natural dialogue.`;
+IMPORTANT: Write ONLY the actual words you would say. Do NOT include stage directions like "*smiles*", "*responds warmly*", or any actions in asterisks or brackets. Just write natural dialogue.
+
+HW8 ABC-57: RESPONSE FORMAT
+After your conversational response, on a new line, add metadata in this exact format:
+[SEARCH_INTENT: yes/no]
+[SEARCH_TERMS: terms to search for, or "none"]
+
+Examples:
+If user says "GLP-1": 
+Your response here.
+[SEARCH_INTENT: yes]
+[SEARCH_TERMS: GLP-1 agonists]
+
+If user says "Hi there":
+Your response here.
+[SEARCH_INTENT: no]
+[SEARCH_TERMS: none]
+
+The metadata helps the system understand if you think the user wants research results.`;
   }
 
   // Build context papers with citation numbers
