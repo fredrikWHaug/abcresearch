@@ -192,14 +192,29 @@ Keep the response concise (2-3 sentences) and natural. Don't use bullet points o
     
     let conversationalResult = conversationalData.content[0].text;
     
+    // HW8 ABC-57: Parse search intent metadata from Claude's response
+    const searchIntentMatch = conversationalResult.match(/\[SEARCH_INTENT:\s*(yes|no)\]/i);
+    const searchTermsMatch = conversationalResult.match(/\[SEARCH_TERMS:\s*(.+?)\]/i);
+    
+    const claudeSearchIntent = searchIntentMatch ? searchIntentMatch[1].toLowerCase() === 'yes' : null;
+    const claudeSearchTerms = searchTermsMatch ? searchTermsMatch[1].trim() : null;
+    
+    console.log('HW8 ABC-57: Claude search intent:', claudeSearchIntent);
+    console.log('HW8 ABC-57: Claude search terms:', claudeSearchTerms);
+    
+    // Remove metadata from response before showing to user
+    conversationalResult = conversationalResult
+      .replace(/\[SEARCH_INTENT:\s*(yes|no)\]/gi, '')
+      .replace(/\[SEARCH_TERMS:\s*.+?\]/gi, '')
+      .trim();
+    
     // Clean up any stage directions or action notations (e.g., "*responds warmly*", "*smiles*")
     conversationalResult = conversationalResult
       .replace(/\*[^*]+\*/g, '') // Remove anything between asterisks
-      .replace(/\[[^\]]+\]/g, '') // Remove anything between brackets
       .replace(/^\s+/, '') // Remove leading whitespace
       .trim();
 
-    // Generate search suggestions using helper function
+    // Generate search suggestions using helper function (unchanged for now)
     const searchSuggestions = generateSearchSuggestions(userQuery);
     const shouldSearch = searchSuggestions.length > 0;
 
