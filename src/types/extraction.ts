@@ -18,6 +18,14 @@ export interface ExtractionStats {
   imagesFound: number
   graphsDetected: number
   processingTimeMs: number
+  tablesFound?: number
+}
+
+export interface TableData {
+  index: number
+  headers: string[]
+  rows: string[][]
+  rawMarkdown: string
 }
 
 export interface PDFExtractionResult {
@@ -28,6 +36,7 @@ export interface PDFExtractionResult {
   responseJson?: Record<string, unknown>
   responseJsonBlob?: Blob
   originalImagesBlob?: Blob
+  tablesBlob?: Blob
   graphifyResults?: {
     summary: GraphifyResult[]
     graphifyJsonBlob?: Blob
