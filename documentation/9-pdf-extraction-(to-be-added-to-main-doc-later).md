@@ -1,20 +1,21 @@
-LATEST UPDATE: 10/28/25
+LATEST UPDATE: 11/03/25
 
 # ABCresearch - PDF Content Extraction Documentation
 
 ## Overview
 
-The PDF Content Extraction feature enables users to upload PDF documents (such as research papers, clinical reports, or regulatory documents) and extract structured content including markdown text, images, and AI-powered graph analysis. This feature integrates Datalab's Marker API for PDF processing and OpenAI's GPT Vision for intelligent graph detection and reconstruction.
+The PDF Content Extraction feature enables users to upload PDF documents (such as research papers, clinical reports, or regulatory documents) and extract structured content including markdown text, images, tables, and AI-powered graph analysis. This feature integrates Datalab's Marker API for PDF processing and OpenAI's GPT Vision for intelligent graph detection and reconstruction, with a comprehensive Paper Analysis View for in-depth exploration.
 
 ## Core Purpose
 
 The PDF extraction system serves to:
 - **Convert PDFs to Markdown**: Extract readable text content from scientific papers
 - **Preserve Document Structure**: Maintain headings, lists, and formatting
-- **Extract Images**: Capture figures, charts, and diagrams from documents
+- **Extract Images & Tables**: Capture figures, charts, diagrams, and tabular data
 - **Detect Graphs**: Use AI to identify data visualizations
 - **Generate Reconstruction Code**: Provide Python code to recreate graphs
 - **Enable Data Reuse**: Download multiple formats for different use cases
+- **Provide Comprehensive Analysis**: Interactive view for exploring extracted content
 
 ## Key Features
 
@@ -24,6 +25,7 @@ The PDF extraction system serves to:
 - Preserves document structure (headings, paragraphs, lists)
 - Handles multi-column layouts
 - Supports scientific notation and equations
+- Automatic table detection and parsing
 
 ### 2. Intelligent Graph Detection
 - GPT Vision API analyzes extracted images
@@ -32,8 +34,32 @@ The PDF extraction system serves to:
 - Extracts approximate data points
 - Generates Python reconstruction code
 
-### 3. Multiple Download Formats
-Users receive four downloadable outputs:
+### 3. Paper Analysis View (New)
+Interactive interface for comprehensive content exploration:
+
+- **Markdown Viewer**: Toggle between rendered and source views
+  - GitHub Flavored Markdown rendering
+  - Syntax-highlighted code blocks
+  - Raw markdown with line numbers
+  
+- **Table Browser**: Structured view of extracted tables
+  - Parsed from markdown automatically
+  - Downloadable as JSON
+  - Filterable and searchable
+  
+- **Graph Gallery**: Visual analysis of detected charts
+  - Original images with zoom/pan controls
+  - AI-generated analysis
+  - Extracted numeric data
+  - Python reconstruction code
+  
+- **Data Inspector**: JSON viewers with syntax highlighting
+  - Original images data
+  - Full API response
+  - GPT analysis results
+
+### 4. Multiple Download Formats
+Users receive up to five downloadable outputs:
 
 1. **Markdown File (.md)**
    - Full text content
@@ -60,11 +86,18 @@ Users receive four downloadable outputs:
    - Python matplotlib code
    - Assumptions and notes
 
-### 4. Configurable Processing Options
+5. **Tables Data (.json)** (Optional)
+   - Parsed table structures
+   - Headers and data rows
+   - Raw markdown for each table
+   - Machine-readable format
+
+### 5. Configurable Processing Options
 - **Graph Detection Toggle**: Enable/disable GPT Vision processing
 - **Max Images Limit**: Control processing time and cost (1-20 images)
-- **Force OCR**: Option to force optical character recognition
-- **Real-time Stats**: Images found, graphs detected, processing time
+- **Drag & Drop Upload**: Modern file upload with drag-and-drop support
+- **Force OCR**: Option to force optical character recognition (hardcoded to false currently)
+- **Real-time Stats**: Images found, graphs detected, tables found, processing time
 
 ## User Workflow
 
@@ -72,39 +105,57 @@ Users receive four downloadable outputs:
 
 1. **Navigate to Data Extraction**
    - Click "Data Extraction" tab in main navigation
-   - Upload interface loads
+   - Upload interface loads with card-based UI
 
 2. **Upload PDF**
-   - Click upload area or drag & drop
+   - Click upload area or **drag & drop PDF file**
+   - Visual feedback during drag operation
    - Select PDF file (up to 50MB)
-   - See file name and size displayed
+   - See file name and size displayed in blue card
+   - Remove file with X button if needed
 
 3. **Configure Options** (Optional)
-   - Toggle "Enable graph detection with GPT Vision"
-   - Adjust "Max images to analyze" slider (1-20)
-   - Default: Graphify enabled, 10 images max
+   - Toggle "Enable graph detection with GPT Vision" (default: enabled)
+   - Adjust "Max images to analyze" slider (1-20, default: 10)
+   - See warning about processing time and cost
 
 4. **Extract Content**
    - Click "Extract Content" button
    - Processing begins (30 seconds to 5 minutes)
-   - Loading indicator shown with progress message
+   - Loading indicator shown with progress message:
+     - "Processing PDF..."
+     - "Extracting tables from your document"
 
-5. **View Results**
+5. **View Initial Results**
    - Success banner with statistics:
      - Images found count
      - Graphs detected count
-     - Processing time
-   - Graph detection summary (if graphs found)
-   - Three download buttons appear
+     - Tables found count (if applicable)
+     - Processing time in seconds
+   - Graph detection summary (if graphs found, shows first 5)
+   - **"View Comprehensive Analysis" button** (New!)
+   - Download buttons for all formats
 
-6. **Download Outputs**
+6. **Explore Analysis View** (New Workflow)
+   - Click "View Comprehensive Analysis"
+   - Navigate comprehensive interface with tabs:
+     - **Markdown**: Toggle rendered/source views
+     - **Tables**: Browse extracted tables (if any)
+     - **Graphs**: Zoom/pan through detected graphs
+     - **Data**: Inspect structured JSON data
+   - Download individual components from within analysis view
+   - Use "Back to Upload" to return to extraction interface
+
+7. **Download Outputs** (Traditional Workflow)
    - Click "Download Markdown Content" for text content
    - Click "Download Original Extracted Images" for raw image data
    - Click "Download Full API Response" for complete data
    - Click "Download GPT Graph Analysis" (if graphs detected)
+   - Click "Download Tables" (if tables found)
 
-7. **Process Additional PDFs**
-   - Click "Clear and Start Over"
+8. **Process Additional PDFs**
+   - Click "Clear and Start Over" button
+   - File input resets
    - Upload new PDF
    - Repeat process
 
@@ -306,62 +357,151 @@ const [isProcessing, setIsProcessing] = useState(false)
 const [extractionResult, setExtractionResult] = useState<PDFExtractionResult | null>(null)
 const [enableGraphify, setEnableGraphify] = useState(true)
 const [maxImages, setMaxImages] = useState(10)
+const [isDragging, setIsDragging] = useState(false)  // New: Drag state
+const [showAnalysisView, setShowAnalysisView] = useState(false)  // New: Analysis view toggle
+const fileInputRef = useRef<HTMLInputElement>(null)  // New: For resetting input
 ```
 
 **UI Sections**:
 
-1. **File Upload Area**:
+1. **File Upload Area with Drag & Drop**:
 ```tsx
-<input type="file" accept=".pdf" onChange={handleFileSelect} />
-<label>
-  <Upload icon />
-  Click to upload PDF file
-  Only PDF files are accepted
-</label>
+<div
+  onDragEnter={handleDragEnter}
+  onDragOver={handleDragOver}
+  onDragLeave={handleDragLeave}
+  onDrop={handleDrop}
+>
+  <input 
+    ref={fileInputRef}
+    type="file" 
+    accept=".pdf" 
+    onChange={handleFileSelect}
+    className="hidden"
+    id="pdf-upload"
+    disabled={isProcessing}
+  />
+  <label htmlFor="pdf-upload">
+    <Button
+      variant="outline"
+      className={`w-full h-32 border-2 border-dashed ${
+        isDragging 
+          ? 'border-primary bg-primary/10 border-solid' 
+          : 'hover:border-primary hover:bg-accent'
+      }`}
+      asChild
+    >
+      <div className="flex flex-col items-center gap-2">
+        <Upload className={isDragging ? 'text-primary' : 'text-muted-foreground'} />
+        <span>
+          {isDragging 
+            ? 'Drop PDF file here' 
+            : selectedFile 
+              ? 'Change PDF file' 
+              : 'Click or drag to upload PDF file'}
+        </span>
+        <span className="text-xs text-muted-foreground">
+          Only PDF files are accepted
+        </span>
+      </div>
+    </Button>
+  </label>
+</div>
 ```
 
 2. **Selected File Display**:
 ```tsx
-<div className="bg-blue-50">
-  <FileText icon />
-  {fileName}
-  {fileSize}
-  <X button onClick={handleReset} />
-</div>
+{selectedFile && (
+  <div className="flex items-center justify-between p-4 bg-blue-50 border border-blue-200 rounded-lg">
+    <div className="flex items-center gap-3">
+      <div className="p-2 bg-blue-100 rounded">
+        <FileText className="h-5 w-5 text-blue-600" />
+      </div>
+      <div>
+        <p className="text-sm font-medium text-gray-900">{selectedFile.name}</p>
+        <p className="text-xs text-gray-500">{formatFileSize(selectedFile.size)}</p>
+      </div>
+    </div>
+    {!isProcessing && (
+      <Button variant="ghost" size="icon" onClick={handleReset}>
+        <X className="h-4 w-4" />
+      </Button>
+    )}
+  </div>
+)}
 ```
 
 3. **Options Panel**:
 ```tsx
-<div className="bg-gray-50">
-  <label>
-    <input type="checkbox" checked={enableGraphify} />
-    Enable graph detection with GPT Vision
-  </label>
-  
-  {enableGraphify && (
-    <label>
-      Max images to analyze: {maxImages}
-      <input type="range" min={1} max={20} value={maxImages} />
+{selectedFile && !extractionResult && !isProcessing && (
+  <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg space-y-3">
+    <p className="text-sm font-medium text-gray-700">Extraction Options:</p>
+    
+    <label className="flex items-center gap-2 text-sm cursor-pointer">
+      <input
+        type="checkbox"
+        checked={enableGraphify}
+        onChange={(e) => setEnableGraphify(e.target.checked)}
+        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+      />
+      <span className="flex items-center gap-2">
+        <Image className="h-4 w-4 text-gray-500" />
+        Enable graph detection with GPT Vision
+      </span>
     </label>
-  )}
-</div>
+    
+    {enableGraphify && (
+      <div className="ml-6 space-y-2 p-3 bg-white rounded border border-gray-200">
+        <label className="text-xs text-gray-600 block">
+          Max images to analyze: <span className="font-medium text-gray-900">{maxImages}</span>
+          <input
+            type="range"
+            min="1"
+            max="20"
+            value={maxImages}
+            onChange={(e) => setMaxImages(parseInt(e.target.value))}
+            className="w-full mt-1"
+          />
+        </label>
+        <p className="text-xs text-gray-500">
+          Higher values increase processing time and cost
+        </p>
+      </div>
+    )}
+  </div>
+)}
 ```
 
-4. **Extract Button**:
+4. **Extract Button & Loading State**:
 ```tsx
-<Button onClick={handleExtractContent} disabled={!selectedFile || isProcessing}>
+<Button
+  onClick={handleExtractContent}
+  disabled={!selectedFile || isProcessing}
+  className="w-full"
+>
   {isProcessing ? (
     <>
-      <Loader2 animate-spin />
+      <Loader2 className="h-4 w-4 animate-spin" />
       Extracting Content...
     </>
   ) : (
     <>
-      <Upload />
+      <Upload className="h-4 w-4" />
       Extract Content
     </>
   )}
 </Button>
+
+{/* Loading State */}
+{isProcessing && (
+  <div className="flex items-center justify-center p-6 bg-blue-50 border border-blue-200 rounded-lg">
+    <div className="text-center">
+      <Loader2 className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-2" />
+      <p className="text-sm font-medium text-gray-900">Processing PDF...</p>
+      <p className="text-xs text-gray-600 mt-1">Extracting tables from your document</p>
+    </div>
+  </div>
+)}
 ```
 
 5. **Success Display**:
@@ -372,53 +512,608 @@ const [maxImages, setMaxImages] = useState(10)
   
   <p>{message}</p>
   
-  <div>
-    {imagesFound} images found
-    {graphsDetected} graphs detected
-    Processed in {time}s
+  <div className="flex items-center gap-3 text-xs">
+    <span className="flex items-center gap-1">
+      <FileText /> {imagesFound} images found
+    </span>
+    {graphsDetected > 0 && (
+      <span className="flex items-center gap-1">
+        <Image /> {graphsDetected} graphs detected
+      </span>
+    )}
+    <span>· Processed in {(processingTimeMs / 1000).toFixed(1)}s</span>
   </div>
 </div>
 
+{/* NEW: View Comprehensive Analysis Button */}
+<Button onClick={handleViewAnalysis} className="w-full">
+  <FileText /> View Comprehensive Analysis
+</Button>
+
 {/* Download Buttons */}
-<Button onClick={() => downloadBlob(markdownBlob, 'document.md')}>
-  <FileText /> Markdown Content <Download />
-</Button>
+<div className="space-y-2">
+  <p className="text-sm font-medium">Download Results:</p>
+  
+  {markdownBlob && (
+    <Button 
+      onClick={() => downloadBlob(markdownBlob, `${fileName}.md`)}
+      variant="outline"
+      className="w-full justify-between"
+    >
+      <div className="flex items-center gap-2">
+        <FileText /> <span>Markdown Content</span>
+      </div>
+      <Download className="h-4 w-4" />
+    </Button>
+  )}
 
-{originalImagesBlob && (
-  <Button onClick={() => downloadBlob(originalImagesBlob, 'document-original-images.json')}>
-    <Image /> Original Extracted Images (JSON) <Download />
-  </Button>
-)}
+  {originalImagesBlob && (
+    <Button 
+      onClick={() => downloadBlob(originalImagesBlob, `${fileName}-original-images.json`)}
+      variant="outline"
+      className="w-full justify-between"
+    >
+      <div className="flex items-center gap-2">
+        <Image /> <span>Original Extracted Images (JSON)</span>
+      </div>
+      <Download />
+    </Button>
+  )}
 
-<Button onClick={() => downloadBlob(responseJsonBlob, 'document-response.json')}>
-  <FileText /> Full API Response (JSON) <Download />
-</Button>
+  {responseJsonBlob && (
+    <Button 
+      onClick={() => downloadBlob(responseJsonBlob, `${fileName}-response.json`)}
+      variant="outline"
+      className="w-full justify-between"
+    >
+      <div className="flex items-center gap-2">
+        <FileText /> <span>Full API Response (JSON)</span>
+      </div>
+      <Download />
+    </Button>
+  )}
 
-{graphifyResults && (
-  <Button onClick={() => downloadBlob(graphifyBlob, 'document-gpt-analysis.json')}>
-    <Image /> GPT Graph Analysis (JSON) <Download />
-  </Button>
-)}
+  {graphifyResults?.graphifyJsonBlob && (
+    <Button 
+      onClick={() => downloadBlob(graphifyJsonBlob, `${fileName}-gpt-analysis.json`)}
+      variant="outline"
+      className="w-full justify-between"
+    >
+      <div className="flex items-center gap-2">
+        <Image /> <span>GPT Graph Analysis (JSON)</span>
+      </div>
+      <Download />
+    </Button>
+  )}
 
-{/* Graph Summary */}
-{graphs.filter(g => g.isGraph).length > 0 && (
-  <div className="bg-blue-50">
-    Graph Detection Summary:
-    {graphs.filter(g => g.isGraph).slice(0, 5).map(graph => (
-      <div>{graph.imageName}: {graph.graphType}</div>
-    ))}
-    {graphCount > 5 && <p>+{graphCount - 5} more graphs</p>}
-  </div>
-)}
+  {/* Graph Summary (collapsed to first 5) */}
+  {graphifyResults && graphifyResults.summary.filter(r => r.isGraph).length > 0 && (
+    <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+      <p className="text-xs font-medium text-blue-900 mb-2">
+        Graph Detection Summary:
+      </p>
+      <div className="space-y-1">
+        {graphifyResults.summary
+          .filter(r => r.isGraph)
+          .slice(0, 5)
+          .map((result, idx) => (
+            <div key={idx} className="text-xs text-blue-700">
+              <span className="font-medium">{result.imageName}</span>: {result.graphType || 'graph'}
+            </div>
+          ))}
+        {graphifyResults.summary.filter(r => r.isGraph).length > 5 && (
+          <p className="text-xs text-blue-600 italic">
+            +{graphifyResults.summary.filter(r => r.isGraph).length - 5} more graphs
+          </p>
+        )}
+      </div>
+    </div>
+  )}
+</div>
 ```
 
 6. **Error Display**:
 ```tsx
-<div className="bg-red-50">
-  <AlertCircle />
-  Extraction Failed
-  <p>{errorMessage}</p>
+<div className="bg-red-50 flex items-start gap-3 p-4">
+  <AlertCircle className="h-5 w-5 text-red-600" />
+  <div>
+    <p className="text-sm font-medium text-red-900">Extraction Failed</p>
+    <p className="text-sm text-red-700 mt-1">{errorMessage}</p>
+  </div>
 </div>
+```
+
+7. **Reset Functionality**:
+```tsx
+{extractionResult && !isProcessing && (
+  <Button onClick={handleReset} variant="ghost" className="w-full">
+    <X /> Clear and Start Over
+  </Button>
+)}
+```
+
+**Conditional Rendering for Analysis View**:
+```typescript
+// Show analysis view if extraction was successful and user wants to view it
+if (showAnalysisView && extractionResult?.success && selectedFile) {
+  return (
+    <PaperAnalysisView
+      result={extractionResult}
+      fileName={selectedFile.name}
+      onBack={handleBackToUpload}
+    />
+  )
+}
+
+// Otherwise show upload interface
+return (
+  <div className="min-h-screen w-full overflow-y-auto bg-gray-50">
+    {/* Upload interface */}
+  </div>
+)
+```
+
+---
+
+### Paper Analysis View Component
+
+**File**: `src/components/PaperAnalysisView.tsx`
+
+**Purpose**: Comprehensive interface for exploring extracted PDF content with rich formatting, interactive views, and data visualization.
+
+**Component Props**:
+```typescript
+interface PaperAnalysisViewProps {
+  result: PDFExtractionResult
+  fileName: string
+  onBack: () => void
+}
+```
+
+**State Management**:
+```typescript
+const [activeTab, setActiveTab] = useState<ViewTab>('markdown')  // 'markdown' | 'tables' | 'graphs' | 'data'
+const [markdownView, setMarkdownView] = useState<MarkdownView>('rendered')  // 'rendered' | 'source'
+const [selectedDataView, setSelectedDataView] = useState<'original' | 'response' | 'gpt'>('original')
+const [tables, setTables] = useState<TableData[] | null>(null)
+const [originalImages, setOriginalImages] = useState<Record<string, string> | null>(null)
+const [responseJson, setResponseJson] = useState<Record<string, unknown> | null>(null)
+const [graphifyData, setGraphifyData] = useState<unknown[] | null>(null)
+```
+
+**Key Dependencies**:
+```typescript
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import remarkParse from 'remark-parse'
+import rehypeHighlight from 'rehype-highlight'
+import rehypeRaw from 'rehype-raw'
+import { unified } from 'unified'
+import { visit } from 'unist-util-visit'
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
+import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch'
+```
+
+**Component Structure**:
+
+1. **Header Section**:
+```tsx
+<div className="bg-white shadow-sm p-4">
+  <Button variant="ghost" onClick={onBack}>
+    <ChevronLeft /> Back to Upload
+  </Button>
+  <h1 className="text-2xl font-bold">{documentName}</h1>
+  <Card>
+    <CardContent>
+      <div className="flex items-center gap-4 text-sm">
+        <span><FileText /> {imagesFound} images</span>
+        {graphsDetected > 0 && <span><Image /> {graphsDetected} graphs</span>}
+        {tablesFound > 0 && <span><Database /> {tablesFound} tables</span>}
+        <span>· {processingTimeMs}ms</span>
+      </div>
+    </CardContent>
+  </Card>
+</div>
+```
+
+2. **Tab Navigation**:
+```tsx
+<div className="border-b">
+  <Button 
+    variant={activeTab === 'markdown' ? 'default' : 'ghost'}
+    onClick={() => setActiveTab('markdown')}
+  >
+    <FileText /> Markdown
+  </Button>
+  <Button 
+    variant={activeTab === 'tables' ? 'default' : 'ghost'}
+    onClick={() => setActiveTab('tables')}
+  >
+    <Database /> Tables ({tablesFound})
+  </Button>
+  <Button 
+    variant={activeTab === 'graphs' ? 'default' : 'ghost'}
+    onClick={() => setActiveTab('graphs')}
+  >
+    <BarChart3 /> Graphs ({graphsDetected})
+  </Button>
+  <Button 
+    variant={activeTab === 'data' ? 'default' : 'ghost'}
+    onClick={() => setActiveTab('data')}
+  >
+    <Code /> Data
+  </Button>
+</div>
+```
+
+3. **Markdown Tab Content**:
+```tsx
+{activeTab === 'markdown' && (
+  <>
+    {/* View Toggle */}
+    <div className="flex gap-2 mb-4">
+      <Button 
+        variant={markdownView === 'rendered' ? 'default' : 'outline'}
+        onClick={() => setMarkdownView('rendered')}
+      >
+        <Eye /> Rendered
+      </Button>
+      <Button 
+        variant={markdownView === 'source' ? 'default' : 'outline'}
+        onClick={() => setMarkdownView('source')}
+      >
+        <Code /> Source
+      </Button>
+      <Button onClick={() => downloadBlob(markdownBlob, `${fileName}.md`)}>
+        <Download /> Download
+      </Button>
+    </div>
+
+    {/* Rendered View */}
+    {markdownView === 'rendered' && (
+      <div className="prose max-w-none">
+        <ReactMarkdown 
+          remarkPlugins={[remarkGfm]}
+          rehypePlugins={[rehypeHighlight, rehypeRaw]}
+        >
+          {markdownContent}
+        </ReactMarkdown>
+      </div>
+    )}
+
+    {/* Source View */}
+    {markdownView === 'source' && (
+      <SyntaxHighlighter 
+        language="markdown" 
+        style={vscDarkPlus}
+        showLineNumbers
+      >
+        {markdownContent}
+      </SyntaxHighlighter>
+    )}
+  </>
+)}
+```
+
+4. **Tables Tab Content**:
+```tsx
+{activeTab === 'tables' && (
+  <>
+    {tables && tables.length > 0 ? (
+      <div className="space-y-6">
+        {tables.map((table, idx) => (
+          <Card key={idx}>
+            <CardHeader>
+              <CardTitle>Table {table.index}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="bg-gray-50">
+                      {table.headers.map((header, i) => (
+                        <th key={i} className="border p-2 text-left">
+                          {header}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {table.rows.map((row, rowIdx) => (
+                      <tr key={rowIdx}>
+                        {row.map((cell, cellIdx) => (
+                          <td key={cellIdx} className="border p-2">
+                            {cell}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              
+              {/* Markdown Source */}
+              <details className="mt-4">
+                <summary className="cursor-pointer text-sm text-gray-600">
+                  View Markdown Source
+                </summary>
+                <SyntaxHighlighter language="markdown" style={vscDarkPlus}>
+                  {table.rawMarkdown}
+                </SyntaxHighlighter>
+              </details>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    ) : (
+      <div className="text-center py-12">
+        <Database className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+        <p className="text-gray-600">No tables found in this document</p>
+      </div>
+    )}
+  </>
+)}
+```
+
+5. **Graphs Tab Content**:
+```tsx
+{activeTab === 'graphs' && (
+  <>
+    {allImages.length > 0 ? (
+      <div className="space-y-6">
+        {allImages.map(([imageName, imageData], idx) => {
+          const gptAnalysis = gptAnalysisMap.get(imageName)
+          
+          return (
+            <Card key={idx}>
+              <CardHeader>
+                <CardTitle>{imageName}</CardTitle>
+                {gptAnalysis?.graphType && (
+                  <Badge>{gptAnalysis.graphType}</Badge>
+                )}
+              </CardHeader>
+              <CardContent>
+                {/* Zoomable Image */}
+                <TransformWrapper>
+                  {({ zoomIn, zoomOut, resetTransform }) => (
+                    <>
+                      <div className="flex gap-2 mb-2">
+                        <Button size="sm" onClick={() => zoomIn()}>
+                          <ZoomIn /> Zoom In
+                        </Button>
+                        <Button size="sm" onClick={() => zoomOut()}>
+                          <ZoomOut /> Zoom Out
+                        </Button>
+                        <Button size="sm" onClick={() => resetTransform()}>
+                          <Undo2 /> Reset
+                        </Button>
+                      </div>
+                      <TransformComponent>
+                        <img 
+                          src={typeof imageData === 'string' ? imageData : imageData} 
+                          alt={imageName}
+                          className="max-w-full border"
+                        />
+                      </TransformComponent>
+                    </>
+                  )}
+                </TransformWrapper>
+
+                {/* GPT Analysis */}
+                {gptAnalysis?.isGraph && (
+                  <div className="mt-4 space-y-4">
+                    {/* Analysis */}
+                    {gptAnalysis.reason && (
+                      <div>
+                        <h4 className="font-semibold">Analysis:</h4>
+                        <p className="text-sm text-gray-700">{gptAnalysis.reason}</p>
+                      </div>
+                    )}
+
+                    {/* Extracted Data */}
+                    {gptAnalysis.data && (
+                      <div>
+                        <h4 className="font-semibold">Extracted Data:</h4>
+                        <SyntaxHighlighter language="json" style={vscDarkPlus}>
+                          {JSON.stringify(gptAnalysis.data, null, 2)}
+                        </SyntaxHighlighter>
+                      </div>
+                    )}
+
+                    {/* Python Code */}
+                    {gptAnalysis.pythonCode && (
+                      <div>
+                        <h4 className="font-semibold">Python Reconstruction Code:</h4>
+                        <SyntaxHighlighter language="python" style={vscDarkPlus}>
+                          {gptAnalysis.pythonCode}
+                        </SyntaxHighlighter>
+                      </div>
+                    )}
+
+                    {/* Assumptions */}
+                    {gptAnalysis.assumptions && (
+                      <div className="bg-yellow-50 p-3 rounded border border-yellow-200">
+                        <h4 className="font-semibold text-yellow-900">Assumptions:</h4>
+                        <p className="text-sm text-yellow-800">{gptAnalysis.assumptions}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )
+        })}
+      </div>
+    ) : (
+      <div className="text-center py-12">
+        <ImageIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+        <p className="text-gray-600">No graphs detected in this document</p>
+        <p className="text-sm text-gray-500 mt-2">
+          Try re-extracting with "Enable graph detection" enabled
+        </p>
+      </div>
+    )}
+  </>
+)}
+```
+
+6. **Data Tab Content**:
+```tsx
+{activeTab === 'data' && (
+  <>
+    {/* Data View Selector */}
+    <div className="flex gap-2 mb-4">
+      <Button 
+        variant={selectedDataView === 'original' ? 'default' : 'outline'}
+        onClick={() => setSelectedDataView('original')}
+      >
+        Original Images
+      </Button>
+      <Button 
+        variant={selectedDataView === 'response' ? 'default' : 'outline'}
+        onClick={() => setSelectedDataView('response')}
+      >
+        Full Response
+      </Button>
+      {graphifyData && (
+        <Button 
+          variant={selectedDataView === 'gpt' ? 'default' : 'outline'}
+          onClick={() => setSelectedDataView('gpt')}
+        >
+          GPT Analysis
+        </Button>
+      )}
+    </div>
+
+    {/* JSON Display with Syntax Highlighting */}
+    {selectedDataView === 'original' && originalImages && (
+      <>
+        <Button onClick={() => downloadBlob(originalImagesBlob, `${fileName}-original-images.json`)}>
+          <Download /> Download
+        </Button>
+        <SyntaxHighlighter language="json" style={vscDarkPlus} showLineNumbers>
+          {JSON.stringify(originalImages, null, 2)}
+        </SyntaxHighlighter>
+      </>
+    )}
+
+    {selectedDataView === 'response' && responseJson && (
+      <>
+        <Button onClick={() => downloadBlob(responseJsonBlob, `${fileName}-response.json`)}>
+          <Download /> Download
+        </Button>
+        <SyntaxHighlighter language="json" style={vscDarkPlus} showLineNumbers>
+          {JSON.stringify(responseJson, null, 2)}
+        </SyntaxHighlighter>
+      </>
+    )}
+
+    {selectedDataView === 'gpt' && graphifyData && (
+      <>
+        <Button onClick={() => downloadBlob(graphifyJsonBlob, `${fileName}-gpt-analysis.json`)}>
+          <Download /> Download
+        </Button>
+        <SyntaxHighlighter language="json" style={vscDarkPlus} showLineNumbers>
+          {JSON.stringify(graphifyData, null, 2)}
+        </SyntaxHighlighter>
+      </>
+    )}
+  </>
+)}
+```
+
+**Helper Functions**:
+```typescript
+// Extract tables from markdown
+function extractTablesFromMarkdown(markdown: string): TableData[] {
+  const processor = unified().use(remarkParse).use(remarkGfm)
+  const tree = processor.parse(markdown)
+  const tables: TableData[] = []
+
+  visit(tree, 'table', (node) => {
+    const tableNode = node as MdastTable
+    const rows = (tableNode.children || []) as MdastTableRow[]
+    
+    // Extract headers and data rows
+    const headers = /* extract from first row */
+    const dataRows = /* extract from remaining rows */
+    const rawMarkdown = buildMarkdownFromTable(headers, dataRows)
+
+    tables.push({
+      index: tables.length + 1,
+      headers,
+      rows: dataRows,
+      rawMarkdown
+    })
+  })
+
+  return tables
+}
+
+// Convert Blob to text
+const blobToText = async (blob: Blob): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result as string)
+    reader.onerror = reject
+    reader.readAsText(blob)
+  })
+}
+```
+
+**Data Loading (useEffect)**:
+```typescript
+React.useEffect(() => {
+  const loadData = async () => {
+    // Load original images JSON
+    if (result.originalImagesBlob) {
+      const text = await blobToText(result.originalImagesBlob)
+      setOriginalImages(JSON.parse(text))
+    }
+
+    // Load full response JSON
+    if (result.responseJsonBlob) {
+      const text = await blobToText(result.responseJsonBlob)
+      setResponseJson(JSON.parse(text))
+    } else if (result.responseJson) {
+      setResponseJson(result.responseJson)
+    }
+
+    // Load GPT analysis
+    if (result.graphifyResults?.graphifyJsonBlob) {
+      const text = await blobToText(result.graphifyResults.graphifyJsonBlob)
+      setGraphifyData(JSON.parse(text))
+    } else if (result.graphifyResults?.summary) {
+      setGraphifyData(result.graphifyResults.summary)
+    }
+  }
+
+  loadData()
+}, [result])
+
+React.useEffect(() => {
+  const loadTables = async () => {
+    // Try parsing from tables blob if available
+    if (result.tablesBlob) {
+      const text = await blobToText(result.tablesBlob)
+      const parsed = JSON.parse(text)
+      const normalized = normalizeTablesFromJson(parsed)
+      if (normalized.length > 0) {
+        setTables(normalized)
+        return
+      }
+    }
+
+    // Otherwise extract from markdown
+    if (result.markdownContent) {
+      const parsedTables = extractTablesFromMarkdown(result.markdownContent)
+      setTables(parsedTables)
+    }
+  }
+
+  loadTables()
+}, [result.tablesBlob, result.markdownContent])
 ```
 
 ---
@@ -438,6 +1133,7 @@ export interface PDFExtractionResult {
   responseJson?: Record<string, unknown>
   responseJsonBlob?: Blob
   originalImagesBlob?: Blob
+  tablesBlob?: Blob  // New: Parsed tables data
   graphifyResults?: {
     summary: GraphifyResult[]
     graphifyJsonBlob?: Blob
@@ -467,6 +1163,14 @@ export interface ExtractionStats {
   imagesFound: number
   graphsDetected: number
   processingTimeMs: number
+  tablesFound?: number  // New: Number of tables detected
+}
+
+export interface TableData {
+  index: number
+  headers: string[]
+  rows: string[][]
+  rawMarkdown: string
 }
 ```
 
@@ -649,19 +1353,19 @@ Fields:
 ```json
 {
   "model": "gpt-4o-mini",
-  "temperature": 0.3,
+  "temperature": 1,
   "response_format": { "type": "json_object" },
   "messages": [
     {
       "role": "system",
-      "content": "You convert static images of figures into approximate datasets and minimal plotting code."
+      "content": "You convert static images of figures into approximate datasets and minimal plotting code. When data is ambiguous, make reasonable numeric approximations and note them in assumptions."
     },
     {
       "role": "user",
       "content": [
         {
           "type": "text",
-          "text": "Determine if this image is a data visualization (graph/chart/plot). If yes, extract data and generate Python code to recreate it."
+          "text": "You are a scientific figure analyzer. Determine if this image is a data visualization (graph/chart/plot).\n\nIf yes, extract approximate numeric data and produce Python code to reconstruct it.\n\nReturn ONLY a JSON object with these keys:\n- is_graph (boolean): true if this is a graph/chart/plot\n- graph_type (string): type of graph (e.g., \"line chart\", \"bar chart\", \"scatter plot\")\n- reason (string): brief explanation\n- data (object): extracted numeric data with arrays/series\n- python_code (string): Python function recreate_plot(output_path: str) using matplotlib\n- assumptions (string): any assumptions made about ambiguous data\n\nRules:\n- Use simple lists for data (not dataframes)\n- Include title/axes/legend when inferable\n- Make code self-contained (no external files)\n- Use Agg backend for matplotlib\n- If not a graph, set is_graph to false and omit other fields"
         },
         {
           "type": "image_url",
@@ -938,11 +1642,29 @@ vercel dev
 
 ### Dependencies
 
-**Production**:
+**Backend (Production)**:
 ```json
 {
   "formidable": "^3.5.1",  // Multipart form parsing
   "undici": "^6.0.0"       // Modern fetch + FormData support
+}
+```
+
+**Frontend (Production)**:
+```json
+{
+  "react-markdown": "^9.0.0",  // Markdown rendering
+  "remark-gfm": "^4.0.0",  // GitHub Flavored Markdown
+  "remark-parse": "^11.0.0",  // Markdown parser
+  "rehype-highlight": "^7.0.0",  // Code highlighting
+  "rehype-raw": "^7.0.0",  // HTML in markdown
+  "unified": "^11.0.0",  // Parsing pipeline
+  "unist-util-visit": "^5.0.0",  // AST traversal
+  "mdast-util-to-string": "^4.0.0",  // AST to string
+  "react-syntax-highlighter": "^15.5.0",  // Code/JSON syntax highlighting
+  "@types/react-syntax-highlighter": "^15.5.0",  // TypeScript types
+  "react-zoom-pan-pinch": "^3.0.0",  // Image zoom/pan controls
+  "highlight.js": "^11.9.0"  // Syntax highlighting styles
 }
 ```
 
@@ -951,7 +1673,8 @@ vercel dev
 {
   "vitest": "^4.0.4",
   "@testing-library/react": "latest",
-  "@testing-library/user-event": "latest"
+  "@testing-library/user-event": "latest",
+  "@types/mdast": "^4.0.0"  // Markdown AST types
 }
 ```
 
@@ -1149,50 +1872,80 @@ console.error('Error in PDFExtractionService:', error)
 
 ## Use Cases
 
-### Research Paper Analysis
-**Scenario**: Extract content from published research papers
+### Research Paper Analysis (Enhanced)
+**Scenario**: Extract and deeply analyze content from published research papers
 
 **Workflow**:
-1. Upload journal article PDF
+1. Upload journal article PDF with drag & drop
 2. Enable graphify to detect data charts
-3. Download markdown for reading/analysis
-4. Download GPT analysis for data extraction
-5. Use Python code to recreate figures
+3. Click "View Comprehensive Analysis" button
+4. Navigate through tabbed interface:
+   - Read formatted paper in Markdown tab
+   - Review extracted tables in Tables tab
+   - Zoom into figures and read AI analysis in Graphs tab
+   - Download specific data sets from Data tab
+5. Copy Python code to recreate key figures
+6. Download markdown or JSON for further processing
 
-**Benefit**: Convert static PDFs to editable, analyzable content
+**Benefit**: Zero-friction from upload to deep insights with interactive exploration
 
-### Clinical Trial Reports
-**Scenario**: Extract data from clinical study reports
+### Clinical Trial Reports (Enhanced)
+**Scenario**: Extract and analyze data from clinical study reports
 
 **Workflow**:
 1. Upload clinical trial document
-2. Extract structured text
-3. Identify efficacy charts and safety data
-4. Download all formats for comprehensive analysis
+2. Open Analysis View immediately after extraction
+3. Review all efficacy tables in Tables tab
+4. Examine safety data visualizations in Graphs tab with zoom
+5. Toggle between rendered and source markdown to verify accuracy
+6. Download structured JSON for programmatic analysis
+7. Export specific tables or all data as needed
 
-**Benefit**: Structured data extraction from regulatory documents
+**Benefit**: Comprehensive structured data extraction with interactive verification
 
-### Literature Review
-**Scenario**: Process multiple research papers
+### Literature Review with Table Extraction
+**Scenario**: Process multiple research papers and extract comparative data
 
 **Workflow**:
 1. Upload papers one by one
-2. Collect markdown outputs
-3. Aggregate graph data from GPT analyses
-4. Build comprehensive literature database
+2. For each paper, open Analysis View
+3. Extract tables showing study parameters and results
+4. Copy markdown or download JSON for each table
+5. Aggregate graph data from GPT analyses across papers
+6. Build comprehensive literature database with structured tables
+7. Compare data points side-by-side
 
-**Benefit**: Systematic extraction for meta-analysis
+**Benefit**: Systematic extraction with table parsing for meta-analysis
 
 ### Data Extraction from Legacy Documents
 **Scenario**: Digitize old scanned papers
 
 **Workflow**:
 1. Upload scanned PDF
-2. Enable forceOCR option
+2. Enable forceOCR option (currently hardcoded to false, but can be enabled)
 3. Extract text despite poor scan quality
-4. Manually verify important data points
+4. Use Analysis View to verify extraction quality:
+   - Check rendered vs source markdown for OCR errors
+   - Zoom into extracted images to verify clarity
+   - Review tables for formatting issues
+5. Manually correct important data points
+6. Download corrected markdown
 
-**Benefit**: Preserve and digitize historical research
+**Benefit**: Preserve and digitize historical research with verification tools
+
+### Interactive Paper Presentation
+**Scenario**: Present research findings with live data exploration
+
+**Workflow**:
+1. Extract paper before presentation
+2. During presentation, open Analysis View
+3. Navigate between rendered paper and specific figures
+4. Zoom into graphs to highlight key data points
+5. Show Python reconstruction code for reproducibility
+6. Switch to source view to show markdown structure
+7. Demonstrate table data in structured format
+
+**Benefit**: Interactive, professional presentation with live data exploration
 
 ---
 
@@ -1208,11 +1961,12 @@ console.error('Error in PDFExtractionService:', error)
 
 ### Known Issues
 
-1. **Scanned PDFs**: May require forceOCR for accurate extraction
+1. **Scanned PDFs**: May require forceOCR for accurate extraction (currently hardcoded to `false` in component)
 2. **Complex Layouts**: Multi-column or unusual layouts may have formatting issues
 3. **Equations**: LaTeX equations may not render perfectly in markdown
-4. **Tables**: Complex tables may lose formatting
+4. **Tables**: Complex tables may lose formatting or require manual correction
 5. **Graph Data Accuracy**: Extracted data is approximate (pixel-based estimation)
+6. **Table Detection**: Frontend-based table parsing may miss tables with unusual markdown formatting
 
 ### Not Supported
 
@@ -1221,10 +1975,29 @@ console.error('Error in PDFExtractionService:', error)
 - Real-time streaming of results (batch processing only)
 - Concurrent multi-file uploads (one at a time)
 - PDF editing or annotation
+- Dynamic forceOCR toggle in UI (hardcoded to false currently)
 
 ---
 
 ## Future Enhancements
+
+### Recently Implemented ✅
+
+1. **Markdown Preview** ✅ (Implemented in Paper Analysis View)
+- Display extracted content in UI before download
+- Syntax highlighting for code blocks
+- Toggle between rendered and source views
+
+2. **Graph Viewer** ✅ (Implemented in Paper Analysis View)
+- Show detected graphs visually with original images
+- Zoom/pan controls for detailed viewing
+- Preview Python code with syntax highlighting
+- View extracted data and AI analysis
+
+3. **Table Extraction** ✅ (Implemented)
+- Frontend-based table parsing from markdown
+- Structured table display with headers and rows
+- Export as JSON
 
 ### Phase 2 (Short-term)
 
@@ -1236,37 +2009,41 @@ CREATE TABLE pdf_extraction_cache (
   markdown TEXT,
   response_json JSONB,
   graphify_results JSONB,
+  tables JSONB,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   expires_at TIMESTAMPTZ DEFAULT NOW() + INTERVAL '30 days'
 );
 ```
 
-2. **Markdown Preview**:
-- Display extracted content in UI before download
-- Syntax highlighting for code blocks
-- Collapsible sections
+2. **Enhanced Table Features**:
+- CSV/Excel export from tables
+- Table search and filtering
+- Sort by column
+- Column hiding/reordering
 
-3. **Graph Thumbnails**:
-- Show detected graphs visually
-- Click to view full size
-- Preview Python code
+3. **forceOCR UI Toggle**:
+- Add checkbox to enable/disable OCR in UI
+- Currently hardcoded to false
 
 ### Phase 3 (Medium-term)
 
-1. **Table Extraction**:
-- Parse markdown tables
-- Convert to CSV/Excel
-- Structured data output
-
-2. **Batch Processing**:
+1. **Batch Processing**:
 - Upload multiple PDFs
 - Queue processing
 - Download as zip file
+- Progress tracking for batch
 
-3. **Advanced Options**:
+2. **Advanced Options**:
 - Custom extraction schemas
 - Language selection
-- Output format options (HTML, plain text)
+- Output format options (HTML, plain text, DOCX)
+- Backend table extraction (currently frontend-only)
+
+3. **Search and Navigation**:
+- Full-text search within Analysis View
+- Jump to sections/tables/figures
+- Bookmarking and highlights
+- Table of contents generation
 
 ### Phase 4 (Long-term)
 
@@ -1274,16 +2051,25 @@ CREATE TABLE pdf_extraction_cache (
 - Auto-detect references
 - Extract bibliographic data
 - Link to PubMed/DOI
+- Build citation network graphs
 
 2. **Collaborative Features**:
-- Share extracted documents
-- Annotations and highlights
-- Version history
+- Share extracted documents via URL
+- Real-time annotations and highlights
+- Comment threads on specific sections
+- Version history and diff view
 
 3. **Advanced Graph Processing**:
-- Execute Python code in sandbox
+- Execute Python code in sandbox environment
 - Generate multiple chart variants
-- Interactive graph editing
+- Interactive graph editing with re-generation
+- Export graphs as SVG/PNG
+
+4. **AI-Powered Summarization**:
+- Auto-generate paper summaries
+- Key findings extraction
+- Methodology summaries
+- Integration with chat interface
 
 ---
 
@@ -1303,9 +2089,11 @@ const [viewMode, setViewMode] = useState<
 // Render PDF extraction view
 if (viewMode === 'dataextraction') {
   return (
-    <div className="h-screen flex flex-col overflow-hidden">
-      <Header />
-      <div className="flex-1 overflow-hidden">
+    <div className="h-screen flex flex-col bg-gray-50">
+      <Header onStartNewProject={handleStartNewProject} currentProjectId={currentProjectId} />
+      
+      {/* PDF Data Extraction Content */}
+      <div className="flex-1 overflow-y-auto">
         <PDFExtraction />
       </div>
     </div>
@@ -1319,6 +2107,19 @@ if (viewMode === 'dataextraction') {
 - Asset Pipeline
 - Saved Maps
 - **Data Extraction** ← New
+
+**Component Hierarchy**:
+```
+Dashboard
+  └── viewMode === 'dataextraction'
+      └── PDFExtraction
+          ├── Upload Interface (default)
+          └── PaperAnalysisView (conditional, when showAnalysisView === true)
+              ├── Markdown Tab
+              ├── Tables Tab
+              ├── Graphs Tab
+              └── Data Tab
+```
 
 ### Design System Compliance
 
@@ -1547,11 +2348,20 @@ curl -X POST http://localhost:3000/api/extract-pdf-content \
 
 ```tsx
 import { PDFExtraction } from '@/components/PDFExtraction'
+import { PaperAnalysisView } from '@/components/PaperAnalysisView'
 
 // In Dashboard
 if (viewMode === 'dataextraction') {
   return <PDFExtraction />
 }
+
+// PaperAnalysisView is automatically shown by PDFExtraction when user clicks "View Comprehensive Analysis"
+// It can also be used standalone:
+<PaperAnalysisView
+  result={extractionResult}
+  fileName="research-paper.pdf"
+  onBack={() => console.log('Back clicked')}
+/>
 ```
 
 ---
@@ -1630,20 +2440,27 @@ if (viewMode === 'dataextraction') {
 
 ## Summary
 
-The PDF Content Extraction feature provides a powerful, AI-enhanced way to convert static PDF documents into structured, analyzable data. By integrating Datalab's Marker API for text extraction and GPT Vision for graph detection, users can quickly transform research papers and reports into machine-readable formats with minimal effort.
+The PDF Content Extraction feature provides a powerful, AI-enhanced way to convert static PDF documents into structured, analyzable data with a comprehensive analysis interface. By integrating Datalab's Marker API for text extraction, GPT Vision for graph detection, and a rich Paper Analysis View for content exploration, users can quickly transform research papers and reports into machine-readable formats and gain deep insights.
 
 **Key Strengths**:
 - Fast processing (30s - 5min)
-- Four output formats (Markdown, Original Images, Full Response, GPT Analysis)
-- Intelligent graph detection
-- Separate downloads for original and reconstructed graphs
+- Five output formats (Markdown, Original Images, Tables, Full Response, GPT Analysis)
+- Intelligent graph detection with zoom/pan image viewing
+- **Comprehensive Paper Analysis View** with 4 tabs:
+  - Markdown viewer with rendered/source toggle
+  - Table browser with structured display
+  - Graph gallery with AI analysis and reconstruction code
+  - Data inspector with syntax-highlighted JSON
+- Table extraction from markdown (frontend-based)
+- Drag & drop file upload
 - User-configurable options
 - Comprehensive error handling
-- Production-ready and tested (118 tests)
+- Production-ready and fully integrated
 
 **Integration Points**:
 - Accessible via "Data Extraction" tab
 - Follows ABCresearch design system
+- Seamless navigation between upload and analysis views
 - Consistent with existing API patterns
 - Type-safe implementation
 
@@ -1652,10 +2469,24 @@ The PDF Content Extraction feature provides a powerful, AI-enhanced way to conve
 - User control over cost/feature tradeoff
 - Future caching for 80% cost reduction
 
+**User Experience**:
+- Modern drag & drop interface
+- Interactive content exploration
+- Multiple viewing modes for different use cases
+- Download flexibility (per-component or full data)
+- Zero-friction workflow from upload to insights
+
 ---
 
-**Documentation Version**: 1.0  
-**Last Updated**: October 28, 2025  
-**Feature Status**: Production Ready  
-**Test Coverage**: 118/118 tests passing
+**Documentation Version**: 2.0  
+**Last Updated**: November 3, 2025  
+**Feature Status**: Production Ready (Enhanced)  
+**Major Updates**:
+- Added Paper Analysis View with tabbed interface
+- Integrated table extraction functionality
+- Enhanced UI with drag & drop support
+- Improved GPT prompt (temperature: 1, more detailed instructions)
+- Added zoom/pan for image viewing
+- Syntax highlighting for code and JSON
+- Markdown rendering with GFM support
 
