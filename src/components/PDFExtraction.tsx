@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Upload, FileText, Download, X, Loader2, CheckCircle2, AlertCircle, Image } from 'lucide-react'
 import { PDFExtractionService, type PDFExtractionResult, type ExtractionOptions } from '@/services/pdfExtractionService'
+import { PaperAnalysisView } from './PaperAnalysisView'
 
 export function PDFExtraction() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
@@ -11,6 +12,7 @@ export function PDFExtraction() {
   const [enableGraphify, setEnableGraphify] = useState(true)
   const [maxImages, setMaxImages] = useState(10)
   const [isDragging, setIsDragging] = useState(false)
+  const [showAnalysisView, setShowAnalysisView] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -90,9 +92,18 @@ export function PDFExtraction() {
     setSelectedFile(null)
     setExtractionResult(null)
     setIsProcessing(false)
+    setShowAnalysisView(false)
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
+  }
+
+  const handleViewAnalysis = () => {
+    setShowAnalysisView(true)
+  }
+
+  const handleBackToUpload = () => {
+    setShowAnalysisView(false)
   }
 
   const formatFileSize = (bytes: number): string => {
@@ -101,6 +112,17 @@ export function PDFExtraction() {
     const sizes = ['Bytes', 'KB', 'MB', 'GB']
     const i = Math.floor(Math.log(bytes) / Math.log(k))
     return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i]
+  }
+
+  // Show analysis view if extraction was successful and user wants to view it
+  if (showAnalysisView && extractionResult?.success && selectedFile) {
+    return (
+      <PaperAnalysisView
+        result={extractionResult}
+        fileName={selectedFile.name}
+        onBack={handleBackToUpload}
+      />
+    )
   }
 
   return (
@@ -285,6 +307,15 @@ export function PDFExtraction() {
                   )}
                 </div>
               </div>
+
+              {/* View Analysis Button */}
+              <Button
+                onClick={handleViewAnalysis}
+                className="w-full"
+              >
+                <FileText className="h-4 w-4" />
+                View Comprehensive Analysis
+              </Button>
 
               {/* Download Buttons */}
               <div className="space-y-2">

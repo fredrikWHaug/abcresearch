@@ -42,7 +42,7 @@ describe('PDFExtraction Component - Enhanced with Content Extraction', () => {
       expect(screen.getByText(/Upload a PDF document to extract tabular data/i)).toBeInTheDocument()
       
       // Check for upload area
-      expect(screen.getByText(/Click to upload PDF file/i)).toBeInTheDocument()
+      expect(screen.getByText(/Click or drag to upload PDF file/i)).toBeInTheDocument()
       
       // Check for file input (hidden)
       const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
@@ -587,7 +587,7 @@ describe('PDFExtraction Component - Enhanced with Content Extraction', () => {
       expect(screen.queryByText(/Markdown Content/i)).not.toBeInTheDocument()
       
       // Should return to initial state
-      expect(screen.getByText(/Click to upload PDF file/i)).toBeInTheDocument()
+      expect(screen.getByText(/Click or drag to upload PDF file/i)).toBeInTheDocument()
     })
 
     it('should reset file input value when clearing', async () => {
