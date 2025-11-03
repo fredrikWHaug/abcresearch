@@ -59,6 +59,9 @@ export class PDFExtractionService {
         responseJsonBlob: data.responseJsonBlob 
           ? this.base64ToBlob(data.responseJsonBlob, 'application/json') 
           : undefined,
+        originalImagesBlob: data.originalImagesBlob
+          ? this.base64ToBlob(data.originalImagesBlob, 'application/json')
+          : undefined,
         graphifyResults: data.graphifyResults ? {
           summary: data.graphifyResults.summary,
           graphifyJsonBlob: data.graphifyResults.graphifyJsonBlob
