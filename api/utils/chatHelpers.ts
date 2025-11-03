@@ -244,9 +244,14 @@ export function buildMessagesFromHistory(
   });
 
   // Add current user query
+  // HW8 ABC-57: Append format reminder to reinforce metadata requirement
+  const queryWithReminder = `${currentQuery}
+
+[Remember: Start your response with [SEARCH_INTENT: yes/no] and [SEARCH_TERMS: ...] tags]`;
+  
   messages.push({
     role: 'user',
-    content: currentQuery
+    content: queryWithReminder
   });
 
   return messages;
