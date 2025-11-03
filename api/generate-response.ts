@@ -165,6 +165,7 @@ Keep the response concise (2-3 sentences) and natural. Don't use bullet points o
     }
 
     // ABC-39: Use proper Anthropic API structure with system prompt and messages array
+    // HW8 ABC-57: Reduce max_tokens to encourage brevity (Claude tends to be verbose)
     const conversationalResponse = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -174,7 +175,7 @@ Keep the response concise (2-3 sentences) and natural. Don't use bullet points o
       },
       body: JSON.stringify({
         model: 'claude-3-haiku-20240307',
-        max_tokens: 500,
+        max_tokens: 200,  // HW8 ABC-57: Balanced for metadata + brief response
         temperature: 0.7,
         system: systemPrompt,  // Papers persist here (ABC-39)
         messages: messages     // Conversation flows here (ABC-39)
