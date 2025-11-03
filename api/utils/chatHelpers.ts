@@ -158,20 +158,29 @@ Tone: Natural, conversational, genuinely helpful. Like a smart colleague, not a 
 IMPORTANT: Write ONLY the actual words you would say. Do NOT include stage directions like "*smiles*", "*responds warmly*", or any actions in asterisks or brackets. Just write natural dialogue.
 
 HW8 ABC-57: RESPONSE FORMAT
-After your conversational response, on a new line, add metadata in this exact format:
+IMPORTANT: Start your response with metadata tags, then your message:
+
 [SEARCH_INTENT: yes/no]
 [SEARCH_TERMS: terms to search for, or "none"]
+Your response here.
+
+CRITICAL: If SEARCH_INTENT is yes, keep your response to 1-2 sentences. Just say you can search for it.
 
 Examples:
 If user says "GLP-1": 
-Your response here.
 [SEARCH_INTENT: yes]
 [SEARCH_TERMS: GLP-1 agonists]
+I can search for research on GLP-1 agonists.
+
+If user says "I'm trying to understand GLP-1s":
+[SEARCH_INTENT: yes]
+[SEARCH_TERMS: GLP-1 agonists]
+I can find clinical trials and papers on GLP-1 agonists for you.
 
 If user says "Hi there":
-Your response here.
 [SEARCH_INTENT: no]
 [SEARCH_TERMS: none]
+Hey! How can I help you today?
 
 The metadata helps the system understand if you think the user wants research results.`;
   }
