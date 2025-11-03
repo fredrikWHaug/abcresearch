@@ -33,7 +33,7 @@ The PDF extraction system serves to:
 - Generates Python reconstruction code
 
 ### 3. Multiple Download Formats
-Users receive three downloadable outputs:
+Users receive four downloadable outputs:
 
 1. **Markdown File (.md)**
    - Full text content
@@ -41,13 +41,19 @@ Users receive three downloadable outputs:
    - References to figures
    - Readable in any text editor
 
-2. **JSON Response (.json)**
-   - Complete API response
-   - Extracted images (base64 encoded)
+2. **Original Extracted Images (.json)**
+   - All images extracted by Datalab API
+   - Base64 encoded image data
+   - Image names and metadata
+   - Ready for external processing
+
+3. **Full API Response (.json)**
+   - Complete Datalab API response
+   - All extracted images (base64 encoded)
    - Processing metadata
    - Raw data for programmatic use
 
-3. **GPT Graph Analysis (.json)**
+4. **GPT Graph Analysis (.json)**
    - Per-image analysis results
    - Graph type identification
    - Extracted numeric data
@@ -92,8 +98,9 @@ Users receive three downloadable outputs:
    - Three download buttons appear
 
 6. **Download Outputs**
-   - Click "Download Markdown" for text content
-   - Click "Download Full Response" for complete data
+   - Click "Download Markdown Content" for text content
+   - Click "Download Original Extracted Images" for raw image data
+   - Click "Download Full API Response" for complete data
    - Click "Download GPT Graph Analysis" (if graphs detected)
 
 7. **Process Additional PDFs**
@@ -213,6 +220,9 @@ return {
   markdownBlob: Buffer.from(markdown).toString('base64'),
   responseJson: fullDatalabResponse,
   responseJsonBlob: Buffer.from(JSON.stringify(response)).toString('base64'),
+  originalImagesBlob: imagesFound > 0 
+    ? Buffer.from(JSON.stringify(images)).toString('base64')
+    : undefined,
   graphifyResults: {
     summary: graphAnalysisResults,
     graphifyJsonBlob: Buffer.from(JSON.stringify(graphs)).toString('base64')
@@ -255,6 +265,9 @@ static async extractContent(
     success: data.success,
     markdownBlob: base64ToBlob(data.markdownBlob, 'text/markdown'),
     responseJsonBlob: base64ToBlob(data.responseJsonBlob, 'application/json'),
+    originalImagesBlob: data.originalImagesBlob
+      ? base64ToBlob(data.originalImagesBlob, 'application/json')
+      : undefined,
     graphifyResults: ...,
     stats: data.stats
   }
@@ -371,6 +384,12 @@ const [maxImages, setMaxImages] = useState(10)
   <FileText /> Markdown Content <Download />
 </Button>
 
+{originalImagesBlob && (
+  <Button onClick={() => downloadBlob(originalImagesBlob, 'document-original-images.json')}>
+    <Image /> Original Extracted Images (JSON) <Download />
+  </Button>
+)}
+
 <Button onClick={() => downloadBlob(responseJsonBlob, 'document-response.json')}>
   <FileText /> Full API Response (JSON) <Download />
 </Button>
@@ -418,6 +437,7 @@ export interface PDFExtractionResult {
   markdownBlob?: Blob
   responseJson?: Record<string, unknown>
   responseJsonBlob?: Blob
+  originalImagesBlob?: Blob
   graphifyResults?: {
     summary: GraphifyResult[]
     graphifyJsonBlob?: Blob
@@ -532,6 +552,7 @@ Fields:
     }
   },
   "responseJsonBlob": "base64-encoded-json-string",
+  "originalImagesBlob": "base64-encoded-images-json-string",
   "graphifyResults": {
     "summary": [
       {
@@ -1487,9 +1508,13 @@ const result = await PDFExtractionService.extractContent(pdfFile, {
   maxGraphifyImages: 10
 })
 
-// Trigger download
+// Trigger downloads
 if (result.markdownBlob) {
   PDFExtractionService.downloadBlob(result.markdownBlob, 'document.md')
+}
+
+if (result.originalImagesBlob) {
+  PDFExtractionService.downloadBlob(result.originalImagesBlob, 'document-original-images.json')
 }
 
 // Access stats
@@ -1609,8 +1634,9 @@ The PDF Content Extraction feature provides a powerful, AI-enhanced way to conve
 
 **Key Strengths**:
 - Fast processing (30s - 5min)
-- Multiple output formats
+- Four output formats (Markdown, Original Images, Full Response, GPT Analysis)
 - Intelligent graph detection
+- Separate downloads for original and reconstructed graphs
 - User-configurable options
 - Comprehensive error handling
 - Production-ready and tested (118 tests)

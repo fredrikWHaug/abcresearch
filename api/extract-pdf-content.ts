@@ -388,6 +388,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Full response JSON
     const responseJsonBlob = Buffer.from(JSON.stringify(result, null, 2)).toString('base64')
 
+    // Original images blob (separate from full response for easier access)
+    const originalImagesBlob = imagesFound > 0 
+      ? Buffer.from(JSON.stringify(images, null, 2)).toString('base64')
+      : undefined
+
     // Process images with GPT if enabled
     let graphifyResults: GraphifyResult[] = []
     let graphsDetected = 0
@@ -416,6 +421,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       markdownBlob,
       responseJson: result,
       responseJsonBlob,
+      originalImagesBlob,
       graphifyResults: graphifyResults.length > 0 ? {
         summary: graphifyResults,
         graphifyJsonBlob: Buffer.from(JSON.stringify(graphifyResults, null, 2)).toString('base64')

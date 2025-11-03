@@ -113,7 +113,7 @@ export function PDFExtraction() {
               PDF Table Extraction
             </CardTitle>
             <CardDescription>
-              Upload a PDF document to extract tabular data into markdown format and reconstruct graphs using GPT Vision.
+              Upload a PDF document to extract tabular data into markdown format. Download original images and GPT-reconstructed graphs.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -303,6 +303,24 @@ export function PDFExtraction() {
                     <div className="flex items-center gap-2">
                       <FileText className="h-4 w-4" />
                       <span>Markdown Content</span>
+                    </div>
+                    <Download className="h-4 w-4 text-gray-400" />
+                  </Button>
+                )}
+
+                {/* Original Images Download */}
+                {extractionResult.originalImagesBlob && (
+                  <Button
+                    onClick={() => handleDownload(
+                      extractionResult.originalImagesBlob!, 
+                      `${selectedFile?.name.replace('.pdf', '') || 'document'}-original-images.json`
+                    )}
+                    variant="outline"
+                    className="w-full justify-between"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Image className="h-4 w-4" />
+                      <span>Original Extracted Images (JSON)</span>
                     </div>
                     <Download className="h-4 w-4 text-gray-400" />
                   </Button>

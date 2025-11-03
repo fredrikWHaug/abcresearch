@@ -27,6 +27,7 @@ export interface PDFExtractionResult {
   markdownBlob?: Blob
   responseJson?: Record<string, unknown>
   responseJsonBlob?: Blob
+  originalImagesBlob?: Blob
   graphifyResults?: {
     summary: GraphifyResult[]
     graphifyJsonBlob?: Blob
