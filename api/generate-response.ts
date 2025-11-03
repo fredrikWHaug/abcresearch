@@ -214,9 +214,19 @@ Keep the response concise (2-3 sentences) and natural. Don't use bullet points o
       .replace(/^\s+/, '') // Remove leading whitespace
       .trim();
 
-    // Generate search suggestions using helper function (unchanged for now)
-    const searchSuggestions = generateSearchSuggestions(userQuery);
-    const shouldSearch = searchSuggestions.length > 0;
+    // HW8 ABC-57: Use Claude's intent instead of regex
+    const shouldSearch = claudeSearchIntent === true;
+    const searchSuggestions = shouldSearch && claudeSearchTerms && claudeSearchTerms !== 'none' 
+      ? [{
+          id: 'search-1',
+          label: `Search for ${claudeSearchTerms}`,
+          query: claudeSearchTerms,
+          description: `Find clinical trials and research papers about ${claudeSearchTerms}`
+        }]
+      : [];
+    
+    console.log('HW8 ABC-57: Using Claude intent. shouldSearch:', shouldSearch);
+    console.log('HW8 ABC-57: Search suggestions:', searchSuggestions);
 
     return res.status(200).json({
       success: true,
