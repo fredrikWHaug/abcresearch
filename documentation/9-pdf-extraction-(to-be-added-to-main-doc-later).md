@@ -1,4 +1,5 @@
-LATEST UPDATE: 11/03/25
+**Documentation Version**: 2.1  
+**Last Updated**: November 3, 2025  
 
 # ABCresearch - PDF Content Extraction Documentation
 
@@ -27,12 +28,18 @@ The PDF extraction system serves to:
 - Supports scientific notation and equations
 - Automatic table detection and parsing
 
-### 2. Intelligent Graph Detection
+### 2. Intelligent Graph Detection & Rendering
 - GPT Vision API analyzes extracted images
 - Identifies data visualizations (charts, plots, graphs)
 - Distinguishes graphs from photos/diagrams
 - Extracts approximate data points
-- Generates Python reconstruction code
+- Generates Python matplotlib reconstruction code
+- **NEW**: Browser-based Python execution with Pyodide
+  - Render GPT-generated Python code directly in browser
+  - No Python installation required
+  - First load: ~10-15 seconds (Pyodide initialization)
+  - Subsequent renders: < 1 second
+  - Compare original vs AI-reconstructed graphs side-by-side
 
 ### 3. Paper Analysis View (New)
 Interactive interface for comprehensive content exploration:
@@ -51,7 +58,10 @@ Interactive interface for comprehensive content exploration:
   - Original images with zoom/pan controls
   - AI-generated analysis
   - Extracted numeric data
-  - Python reconstruction code
+  - Python reconstruction code with syntax highlighting
+  - **NEW**: One-click graph rendering in browser (Pyodide)
+  - **NEW**: Compare original vs reconstructed graphs
+  - **NEW**: Visual verification of GPT data extraction accuracy
   
 - **Data Inspector**: JSON viewers with syntax highlighting
   - Original images data
@@ -142,6 +152,10 @@ Users receive up to five downloadable outputs:
      - **Markdown**: Toggle rendered/source views
      - **Tables**: Browse extracted tables (if any)
      - **Graphs**: Zoom/pan through detected graphs
+       - **NEW**: Click "Render Graph in Browser" to execute Python code
+       - **NEW**: First render initializes Python environment (10-15s)
+       - **NEW**: Compare original extraction vs AI reconstruction
+       - **NEW**: Verify data accuracy visually
      - **Data**: Inspect structured JSON data
    - Download individual components from within analysis view
    - Use "Back to Upload" to return to extraction interface
@@ -285,6 +299,102 @@ return {
   }
 }
 ```
+
+---
+
+### Pyodide Graph Rendering (NEW Feature)
+
+**Service**: `src/services/pyodideGraphRenderer.ts`
+
+**Purpose**: Execute GPT-generated Python matplotlib code directly in the browser using Pyodide (WebAssembly Python runtime), enabling users to see AI-reconstructed graphs without needing a local Python installation.
+
+**Architecture**:
+```typescript
+class PyodideGraphRenderer {
+  private pyodide: PyodideInterface | null = null
+  private isInitialized = false
+  private initializationPromise: Promise<void> | null = null
+
+  // Initialize Pyodide with matplotlib and numpy
+  async initialize(): Promise<void> {
+    // Load from CDN (~50MB, cached after first load)
+    this.pyodide = await loadPyodide({
+      indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.29.0/full/'
+    })
+    
+    // Load required packages
+    await this.pyodide.loadPackage(['matplotlib', 'numpy'])
+    
+    // Configure matplotlib backend
+    await this.pyodide.runPythonAsync(`
+      import matplotlib
+      matplotlib.use('Agg')  # Non-GUI backend
+    `)
+  }
+
+  // Render graph from Python code
+  async renderGraph(pythonCode: string): Promise<RenderResult> {
+    // Wrap GPT code to capture output
+    const wrappedCode = `
+      import matplotlib.pyplot as plt
+      import numpy as np
+      import base64
+      
+      # Execute GPT-generated code
+      ${pythonCode}
+      
+      # Call the plotting function
+      output_path = '/tmp/plot.png'
+      recreate_plot(output_path)
+      
+      # Read and encode as base64
+      with open(output_path, 'rb') as f:
+        img_base64 = base64.b64encode(f.read()).decode('utf-8')
+      
+      img_base64
+    `
+    
+    const result = await this.pyodide.runPythonAsync(wrappedCode)
+    return {
+      success: true,
+      imageDataUrl: `data:image/png;base64,${result}`
+    }
+  }
+}
+```
+
+**Key Features**:
+- **Lazy Loading**: Pyodide only loads when user clicks "Render Graph"
+- **Singleton Pattern**: One instance per session, initialization cached
+- **Error Handling**: Graceful failure with helpful error messages
+- **Performance Tracking**: Logs initialization and execution times
+- **Virtual Filesystem**: Uses Pyodide's in-memory filesystem for temp files
+
+**Performance Characteristics**:
+- First initialization: 10-15 seconds (downloads ~50MB from CDN)
+- Subsequent renders: < 1 second (instant execution)
+- Bundle size impact: 0 bytes (loaded on demand from CDN)
+- Memory usage: ~50-100MB in browser
+- Browser caching: Packages cached for future sessions
+
+**Browser Compatibility**:
+- Chrome/Edge 90+: ✅ Full support
+- Firefox 90+: ✅ Full support  
+- Safari 15.4+: ✅ Full support
+- Mobile browsers: ⚠️ Slower, high memory usage
+
+**Dependencies**:
+```json
+{
+  "pyodide": "^0.29.0"
+}
+```
+
+**CDN Resources**:
+- Pyodide core: ~6MB (gzipped)
+- Matplotlib: ~30MB (gzipped)
+- Numpy: ~15MB (gzipped)
+- Total first load: ~50MB (cached by browser)
 
 ---
 
@@ -679,6 +789,13 @@ const [tables, setTables] = useState<TableData[] | null>(null)
 const [originalImages, setOriginalImages] = useState<Record<string, string> | null>(null)
 const [responseJson, setResponseJson] = useState<Record<string, unknown> | null>(null)
 const [graphifyData, setGraphifyData] = useState<unknown[] | null>(null)
+
+// NEW: Pyodide rendering state
+const [renderedGraphs, setRenderedGraphs] = useState<Map<string, string>>(new Map())
+const [renderingGraph, setRenderingGraph] = useState<string | null>(null)
+const [renderErrors, setRenderErrors] = useState<Map<string, string>>(new Map())
+const [isPyodideInitialized, setIsPyodideInitialized] = useState(false)
+const [pyodideInitMessage, setPyodideInitMessage] = useState('Python environment not loaded')
 ```
 
 **Key Dependencies**:
@@ -693,6 +810,7 @@ import { visit } from 'unist-util-visit'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch'
+import { pyodideRenderer } from '@/services/pyodideGraphRenderer'  // NEW: Pyodide rendering
 ```
 
 **Component Structure**:
@@ -928,6 +1046,67 @@ import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch'
                         <SyntaxHighlighter language="python" style={vscDarkPlus}>
                           {gptAnalysis.pythonCode}
                         </SyntaxHighlighter>
+                        
+                        {/* NEW: Render Button */}
+                        <Button 
+                          onClick={() => handleRenderGraph(imageName, gptAnalysis.pythonCode!)}
+                          disabled={renderingGraph === imageName}
+                        >
+                          {renderingGraph === imageName 
+                            ? 'Rendering...' 
+                            : renderedGraphs.has(imageName)
+                              ? 'Re-render Graph'
+                              : 'Render Graph in Browser'}
+                        </Button>
+                        
+                        {/* NEW: Loading Message */}
+                        {renderingGraph === imageName && !isPyodideInitialized && (
+                          <p className="text-xs text-blue-600">
+                            {pyodideInitMessage}
+                            <br/>
+                            This only happens once per session. Subsequent renders will be instant.
+                          </p>
+                        )}
+                      </div>
+                    )}
+                    
+                    {/* NEW: Rendered Graph Display */}
+                    {renderedGraphs.has(imageName) && (
+                      <div className="bg-gradient-to-br from-purple-50 to-blue-50 border-2 border-purple-200 rounded-lg p-4">
+                        <h4 className="font-medium text-purple-900">AI-Reconstructed Graph</h4>
+                        <span className="text-xs bg-purple-100 px-2 py-1 rounded">Rendered by Pyodide</span>
+                        
+                        {/* Zoomable Rendered Image */}
+                        <TransformWrapper>
+                          {({ zoomIn, zoomOut, resetTransform }) => (
+                            <>
+                              <div className="flex gap-2">
+                                <Button onClick={() => zoomIn()}>Zoom In</Button>
+                                <Button onClick={() => zoomOut()}>Zoom Out</Button>
+                                <Button onClick={() => resetTransform()}>Reset</Button>
+                              </div>
+                              <TransformComponent>
+                                <img src={renderedGraphs.get(imageName)} alt="Rendered graph" />
+                              </TransformComponent>
+                            </>
+                          )}
+                        </TransformWrapper>
+                        
+                        <p className="text-xs text-purple-600 mt-2">
+                          This graph was reconstructed from GPT-extracted data using Python and matplotlib. 
+                          Compare with the original image above to verify accuracy.
+                        </p>
+                      </div>
+                    )}
+                    
+                    {/* NEW: Render Error Display */}
+                    {renderErrors.has(imageName) && (
+                      <div className="bg-red-50 p-3 rounded">
+                        <h4 className="font-medium text-red-900">Rendering Error</h4>
+                        <p className="text-sm text-red-700">{renderErrors.get(imageName)}</p>
+                        <p className="text-xs text-red-600 mt-2">
+                          The Python code may have errors. You can still download and run it locally.
+                        </p>
                       </div>
                     )}
 
@@ -1025,6 +1204,40 @@ import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch'
 
 **Helper Functions**:
 ```typescript
+// NEW: Handle rendering a graph with Pyodide
+const handleRenderGraph = async (imageName: string, pythonCode: string) => {
+  setRenderingGraph(imageName)
+  setPyodideInitMessage('Initializing Python environment (first time: ~10-15 seconds)...')
+
+  try {
+    // Initialize Pyodide if needed (expensive first time, instant after)
+    if (!isPyodideInitialized) {
+      await pyodideRenderer.initialize()
+      setIsPyodideInitialized(true)
+      setPyodideInitMessage('Python environment ready')
+    }
+
+    // Render the graph
+    const renderResult = await pyodideRenderer.renderGraph(pythonCode)
+
+    if (renderResult.success && renderResult.imageDataUrl) {
+      setRenderedGraphs(prev => new Map(prev).set(imageName, renderResult.imageDataUrl!))
+      setRenderErrors(prev => {
+        const newMap = new Map(prev)
+        newMap.delete(imageName)
+        return newMap
+      })
+    } else {
+      throw new Error(renderResult.error || 'Rendering failed')
+    }
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown rendering error'
+    setRenderErrors(prev => new Map(prev).set(imageName, errorMessage))
+  } finally {
+    setRenderingGraph(null)
+  }
+}
+
 // Extract tables from markdown
 function extractTablesFromMarkdown(markdown: string): TableData[] {
   const processor = unified().use(remarkParse).use(remarkGfm)
@@ -1157,6 +1370,10 @@ export interface GraphifyResult {
   data?: Record<string, unknown>  // Extracted numeric data
   assumptions?: string       // Notes on data accuracy
   error?: string             // If processing failed
+  // NEW: Pyodide rendering fields
+  renderedImage?: string     // Base64 data URL of rendered graph
+  renderError?: string       // Error if rendering failed
+  renderTimeMs?: number      // Execution time for debugging
 }
 
 export interface ExtractionStats {
@@ -1664,7 +1881,8 @@ vercel dev
   "react-syntax-highlighter": "^15.5.0",  // Code/JSON syntax highlighting
   "@types/react-syntax-highlighter": "^15.5.0",  // TypeScript types
   "react-zoom-pan-pinch": "^3.0.0",  // Image zoom/pan controls
-  "highlight.js": "^11.9.0"  // Syntax highlighting styles
+  "highlight.js": "^11.9.0",  // Syntax highlighting styles
+  "pyodide": "^0.29.0"  // NEW: WebAssembly Python runtime for browser-based rendering
 }
 ```
 
@@ -1967,15 +2185,21 @@ console.error('Error in PDFExtractionService:', error)
 4. **Tables**: Complex tables may lose formatting or require manual correction
 5. **Graph Data Accuracy**: Extracted data is approximate (pixel-based estimation)
 6. **Table Detection**: Frontend-based table parsing may miss tables with unusual markdown formatting
+7. **NEW - Pyodide Initialization**: First graph render takes 10-15 seconds to load Python environment
+8. **NEW - Mobile Performance**: Pyodide rendering may be slow on low-end mobile devices
+9. **NEW - Python Code Execution**: Only executes in browser sandbox, no external files/network access
+10. **NEW - Matplotlib Limitations**: Advanced matplotlib features may not be supported in Pyodide
 
 ### Not Supported
 
 - Excel/Word document conversion (PDF only)
-- Executing generated Python code (security constraint)
+- ~~Executing generated Python code (security constraint)~~ ✅ **NOW SUPPORTED** via Pyodide (browser-based)
 - Real-time streaming of results (batch processing only)
 - Concurrent multi-file uploads (one at a time)
 - PDF editing or annotation
 - Dynamic forceOCR toggle in UI (hardcoded to false currently)
+- Python code with external dependencies not in Pyodide (limited to matplotlib, numpy, etc.)
+- Server-side Python execution (security constraint, but browser execution works)
 
 ---
 
@@ -1998,6 +2222,16 @@ console.error('Error in PDFExtractionService:', error)
 - Frontend-based table parsing from markdown
 - Structured table display with headers and rows
 - Export as JSON
+
+4. **Pyodide Graph Rendering** ✅ **NEW** (November 2025)
+- Execute Python matplotlib code directly in browser
+- WebAssembly-based Python runtime (Pyodide v0.29.0)
+- No local Python installation required
+- One-click graph rendering from GPT-generated code
+- Compare original vs AI-reconstructed graphs
+- Visual verification of data extraction accuracy
+- First load: ~10-15 seconds, subsequent: < 1 second
+- Cached across session for instant re-renders
 
 ### Phase 2 (Short-term)
 
@@ -2060,10 +2294,13 @@ CREATE TABLE pdf_extraction_cache (
 - Version history and diff view
 
 3. **Advanced Graph Processing**:
-- Execute Python code in sandbox environment
-- Generate multiple chart variants
+- ~~Execute Python code in sandbox environment~~ ✅ **DONE** via Pyodide
+- Generate multiple chart variants (e.g., different plot styles)
 - Interactive graph editing with re-generation
-- Export graphs as SVG/PNG
+- Export rendered graphs as high-resolution PNG/SVG
+- Pre-load Pyodide in background for faster first render
+- Service worker caching for offline Pyodide access
+- Support for more Python libraries (seaborn, plotly, bokeh)
 
 4. **AI-Powered Summarization**:
 - Auto-generate paper summaries
@@ -2478,10 +2715,13 @@ The PDF Content Extraction feature provides a powerful, AI-enhanced way to conve
 
 ---
 
-**Documentation Version**: 2.0  
-**Last Updated**: November 3, 2025  
-**Feature Status**: Production Ready (Enhanced)  
+
+**Feature Status**: Production Ready (Enhanced with Pyodide Rendering)  
 **Major Updates**:
+- **NEW**: Browser-based Python graph rendering with Pyodide WebAssembly
+- **NEW**: One-click execution of GPT-generated matplotlib code
+- **NEW**: Side-by-side comparison of original vs AI-reconstructed graphs
+- **NEW**: Visual verification of data extraction accuracy
 - Added Paper Analysis View with tabbed interface
 - Integrated table extraction functionality
 - Enhanced UI with drag & drop support
@@ -2489,4 +2729,7 @@ The PDF Content Extraction feature provides a powerful, AI-enhanced way to conve
 - Added zoom/pan for image viewing
 - Syntax highlighting for code and JSON
 - Markdown rendering with GFM support
+
+**Related Documentation**:
+- See `PYODIDE_GRAPH_RENDERING.md` for detailed technical documentation on the Pyodide rendering feature
 
