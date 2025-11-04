@@ -22,6 +22,7 @@ import { pubmedAPI } from '@/services/pubmedAPI'
 import { supabase } from '@/lib/supabase'
 import type { ClinicalTrial } from '@/types/trials'
 import type { SlideData } from '@/services/slideAPI'
+import type { BioRxivPreprint } from '@/types/preprints'
 
 interface DashboardProps {
   initialShowSavedMaps?: boolean;
@@ -114,6 +115,7 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
     setHasSearched(false);
     setChatHistory([]);
     setPapers([]);
+    setPreprints([]);
     setSlideError(null);
     setGeneratingSlide(false);
     setViewMode('research');
@@ -149,6 +151,7 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
   }>>([])
   const [hasSearched, setHasSearched] = useState(false)
   const [papers, setPapers] = useState<PubMedArticle[]>([])
+  const [preprints, setPreprints] = useState<BioRxivPreprint[]>([])
   const [papersLoading, setPapersLoading] = useState(false)
   const [viewMode, setViewMode] = useState<'research' | 'marketmap' | 'savedmaps' | 'pipeline' | 'dataextraction' | 'realtimefeed'>(initialShowSavedMaps ? 'savedmaps' : 'research')
   const [researchTab, setResearchTab] = useState<'trials' | 'papers'>('papers')
@@ -482,15 +485,16 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
       setDrugGroups(filteredDrugGroups);
       setTrials(initialResult.trials);
       setPapers(initialResult.papers);
-      
+      setPreprints(initialResult.preprints);
+
       // Calculate total stats
       const totalTrials = filteredDrugGroups.reduce((sum, g) => sum + g.trials.length, 0);
       const totalPapers = filteredDrugGroups.reduce((sum, g) => sum + g.papers.length, 0);
-      
+
       // Add final message to chat
-      setChatHistory(prev => [...prev, { 
-        type: 'system' as const, 
-        message: `Discovery complete! Found ${filteredDrugGroups.length} drugs with ${initialResult.trials.length} clinical trials and ${initialResult.papers.length} research papers. Results are displayed on the right.`,
+      setChatHistory(prev => [...prev, {
+        type: 'system' as const,
+        message: `Discovery complete! Found ${filteredDrugGroups.length} drugs with ${initialResult.trials.length} clinical trials, ${initialResult.papers.length} research papers, and ${initialResult.preprints.length} preprints. Results are displayed on the right.`,
         searchSuggestions: []
       }]);
       
