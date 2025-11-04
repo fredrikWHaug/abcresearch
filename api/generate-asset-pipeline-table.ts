@@ -200,19 +200,7 @@ async function extractDrugData(drugGroup: DrugGroup): Promise<PipelineDrugCandid
     return candidate;
   } catch (error) {
     console.error(`Error extracting data for ${drugGroup.drugName}:`, error);
-    
-    // Return fallback data with low confidence
-    return {
-      id: drugGroup.drugName.toLowerCase(),
-      scientificName: drugGroup.drugName,
-      sponsorCompany: drugGroup.trials[0]?.sponsors?.lead || 'Unknown',
-      stage: drugGroup.trials[0]?.phase?.includes('Phase 3') ? 'Phase III' : 'Phase II',
-      technologies: 'Unknown',
-      mechanismOfAction: 'Unknown',
-      indications: drugGroup.trials[0]?.conditions || [],
-      lastTrialStartDate: drugGroup.trials[0]?.startDate,
-      confidence: 0.3 // Low confidence for fallback
-    };
+    throw error;
   }
 }
 

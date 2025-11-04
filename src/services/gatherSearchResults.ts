@@ -104,73 +104,6 @@ export class GatherSearchResultsService {
     }
   }
 
-  /**
-   * Parse natural language query into search parameters
-   */
-  private static parseQuery(naturalLanguageQuery: string): SearchParams {
-    const query = naturalLanguageQuery.toLowerCase();
-    const params: SearchParams = {};
-    
-    // Extract phase
-    if (query.includes('phase 3') || query.includes('phase iii')) {
-      params.phase = 'PHASE3';
-    } else if (query.includes('phase 2') || query.includes('phase ii')) {
-      params.phase = 'PHASE2';
-    } else if (query.includes('phase 1') || query.includes('phase i')) {
-      params.phase = 'PHASE1';
-    }
-    
-    // Extract common conditions
-    const conditions = [
-      { keywords: ['cancer', 'oncology', 'tumor', 'carcinoma'], value: 'cancer' },
-      { keywords: ['diabetes', 'diabetic'], value: 'diabetes' },
-      { keywords: ['alzheimer', 'dementia'], value: 'alzheimer' },
-      { keywords: ['covid', 'coronavirus', 'sars-cov-2'], value: 'COVID-19' },
-      { keywords: ['heart', 'cardiac', 'cardiovascular'], value: 'cardiovascular' },
-    ];
-    
-    for (const condition of conditions) {
-      if (condition.keywords.some(keyword => query.includes(keyword))) {
-        params.condition = condition.value;
-        break;
-      }
-    }
-    
-    // Extract common sponsors
-    const sponsors = [
-      { keywords: ['pfizer'], value: 'Pfizer' },
-      { keywords: ['moderna'], value: 'Moderna' },
-      { keywords: ['j&j', 'johnson', 'janssen'], value: 'Johnson' },
-      { keywords: ['merck'], value: 'Merck' },
-      { keywords: ['novartis'], value: 'Novartis' },
-      { keywords: ['roche'], value: 'Roche' },
-      { keywords: ['lilly', 'eli lilly'], value: 'Eli Lilly' },
-      { keywords: ['astrazeneca', 'astra zeneca'], value: 'AstraZeneca' },
-    ];
-    
-    for (const sponsor of sponsors) {
-      if (sponsor.keywords.some(keyword => query.includes(keyword))) {
-        params.sponsor = sponsor.value;
-        break;
-      }
-    }
-    
-    // Extract status
-    if (query.includes('recruiting')) {
-      params.status = 'RECRUITING';
-    } else if (query.includes('completed')) {
-      params.status = 'COMPLETED';
-    } else if (query.includes('active')) {
-      params.status = 'ACTIVE_NOT_RECRUITING';
-    }
-    
-    // If no specific parameters were extracted, use the whole query
-    if (Object.keys(params).length === 0) {
-      params.query = naturalLanguageQuery;
-    }
-    
-    return params;
-  }
 
   /**
    * Enhance a user query using AI and return phrase-based discovery strategies
@@ -212,36 +145,12 @@ export class GatherSearchResultsService {
       return strategies;
     } catch (error) {
       console.error('Error enhancing search query:', error);
-      // Fallback to basic search if enhancement fails
-      return [{
-        query: userQuery,
-        description: 'Original query (fallback)',
-        priority: 'high',
-        searchType: 'broad'
-      }];
+      // Re-throw the error to be handled by the caller
+      throw new Error(`Search enhancement failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
-  /**
-   * Clean up enhanced queries to ensure they're valid
-   */
-  private static cleanQuery(params: SearchParams, originalQuery: string): SearchParams {
-    const cleaned: SearchParams = {};
-    
-    // Only add non-null values
-    if (params.condition && params.condition !== 'null') cleaned.condition = params.condition;
-    if (params.sponsor && params.sponsor !== 'null') cleaned.sponsor = params.sponsor;
-    if (params.phase && params.phase !== 'null') cleaned.phase = params.phase;
-    if (params.status && params.status !== 'null') cleaned.status = params.status;
-    if (params.query && params.query !== 'null') cleaned.query = params.query;
-    
-    // If no parameters were set, use the original user query
-    if (Object.keys(cleaned).length === 0) {
-      cleaned.query = originalQuery;
-    }
-    
-    return cleaned;
-  }
+
 
   /**
    * Search for clinical trials using phrase-based discovery strategies
@@ -512,13 +421,16 @@ export class GatherSearchResultsService {
 
   /**
    * Simple search without AI enhancement (fallback)
+   * Uses LLM-based query parsing in the API layer
    */
   static async simpleSearch(userQuery: string): Promise<GatherSearchResultsResponse> {
     try {
       // Parse query and search directly
-      const params = this.parseQuery(userQuery);
-
-      // Search trials, papers, press releases, and IR decks in parallel
+      //const params = this.parseQuery(userQuery);
+      // LLM-based parsing happens in searchTrials API
+      const params: SearchParams = { query: userQuery };
+      
+      // Search trials and papers in parallel
       const [trialsResult, papers, pressReleases, irDecks] = await Promise.all([
         this.searchTrials(params),
         this.searchPapers({
@@ -541,7 +453,7 @@ export class GatherSearchResultsService {
         searchStrategies: [{
           strategy: {
             query: userQuery,
-            description: 'Direct search (no AI enhancement)',
+            description: 'Direct search with LLM-based query parsing',
             priority: 'high',
             searchType: 'targeted'
           },

@@ -572,16 +572,14 @@ AT LEAST 8 strategies for complex queries. More is better than fewer.
 
 **Symptom**: Parse errors in console
 
-**Fix**: Already handled with fallback:
+**Fix**: This will now throw a proper error that needs to be caught and displayed to the user:
 ```typescript
 catch (parseError) {
-  // Fallback to basic strategy
-  return [{
-    query: userQuery,
-    description: 'Original query (fallback)',
-    priority: 'high',
-    searchType: 'targeted'
-  }];
+  return res.status(500).json({
+    success: false,
+    error: 'Failed to parse search enhancement response',
+    details: parseError instanceof Error ? parseError.message : 'Unknown parsing error'
+  });
 }
 ```
 

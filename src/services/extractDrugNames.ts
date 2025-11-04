@@ -16,87 +16,13 @@ export interface DrugInfo {
 interface ExtractDrugNamesResponse {
   success: boolean;
   drugs: Omit<DrugInfo, 'source' | 'sourceType'>[];
+  error?: string;
+  details?: string;
 }
 
 export class ExtractDrugNamesService {
-  // Blacklist of non-drug terms to exclude
-  private static readonly DRUG_BLACKLIST = new Set([
-    'placebo',
-    'glp-1',
-    'glp1',
-    'sglt2',
-    'dpp-4',
-    'ace inhibitor',
-    'beta blocker',
-    'calcium channel blocker',
-    'statin',
-    'insulin',
-    'metformin', // too generic
-    'aspirin', // too generic
-    'control',
-    'standard care',
-    'standard of care',
-    'usual care',
-    'best supportive care',
-    'chemotherapy', // too generic
-    'radiation',
-    'surgery',
-    'combination',
-    'monotherapy',
-    'therapy',
-    'treatment',
-    'intervention',
-    'drug',
-    'medication',
-    'agent',
-  ]);
-
-  /**
-   * Check if a drug name should be excluded
-   */
-  private static shouldExcludeDrug(drugName: string): boolean {
-    const normalized = drugName.toLowerCase().trim();
-    
-    // Exclude if in blacklist
-    if (this.DRUG_BLACKLIST.has(normalized)) {
-      return true;
-    }
-    
-    // Exclude very short names (likely acronyms or not real drugs)
-    if (normalized.length <= 3) {
-      return true;
-    }
-    
-    // Exclude if it's just a drug class (ends with common class suffixes without proper drug name)
-    const genericClassPatterns = [
-      /^glp-?\d+/i,
-      /^sglt-?\d+/i,
-      /^dpp-?\d+/i,
-      /\binhibitor$/i,
-      /\bblocker$/i,
-      /receptor\s+agonist$/i,
-      /receptor\s+antagonist$/i,
-    ];
-    
-    if (genericClassPatterns.some(pattern => pattern.test(normalized))) {
-      return true;
-    }
-    
-    // Exclude generic terms
-    const genericTerms = [
-      /^active\s+/i,
-      /^experimental\s+/i,
-      /^investigational\s+/i,
-      /^standard\s+/i,
-      /^conventional\s+/i,
-    ];
-    
-    if (genericTerms.some(pattern => pattern.test(normalized))) {
-      return true;
-    }
-    
-    return false;
-  }
+  // Track failed extractions for debugging
+  private static failedExtractions: Array<{ id: string; error: string }> = [];
 
   /**
    * Call the extract-drug-names API proxy
@@ -122,19 +48,19 @@ export class ExtractDrugNamesService {
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         console.error('Drug extraction API error:', errorData);
-        return [];
+        throw new Error(errorData.error || `Drug extraction failed: ${response.status}`);
       }
 
       const data: ExtractDrugNamesResponse = await response.json();
       
       if (!data.success) {
-        return [];
+        throw new Error(data.error || 'Drug extraction failed');
       }
 
       return data.drugs || [];
     } catch (error) {
       console.error('Error calling extract-drug-names API:', error);
-      return [];
+      throw error;
     }
   }
 
@@ -142,22 +68,29 @@ export class ExtractDrugNamesService {
    * Extract drug names from a single clinical trial
    */
   static async extractFromTrial(trial: ClinicalTrial, userQuery?: string): Promise<DrugInfo[]> {
-    // Combine relevant text from the trial
-    const text = [
-      trial.briefTitle,
-      trial.officialTitle,
-      ...(trial.interventions || []),
-      ...(trial.conditions || [])
-    ].filter(Boolean).join(' ');
+    try {
+      // Combine relevant text from the trial
+      const text = [
+        trial.briefTitle,
+        trial.officialTitle,
+        ...(trial.interventions || []),
+        ...(trial.conditions || [])
+      ].filter(Boolean).join(' ');
 
-    const drugs = await this.callExtractAPI(text, 'clinical_trial', userQuery);
-    
-    // Add source information
-    return drugs.map(drug => ({
-      ...drug,
-      source: trial.nctId,
-      sourceType: 'trial' as const
-    }));
+      const drugs = await this.callExtractAPI(text, 'clinical_trial', userQuery);
+      
+      // Add source information
+      return drugs.map(drug => ({
+        ...drug,
+        source: trial.nctId,
+        sourceType: 'trial' as const
+      }));
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      console.error(`Failed to extract drugs from trial ${trial.nctId}:`, errorMsg);
+      this.failedExtractions.push({ id: trial.nctId, error: errorMsg });
+      return [];
+    }
   }
 
   /**
@@ -182,28 +115,35 @@ export class ExtractDrugNamesService {
       }
     }
 
-    // Deduplicate drugs by name
-    return this.deduplicateDrugs(allDrugs);
+    // Return raw drugs with source information (don't deduplicate yet)
+    return allDrugs;
   }
 
   /**
    * Extract drug names from a single research paper
    */
   static async extractFromPaper(paper: PubMedArticle, userQuery?: string): Promise<DrugInfo[]> {
-    // Combine relevant text from the paper
-    const text = [
-      paper.title,
-      paper.abstract
-    ].filter(Boolean).join(' ');
+    try {
+      // Combine relevant text from the paper
+      const text = [
+        paper.title,
+        paper.abstract
+      ].filter(Boolean).join(' ');
 
-    const drugs = await this.callExtractAPI(text, 'research_paper', userQuery);
-    
-    // Add source information
-    return drugs.map(drug => ({
-      ...drug,
-      source: paper.pmid,
-      sourceType: 'paper' as const
-    }));
+      const drugs = await this.callExtractAPI(text, 'research_paper', userQuery);
+      
+      // Add source information
+      return drugs.map(drug => ({
+        ...drug,
+        source: paper.pmid,
+        sourceType: 'paper' as const
+      }));
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      console.error(`Failed to extract drugs from paper ${paper.pmid}:`, errorMsg);
+      this.failedExtractions.push({ id: paper.pmid, error: errorMsg });
+      return [];
+    }
   }
 
   /**
@@ -228,8 +168,8 @@ export class ExtractDrugNamesService {
       }
     }
 
-    // Deduplicate drugs by name
-    return this.deduplicateDrugs(allDrugs);
+    // Return raw drugs with source information (don't deduplicate yet)
+    return allDrugs;
   }
 
   /**
@@ -244,79 +184,226 @@ export class ExtractDrugNamesService {
     trialDrugs: DrugInfo[];
     paperDrugs: DrugInfo[];
     uniqueDrugNames: string[];
+    deduplicationWarning?: string;
   }> {
     try {
       // Extract from both trials and papers in parallel
       const [trialDrugs, paperDrugs] = await Promise.all([
-        this.extractFromTrials(trials.slice(0, 20), userQuery), // Limit to first 20 trials
-        this.extractFromPapers(papers.slice(0, 20), userQuery)  // Limit to first 20 papers
+        this.extractFromTrials(trials, userQuery), // Extract from all trials
+        this.extractFromPapers(papers, userQuery)  // Extract from all papers
       ]);
 
       // Combine all drugs
       const allDrugs = [...trialDrugs, ...paperDrugs];
-      const deduplicatedDrugs = this.deduplicateDrugs(allDrugs);
+      
+      // Try to deduplicate, but if it fails, continue with undeduped list
+      let deduplicatedDrugs: DrugInfo[];
+      let deduplicationWarning: string | undefined;
+      
+      try {
+        deduplicatedDrugs = await this.deduplicateDrugs(allDrugs);
+        console.log(`✅ Deduplication successful: ${allDrugs.length} → ${deduplicatedDrugs.length} drugs`);
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+        console.warn('⚠️ Deduplication failed, using basic deduplication:', errorMsg);
+        
+        // Fall back to basic deduplication by name (case-insensitive)
+        const seen = new Map<string, DrugInfo>();
+        for (const drug of allDrugs) {
+          const key = drug.name.toLowerCase();
+          const existing = seen.get(key);
+          // Keep the one with higher confidence
+          if (!existing || drug.confidence === 'high' || (drug.confidence === 'medium' && existing.confidence === 'low')) {
+            seen.set(key, drug);
+          }
+        }
+        deduplicatedDrugs = Array.from(seen.values());
+        console.log(`📋 Basic deduplication: ${allDrugs.length} → ${deduplicatedDrugs.length} drugs`);
+        
+        // Set warning message for user
+        deduplicationWarning = `⚠️ Advanced deduplication unavailable. Using basic deduplication - some duplicate drugs (brand/generic names) may appear separately in results.`;
+      }
 
-      // Filter to only high-confidence drugs and exclude blacklisted terms
-      const highConfidenceDrugs = deduplicatedDrugs.filter(drug => {
-        // Only include high confidence
-        if (drug.confidence !== 'high') {
-          return false;
-        }
-        
-        // Exclude blacklisted terms
-        if (this.shouldExcludeDrug(drug.name)) {
-          console.log(`Excluding drug: ${drug.name} (blacklisted or generic)`);
-          return false;
-        }
-        
-        return true;
-      });
+      // Filter to only high-confidence drugs
+      const highConfidenceDrugs = deduplicatedDrugs.filter(drug => drug.confidence === 'high');
 
       // Get unique drug names
       const uniqueDrugNames = [...new Set(highConfidenceDrugs.map(d => d.name))];
 
-      console.log(`Filtered to ${uniqueDrugNames.length} high-confidence drugs from ${deduplicatedDrugs.length} total`);
+      console.log(`Extracted ${uniqueDrugNames.length} high-confidence drugs from ${deduplicatedDrugs.length} total`);
+      
+      // Log failed extractions if any
+      if (this.failedExtractions.length > 0) {
+        console.warn(`Failed to extract drugs from ${this.failedExtractions.length} items:`, this.failedExtractions);
+        // Clear failed extractions after logging
+        this.failedExtractions = [];
+      }
 
       return {
         allDrugs: highConfidenceDrugs,
         trialDrugs,
         paperDrugs,
-        uniqueDrugNames
+        uniqueDrugNames,
+        deduplicationWarning
       };
     } catch (error) {
-      console.error('Error extracting drugs from search results:', error);
-      return {
-        allDrugs: [],
-        trialDrugs: [],
-        paperDrugs: [],
-        uniqueDrugNames: []
-      };
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error occurred';
+      console.error('Error extracting drugs from search results:', errorMsg);
+      
+      // Return error to be displayed on frontend
+      throw new Error(`Failed to extract drug names: ${errorMsg}`);
     }
   }
 
   /**
-   * Deduplicate drugs by name (keep highest confidence)
+   * Deduplicate drugs using LLM to handle synonyms, spelling variations, and brand/generic names
    */
-  private static deduplicateDrugs(drugs: DrugInfo[]): DrugInfo[] {
-    const drugMap = new Map<string, DrugInfo>();
-    
-    const confidenceRank = { high: 3, medium: 2, low: 1 };
-    
-    for (const drug of drugs) {
-      const normalizedName = drug.name.toLowerCase().trim();
-      const existing = drugMap.get(normalizedName);
-      
-      if (!existing) {
-        drugMap.set(normalizedName, drug);
-      } else {
-        // Keep the drug with higher confidence
-        if (confidenceRank[drug.confidence] > confidenceRank[existing.confidence]) {
-          drugMap.set(normalizedName, drug);
-        }
-      }
+  private static async deduplicateDrugs(drugs: DrugInfo[]): Promise<DrugInfo[]> {
+    // If list is small or empty, no need for LLM deduplication
+    if (drugs.length <= 1) {
+      return drugs;
     }
-    
-    return Array.from(drugMap.values());
+
+    const geminiApiKey = import.meta.env.VITE_GOOGLE_GEMINI_API_KEY;
+    if (!geminiApiKey) {
+      const error = 'Gemini API key not configured for drug deduplication';
+      console.error(error);
+      throw new Error(error);
+    }
+
+    // Extract just the drug names for simpler LLM processing
+    const drugNames = drugs.map(d => d.name);
+
+    const prompt = `You are a pharmaceutical expert. Deduplicate this list of drug names by merging synonyms, brand/generic names, and spelling variations.
+
+DRUG NAMES (${drugNames.length} total):
+${drugNames.map((name, i) => `${i + 1}. ${name}`).join('\n')}
+
+RULES:
+- Merge brand names with generic names (e.g., "Keytruda" and "Pembrolizumab" → keep "Pembrolizumab")
+- Merge spelling variations (e.g., "Nivolumab" and "nivolumab" → keep "Nivolumab")
+- Merge abbreviations with full names (keep the full name)
+- If unsure whether two drugs are the same, keep both separate
+- Prefer generic/scientific names over brand names
+- Return ONE name for each unique drug
+
+Return ONLY a JSON array of the deduplicated drug names (just strings, no objects):
+
+["Drug Name 1", "Drug Name 2", "Drug Name 3"]
+
+IMPORTANT: Return ONLY the JSON array, no markdown, no explanations, no code blocks.`;
+
+    try {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${geminiApiKey}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{
+              text: prompt
+            }]
+          }],
+          generationConfig: {
+            temperature: 0.2,
+            maxOutputTokens: 2000,
+          }
+        })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Gemini API error during deduplication:', errorText);
+        throw new Error(`Gemini API failed with status ${response.status}: ${errorText}`);
+      }
+
+      const data = await response.json();
+      const content = data.candidates[0].content.parts[0].text;
+
+      // Parse response with robust cleaning
+      let cleanedContent = content.trim();
+      
+      // Remove markdown code blocks
+      if (cleanedContent.startsWith('```json')) {
+        cleanedContent = cleanedContent.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+      } else if (cleanedContent.startsWith('```')) {
+        cleanedContent = cleanedContent.replace(/^```\s*/, '').replace(/\s*```$/, '');
+      }
+
+      // Extract JSON array (find first [ to last ])
+      const firstBracket = cleanedContent.indexOf('[');
+      const lastBracket = cleanedContent.lastIndexOf(']');
+      if (firstBracket !== -1 && lastBracket !== -1 && lastBracket > firstBracket) {
+        cleanedContent = cleanedContent.substring(firstBracket, lastBracket + 1);
+      }
+
+      // Fix common JSON errors from LLMs
+      // Remove trailing commas before ] or }
+      cleanedContent = cleanedContent.replace(/,(\s*[\]}])/g, '$1');
+      
+      // Remove comments (// and /* */)
+      cleanedContent = cleanedContent.replace(/\/\/.*$/gm, '');
+      cleanedContent = cleanedContent.replace(/\/\*[\s\S]*?\*\//g, '');
+
+      let deduplicatedNames: string[];
+      try {
+        deduplicatedNames = JSON.parse(cleanedContent);
+      } catch (parseError) {
+        console.error('Failed to parse deduplication response:', cleanedContent);
+        console.error('Parse error:', parseError);
+        throw new Error(`Invalid JSON in deduplication response: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`);
+      }
+      
+      if (!Array.isArray(deduplicatedNames)) {
+        console.error('Invalid deduplication response - expected array:', deduplicatedNames);
+        throw new Error('Invalid response format from Gemini API - expected array of strings');
+      }
+      
+      console.log(`LLM deduplication: ${drugs.length} → ${deduplicatedNames.length} drugs`);
+      
+      // Reconstruct DrugInfo objects from deduplicated names
+      // For each deduplicated name, find the best matching original drug entry
+      const deduplicatedDrugs: DrugInfo[] = deduplicatedNames.map(deduplicatedName => {
+        // Find all original drugs that might match this deduplicated name
+        const matches = drugs.filter(drug => 
+          drug.name.toLowerCase() === deduplicatedName.toLowerCase() ||
+          deduplicatedName.toLowerCase().includes(drug.name.toLowerCase()) ||
+          drug.name.toLowerCase().includes(deduplicatedName.toLowerCase())
+        );
+        
+        if (matches.length === 0) {
+          // No match found, use first drug as template
+          return {
+            ...drugs[0],
+            name: deduplicatedName
+          };
+        }
+        
+        // Use the match with highest confidence
+        const bestMatch = matches.sort((a, b) => {
+          const confidenceOrder = { high: 3, medium: 2, low: 1 };
+          return confidenceOrder[b.confidence] - confidenceOrder[a.confidence];
+        })[0];
+        
+        // Combine sources from all matches
+        const combinedSources = matches.map(m => m.source).filter((v, i, a) => a.indexOf(v) === i).join(', ');
+        
+        return {
+          name: deduplicatedName,
+          type: bestMatch.type,
+          confidence: bestMatch.confidence,
+          source: combinedSources,
+          sourceType: bestMatch.sourceType
+        };
+      });
+      
+      return deduplicatedDrugs;
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      console.error('Error in LLM deduplication:', errorMsg);
+      throw new Error(`Drug deduplication failed: ${errorMsg}`);
+    }
   }
 
   /**
@@ -338,6 +425,15 @@ export class ExtractDrugNamesService {
    */
   static getHighConfidenceDrugs(drugs: DrugInfo[]): DrugInfo[] {
     return drugs.filter(drug => drug.confidence === 'high');
+  }
+
+  /**
+   * Get and clear failed extractions
+   */
+  static getFailedExtractions(): Array<{ id: string; error: string }> {
+    const failed = [...this.failedExtractions];
+    this.failedExtractions = [];
+    return failed;
   }
 }
 
