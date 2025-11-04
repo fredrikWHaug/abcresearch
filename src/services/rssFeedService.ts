@@ -52,7 +52,7 @@ export async function parseRssFeed(rssUrl: string): Promise<RSSEntry[]> {
     const $ = cheerio.load(xmlText, { xmlMode: true });
     const entries: RSSEntry[] = [];
     
-    $('item').each((_, item) => {
+    $('item').each((_: number, item: any) => {
       const title = $(item).find('title').text();
       const link = $(item).find('link').text();
       const pubDate = $(item).find('pubDate').text() || $(item).find('updated').text();
@@ -132,7 +132,7 @@ export async function parseLatestTwoVersions(historyUrl: string): Promise<Versio
     const candidates = new Set<number>();
     
     // Find version IDs from links
-    $('a[href]').each((_, el) => {
+    $('a[href]').each((_: number, el: any) => {
       const href = $(el).attr('href') || '';
       const url = new URL(href, historyUrl);
       const params = url.searchParams;
@@ -146,7 +146,7 @@ export async function parseLatestTwoVersions(historyUrl: string): Promise<Versio
     });
     
     // Find version numbers in data attributes and text
-    $('[data-version], [data-version-id]').each((_, el) => {
+    $('[data-version], [data-version-id]').each((_: number, el: any) => {
       const version = $(el).attr('data-version') || $(el).attr('data-version-id');
       if (version && /^\d+$/.test(version)) {
         candidates.add(parseInt(version, 10));
@@ -155,7 +155,7 @@ export async function parseLatestTwoVersions(historyUrl: string): Promise<Versio
     
     // Find "Version X" text patterns
     const versionPattern = /Version\s+(\d+)/gi;
-    $('*').each((_, el) => {
+    $('*').each((_: number, el: any) => {
       const text = $(el).text();
       let match;
       while ((match = versionPattern.exec(text)) !== null) {
@@ -191,7 +191,7 @@ export async function extractDiffBlocks(comparisonUrl: string): Promise<string[]
     const seen = new Set<string>();
     
     // Find <ins> and <del> tags
-    $('ins, del').each((_, el) => {
+    $('ins, del').each((_: number, el: any) => {
       const text = $(el).text().trim();
       if (text) {
         const kind = el.tagName === 'ins' ? 'ADDED' : 'REMOVED';
@@ -204,7 +204,7 @@ export async function extractDiffBlocks(comparisonUrl: string): Promise<string[]
     });
     
     // Find elements with diff-related classes
-    $('[class*="diff"], [class*="added"], [class*="removed"], [class*="strike"]').each((_, el) => {
+    $('[class*="diff"], [class*="added"], [class*="removed"], [class*="strike"]').each((_: number, el: any) => {
       const text = $(el).text().trim();
       if (text && !seen.has(text)) {
         snippets.push(text);

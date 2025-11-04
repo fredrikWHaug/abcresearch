@@ -27,7 +27,7 @@ import {
   Loader2,
   Sparkles
 } from 'lucide-react'
-import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch'
+import { TransformWrapper, TransformComponent, type ReactZoomPanPinchContentRef } from 'react-zoom-pan-pinch'
 import type { PDFExtractionResult } from '@/services/pdfExtractionService'
 import type { TableData } from '@/types/extraction'
 import { pyodideRenderer } from '@/services/pyodideGraphRenderer'
@@ -583,7 +583,7 @@ export function PaperAnalysisView({ result, fileName, onBack }: PaperAnalysisVie
                             pinch={{ step: 0.12 }}
                             panning={{ velocityDisabled: true }}
                           >
-                            {({ zoomIn, zoomOut, resetTransform }) => (
+                            {({ zoomIn, zoomOut, resetTransform }: ReactZoomPanPinchContentRef) => (
                               <div className="relative rounded-lg border border-gray-200 bg-white">
                                 <div className="absolute right-3 top-3 z-10 flex gap-2 rounded-md bg-white/90 p-1 shadow-sm">
                                   <button
@@ -748,7 +748,7 @@ export function PaperAnalysisView({ result, fileName, onBack }: PaperAnalysisVie
                                   pinch={{ step: 0.12 }}
                                   panning={{ velocityDisabled: true }}
                                 >
-                                  {({ zoomIn, zoomOut, resetTransform }) => (
+                                  {({ zoomIn, zoomOut, resetTransform }: ReactZoomPanPinchContentRef) => (
                                     <div className="relative rounded-lg border-2 border-purple-300 bg-white">
                                       <div className="absolute right-3 top-3 z-10 flex gap-2 rounded-md bg-white/90 p-1 shadow-sm">
                                         <button
@@ -978,7 +978,7 @@ function extractTablesFromMarkdown(markdown: string): TableData[] {
   const tree = processor.parse(markdown)
   const tables: TableData[] = []
 
-  visit(tree, 'table', (node) => {
+  visit(tree, 'table', (node: unknown) => {
     const tableNode = node as MdastTable
     const rows = (tableNode.children || []) as MdastTableRow[]
     if (rows.length === 0) {

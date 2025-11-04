@@ -1,0 +1,23 @@
+---
+alwaysApply: true
+---
+
+Git workflow rules: 
+
+(1)  return to the targer branch (in this case, dev), then git pull --rebase 
+
+(2)Go back to your work branch and use
+
+git checkout paul-feature2-abc43
+
+git rebase dev
+
+resolving conflicts (maybe need git add for a file after conflict resolved)
+
+git rebase --continue
+
+Because git rebase rewrites commit history, a normal git push will fail. You need to "force push" to update the remote paul-feature2-abc43 branch.
+
+so use: git push --force-with-lease origin paul-feature2-abc43
+
+Open a Pull Request (PR), Use "Rebase and merge" on github
