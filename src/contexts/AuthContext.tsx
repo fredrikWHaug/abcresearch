@@ -9,6 +9,7 @@ interface AuthContextType {
   isGuest: boolean
   signUp: (email: string, password: string) => Promise<any>
   signIn: (email: string, password: string) => Promise<any>
+  signInWithOAuth: (provider: 'google' | 'github') => Promise<any>
   signOut: () => Promise<void>
   enterGuestMode: () => void
   exitGuestMode: () => void
@@ -78,7 +79,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       email,
       password,
     })
-    
+
     // Immediately update context state if login succeeds
     if (data?.session && data?.user) {
       console.log('SignIn successful, updating context state')
@@ -87,7 +88,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setIsGuest(false)
       localStorage.removeItem('isGuestMode')
     }
-    
+
+    return { data, error }
+  }
+
+  const signInWithOAuth = async (provider: 'google' | 'github') => {
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo: window.location.origin,
+      },
+    })
     return { data, error }
   }
 
@@ -121,6 +132,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isGuest,
     signUp,
     signIn,
+    signInWithOAuth,
     signOut,
     enterGuestMode,
     exitGuestMode,
