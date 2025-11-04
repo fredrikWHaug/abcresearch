@@ -146,6 +146,16 @@ export function TrialsList({ trials, loading, query }: TrialsListProps) {
                             {trial.nctId}
                           </span>
                         )}
+                        {/* Drug keywords extracted by Gemini from this trial */}
+                        {trial.extractedDrugs && trial.extractedDrugs.slice(0, 3).map((drug, idx) => (
+                          <Badge 
+                            key={idx}
+                            className="text-xs bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-200"
+                            variant="outline"
+                          >
+                            {drug}
+                          </Badge>
+                        ))}
                       </div>
                     </div>
                   </div>

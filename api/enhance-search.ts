@@ -70,21 +70,10 @@ export default async function handler(req: any, res: any) {
       const errorText = await response.text();
       console.error('Gemini API error:', errorText);
       
-      // Fallback to basic search strategies
-      return res.status(200).json({
-        success: true,
-        strategies: [
-          {
-            query: query,
-            queryTerm: query,
-            phase: '',
-            interventionName: '',
-            description: 'Original query',
-            priority: 'high',
-            searchType: 'targeted'
-          }
-        ],
-        totalStrategies: 1
+      return res.status(500).json({
+        success: false,
+        error: 'Search enhancement failed',
+        details: errorText
       });
     }
 
@@ -126,18 +115,11 @@ export default async function handler(req: any, res: any) {
       console.error('Failed to parse Gemini response:', content);
       console.error('Parse error:', parseError);
       
-      // Fallback: return basic strategies
-      strategies = [
-        {
-          query: query,
-          queryTerm: query,
-          phase: '',
-          interventionName: '',
-          description: 'Original query',
-          priority: 'high',
-          searchType: 'targeted'
-        }
-      ];
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to parse search enhancement response',
+        details: parseError instanceof Error ? parseError.message : 'Unknown parsing error'
+      });
     }
 
     return res.status(200).json({
@@ -161,10 +143,10 @@ function generateInitialSearchPrompt(query: string): string {
 
 USER QUERY: "${query}"
 
-CRITICAL: You must generate STRUCTURED queries using the ClinicalTrials.gov API v2 field system.
+CRITICAL: You must generate STRUCTURED queries using the ClinicalTrials.gov API v2 field system. Think carefully about the fields available to you. 
 
 QUERY STRUCTURE:
-1. **phase**: Extract phase information and put it in a SEPARATE field
+1. **phase**: Extract phase information and put it in the SEPARATE PHASE field
    - Examples: "Phase 1", "Phase 2", "Phase 3", "Phase 4", "Phase 1|Phase 2" (for multiple phases)
    - If user specifies phase, extract it. If no phase specified, leave this field empty or use strategic phases
    

@@ -96,9 +96,24 @@ export const PapersDiscovery: React.FC<PapersDiscoveryProps> = ({
                     <div className="flex flex-wrap gap-2">
                       <Badge variant="outline">{paper.journal}</Badge>
                       <Badge variant="secondary">{paper.publicationDate}</Badge>
+                      {paper.pmid && (
+                        <span className="text-xs text-gray-500 font-mono">
+                          PMID:{paper.pmid}
+                        </span>
+                      )}
                       {paper.nctNumber && (
                         <Badge variant="default">{paper.nctNumber}</Badge>
                       )}
+                      {/* Drug keywords extracted by Gemini from this paper */}
+                      {paper.extractedDrugs && paper.extractedDrugs.slice(0, 3).map((drug, idx) => (
+                        <Badge 
+                          key={idx}
+                          className="text-xs bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-200"
+                          variant="outline"
+                        >
+                          {drug}
+                        </Badge>
+                      ))}
                     </div>
                     
                     <p className="text-sm line-clamp-3 text-muted-foreground">

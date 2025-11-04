@@ -656,26 +656,51 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
       const uniqueDrugNames = drugExtractionResult.uniqueDrugNames;
       console.log(`Stage 1 complete: Found ${uniqueDrugNames.length} unique drugs:`, uniqueDrugNames);
       
+      // Attach extracted drugs to each trial/paper object
+      const trialsWithDrugs = initialResult.trials.map(trial => {
+        const drugsForTrial = drugExtractionResult.trialDrugs
+          .filter(drug => drug.source === trial.nctId)
+          .map(drug => drug.name);
+        return {
+          ...trial,
+          extractedDrugs: [...new Set(drugsForTrial)] // Deduplicate
+        };
+      });
+      
+      const papersWithDrugs = initialResult.papers.map(paper => {
+        const drugsForPaper = drugExtractionResult.paperDrugs
+          .filter(drug => drug.source === paper.pmid)
+          .map(drug => drug.name);
+        return {
+          ...paper,
+          extractedDrugs: [...new Set(drugsForPaper)] // Deduplicate
+        };
+      });
+      
+      // Update the search results with enhanced data
+      setTrials(trialsWithDrugs);
+      setPapers(papersWithDrugs);
+      
       // Update chat with completion (remove loading message)
       setChatHistory(prev => {
         const filtered = prev.filter(item => item.message !== 'stage1_loading');
         return [...filtered, { 
           type: 'system' as const, 
-          message: `Found ${uniqueDrugNames.length} unique drugs from ${initialResult.trials.length} trials and ${initialResult.papers.length} papers. Grouping results...`,
+          message: `Found ${uniqueDrugNames.length} unique drugs from ${trialsWithDrugs.length} trials and ${papersWithDrugs.length} papers. Grouping results...`,
           searchSuggestions: []
         }];
       });
       
       // Group trials and papers by extracted drug names (NO Stage 2 searches!)
-      console.log(`Grouping ${initialResult.trials.length} trials and ${initialResult.papers.length} papers by ${uniqueDrugNames.length} drugs...`);
+      console.log(`Grouping ${trialsWithDrugs.length} trials and ${papersWithDrugs.length} papers by ${uniqueDrugNames.length} drugs...`);
       setExtractingDrugs(false);
       
       // Create drug groups from the discovery search results
       const allDrugGroups: DrugGroup[] = uniqueDrugNames.map(drugName => {
         const normalizedDrugName = drugName.toLowerCase();
         
-        // Find trials mentioning this drug
-        const drugTrials = initialResult.trials.filter(trial => {
+        // Find trials mentioning this drug (use enhanced trials with extractedDrugs)
+        const drugTrials = trialsWithDrugs.filter(trial => {
           const trialText = [
             trial.briefTitle,
             trial.officialTitle,
@@ -685,8 +710,8 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
           return trialText.includes(normalizedDrugName);
         });
         
-        // Find papers mentioning this drug
-        const drugPapers = initialResult.papers.filter(paper => {
+        // Find papers mentioning this drug (use enhanced papers with extractedDrugs)
+        const drugPapers = papersWithDrugs.filter(paper => {
           const paperText = [paper.title, paper.abstract].join(' ').toLowerCase();
           return paperText.includes(normalizedDrugName);
         });
@@ -729,21 +754,41 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
       setIRDecks(initialResult.irDecks || []);
 
       // Add final message to chat
-      setChatHistory(prev => [...prev, {
-        type: 'system' as const,
-        message: `Discovery complete! Found ${filteredDrugGroups.length} drugs with ${initialResult.trials.length} clinical trials, ${initialResult.papers.length} research papers, and ${initialResult.pressReleases.length} press releases. Results are displayed on the right.`,
-        searchSuggestions: []
-      }]);
+      const chatMessages: Array<{type: 'system' | 'user', message: string, searchSuggestions: any[]}> = [
+        { 
+          type: 'system' as const, 
+          message: `Discovery complete! Found ${filteredDrugGroups.length} drugs with ${initialResult.trials.length} clinical trials, ${initialResult.papers.length} research papers, and ${initialResult.pressReleases.length} press releases. Results are displayed on the right.`,
+          searchSuggestions: []
+        }
+      ];
+      
+      // Add deduplication warning if present
+      if (drugExtractionResult.deduplicationWarning) {
+        chatMessages.push({
+          type: 'system' as const,
+          message: drugExtractionResult.deduplicationWarning,
+          searchSuggestions: []
+        });
+      }
+      
+      setChatHistory(prev => [...prev, ...chatMessages]);
       
     } catch (error) {
-      console.error('Error executing search suggestion:', error);
-      setChatHistory(prev => [...prev, { 
-        type: 'system' as const, 
-        message: 'Sorry, there was an error conducting the search. Please try again.',
-        searchSuggestions: []
-      }]);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      console.error('Error executing search suggestion:', errorMessage);
+      
+      // Remove loading message and add error message
+      setChatHistory(prev => {
+        const filtered = prev.filter(item => item.message !== 'stage1_loading');
+        return [...filtered, { 
+          type: 'system' as const, 
+          message: `❌ Search failed: ${errorMessage}\n\nPlease try again or contact support if the issue persists.`,
+          searchSuggestions: []
+        }];
+      });
+      
       setExtractingDrugs(false);
-      setHasSearched(false);
+      // Keep hasSearched as true so user stays on the results screen and can see the error
     } finally {
       setLoading(false);
       setPapersLoading(false);
