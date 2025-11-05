@@ -42,10 +42,10 @@ export interface GatherSearchResultsResponse {
 }
 
 /**
- * Get API base URL - handles both browser and test environments
+ * Get server API base URL - handles both browser (vercel deployment) and test environments (localhost)
  */
 function getApiBaseUrl(): string {
-  // In test environment, use TEST_SERVER_URL if provided
+  // In test environment, use TEST_SERVER_URL if provided - this is provided in run-integration-tests.sh and nowhere else
   if (typeof process !== 'undefined' && process.env?.TEST_SERVER_URL) {
     return process.env.TEST_SERVER_URL;
   }
@@ -60,7 +60,7 @@ function getApiBaseUrl(): string {
 }
 
 /**
- * Build full API URL for fetch calls
+ * Build full server API URL for fetch calls
  */
 function buildApiUrl(path: string): string {
   const baseUrl = getApiBaseUrl();
@@ -174,6 +174,7 @@ export class GatherSearchResultsService {
             console.log(`  ✓ "${strategy.query}": ${result.trials.length} trials`);
             
             // Capture formatted queries for display
+            //TODO: doesn't have to be RCT for phase 4+
             const formattedQueries = {
               clinicalTrials: strategy.query, // This becomes query.term parameter
               pubmed: `${strategy.query} AND ("Clinical Trial"[Publication Type] OR "Randomized Controlled Trial"[Publication Type])`
@@ -218,6 +219,7 @@ export class GatherSearchResultsService {
       console.log(`   Removed ${allTrials.length - uniqueTrials.length} duplicates (${Math.round((allTrials.length - uniqueTrials.length) / allTrials.length * 100)}%)`);
       
       // Apply ranking to prioritize most relevant
+      // TODO: How long does this process take? Should add logging on latency of each step OR showing progress on screen
       const rankedTrials = TrialRankingService.rankTrials(uniqueTrials, userQuery);
 
       return {
@@ -262,6 +264,8 @@ export class GatherSearchResultsService {
   private static async searchResearchPapers(userQuery: string): Promise<PubMedArticle[]> {
     try {
       // Get 5 phrase-based discovery strategies from AI (same as trials)
+      //TODO check if enhance query API has a different set of instructions for PubMed.
+      //maybe you can merge the query enhancement with the searching
       const strategies = await this.enhanceQuery(userQuery);
       
       console.log(`📄 Searching papers with ${strategies.length} discovery strategies...`);
@@ -422,7 +426,10 @@ export class GatherSearchResultsService {
   /**
    * Simple search without AI enhancement (fallback)
    * Uses LLM-based query parsing in the API layer
+   * TODO: Should remove this so that we always use the enhancement (which is currently broken)
    */
+
+  /**
   static async simpleSearch(userQuery: string): Promise<GatherSearchResultsResponse> {
     try {
       // Parse query and search directly
@@ -466,6 +473,6 @@ export class GatherSearchResultsService {
       console.error('Error in simple search:', error);
       throw error;
     }
-  }
+  } */
 }
-
+ 

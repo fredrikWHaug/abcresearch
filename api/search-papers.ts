@@ -14,6 +14,8 @@ let lastRequestTime = 0;
 
 /**
  * Enhance PubMed query using Gemini LLM to construct better search terms
+ * TODO: We are only making ONE PubMed query - we should be using 5 strategies. 
+ * Enhance queries should be coming up with 5 clinical trials queries and 5 paper queries
  */
 async function enhancePubMedQuery(userQuery: string): Promise<string> {
   const geminiApiKey = process.env.GOOGLE_GEMINI_API_KEY;
