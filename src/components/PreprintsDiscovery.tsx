@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { FileText, ExternalLink, Star, Users, Flask } from 'lucide-react';
+import { FileText, ExternalLink, Star, Users, Beaker } from 'lucide-react';
 import type { BioRxivPreprint } from '@/types/preprints';
 
 interface PreprintsDiscoveryProps {
@@ -60,7 +60,7 @@ export const PreprintsDiscovery: React.FC<PreprintsDiscoveryProps> = ({
     return (
       <div className="h-full flex items-center justify-center p-8">
         <div className="text-center">
-          <Flask className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+          <Beaker className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
           <h3 className="text-lg font-semibold mb-2">No Preprints Found</h3>
           <p className="text-muted-foreground">
             No bioRxiv/medRxiv preprints match your search for "{query}"
@@ -124,7 +124,7 @@ export const PreprintsDiscovery: React.FC<PreprintsDiscoveryProps> = ({
                   <div className="space-y-3">
                     <div className="flex flex-wrap gap-2">
                       <Badge className={getServerBadgeColor(preprint.server)}>
-                        <Flask className="h-3 w-3 mr-1" />
+                        <Beaker className="h-3 w-3 mr-1" />
                         {preprint.server === 'biorxiv' ? 'bioRxiv' : 'medRxiv'}
                       </Badge>
                       <Badge variant="outline">{preprint.category}</Badge>
