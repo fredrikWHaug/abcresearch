@@ -73,7 +73,84 @@ export class MarketMapService {
 
     console.log('Successfully saved to database. Result:', result);
 
+    // Dual-write: Save to normalized tables in background (non-blocking)
+    if (projectId) {
+      console.log('[MarketMapService] Queueing background dual-write to normalized tables...');
+      
+      // Fire-and-forget: Don't await this, let it run in background
+      this.backgroundDualWrite(projectId, data).catch((error) => {
+        console.error('[MarketMapService] Background dual-write failed:', error);
+      });
+      
+      console.log('[MarketMapService] Market map saved, normalization in progress...');
+    }
+
     return result;
+  }
+
+  /**
+   * Background task to write data to normalized tables
+   * This runs asynchronously and doesn't block the main save operation
+   */
+  private static async backgroundDualWrite(projectId: number, data: CreateMarketMapData): Promise<void> {
+    try {
+      console.log('[MarketMapService] Starting background dual-write...');
+      
+      // Import services dynamically to avoid circular dependencies
+      const { upsertTrial, linkTrialToProject } = await import('./trialService');
+      const { upsertPaper, linkPaperToProject } = await import('./paperService');
+      
+      // Upsert trials and link to project
+      if (data.trials_data && data.trials_data.length > 0) {
+        console.log('[MarketMapService] Processing', data.trials_data.length, 'trials in background...');
+        
+        // Process in batches to avoid overwhelming the database
+        const batchSize = 10;
+        for (let i = 0; i < data.trials_data.length; i += batchSize) {
+          const batch = data.trials_data.slice(i, i + batchSize);
+          await Promise.all(
+            batch.map(async (trial) => {
+              try {
+                const trialId = await upsertTrial(trial);
+                await linkTrialToProject(projectId, trialId);
+              } catch (error) {
+                console.error(`[MarketMapService] Failed to process trial ${trial.nctId}:`, error);
+              }
+            })
+          );
+          console.log(`[MarketMapService] Processed ${Math.min(i + batchSize, data.trials_data.length)}/${data.trials_data.length} trials`);
+        }
+        console.log('[MarketMapService] All trials processed');
+      }
+      
+      // Upsert papers and link to project
+      if (data.papers_data && data.papers_data.length > 0) {
+        console.log('[MarketMapService] Processing', data.papers_data.length, 'papers in background...');
+        
+        // Process in batches
+        const batchSize = 10;
+        for (let i = 0; i < data.papers_data.length; i += batchSize) {
+          const batch = data.papers_data.slice(i, i + batchSize);
+          await Promise.all(
+            batch.map(async (paper) => {
+              try {
+                const paperId = await upsertPaper(paper);
+                await linkPaperToProject(projectId, paperId);
+              } catch (error) {
+                console.error(`[MarketMapService] Failed to process paper ${paper.pmid}:`, error);
+              }
+            })
+          );
+          console.log(`[MarketMapService] Processed ${Math.min(i + batchSize, data.papers_data.length)}/${data.papers_data.length} papers`);
+        }
+        console.log('[MarketMapService] All papers processed');
+      }
+      
+      console.log('[MarketMapService] Background dual-write complete');
+    } catch (error) {
+      console.error('[MarketMapService] Background dual-write failed:', error);
+      throw error;
+    }
   }
 
   /**

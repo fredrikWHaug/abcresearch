@@ -25,8 +25,6 @@ export interface ProjectPaper extends NormalizedPaper {
  * Returns the paper ID
  */
 export async function upsertPaper(paper: PubMedArticle): Promise<number> {
-  console.log('[PaperService] Upserting paper:', paper.pmid)
-
   const { data, error } = await supabase
     .from('papers')
     .upsert(
@@ -47,11 +45,10 @@ export async function upsertPaper(paper: PubMedArticle): Promise<number> {
     .single()
 
   if (error) {
-    console.error('[PaperService] Error upserting paper:', error)
+    console.error('[PaperService] Error upserting paper:', paper.pmid, error)
     throw error
   }
 
-  console.log('[PaperService] Paper upserted with ID:', data.id)
   return data.id
 }
 
@@ -62,8 +59,6 @@ export async function linkPaperToProject(
   projectId: number,
   paperId: number
 ): Promise<void> {
-  console.log('[PaperService] Linking paper to project:', { projectId, paperId })
-
   const { error } = await supabase
     .from('project_papers')
     .upsert(
@@ -78,8 +73,6 @@ export async function linkPaperToProject(
     console.error('[PaperService] Error linking paper to project:', error)
     throw error
   }
-
-  console.log('[PaperService] Paper linked successfully')
 }
 
 /**
