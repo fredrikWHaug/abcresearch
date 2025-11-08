@@ -163,6 +163,42 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
   const [currentProjectId, setCurrentProjectId] = useState<number | null>(projectId)
   const [currentProjectName, setCurrentProjectName] = useState<string>(projectName)
   const [showProjectsDropdown, setShowProjectsDropdown] = useState(false)
+  const [userProjects, setUserProjects] = useState<Array<{id: number, name: string, description?: string}>>([])
+  const [loadingProjects, setLoadingProjects] = useState(false)
+  
+  // Fetch user's projects on mount
+  React.useEffect(() => {
+    const fetchUserProjects = async () => {
+      if (isGuest) return;
+      
+      try {
+        setLoadingProjects(true)
+        const { getUserProjects } = await import('@/services/projectService')
+        const projects = await getUserProjects()
+        setUserProjects(projects)
+        
+        // If we have a projectId but no projectName, look it up
+        if (projectId && !projectName && projects.length > 0) {
+          const project = projects.find(p => p.id === projectId)
+          if (project) {
+            setCurrentProjectName(project.name)
+          }
+        }
+        
+        // If no current project but user has projects, set the first one as current
+        if (!projectId && projects.length > 0) {
+          setCurrentProjectId(projects[0].id)
+          setCurrentProjectName(projects[0].name)
+        }
+      } catch (error) {
+        console.error('Error fetching user projects:', error)
+      } finally {
+        setLoadingProjects(false)
+      }
+    }
+    
+    fetchUserProjects()
+  }, [isGuest])
   
   // Set project ID and name when props change
   React.useEffect(() => {
@@ -173,6 +209,18 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
     if (projectName) {
       setCurrentProjectName(projectName)
       console.log('New project created:', projectName)
+      
+      // Refresh projects list when a new project is created
+      const refreshProjects = async () => {
+        try {
+          const { getUserProjects } = await import('@/services/projectService')
+          const projects = await getUserProjects()
+          setUserProjects(projects)
+        } catch (error) {
+          console.error('Error refreshing projects:', error)
+        }
+      }
+      refreshProjects()
     }
   }, [projectId, projectName])
   
@@ -565,13 +613,16 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
             <div className="relative flex-1 projects-dropdown-container">
               <button
                 onClick={() => setShowProjectsDropdown(!showProjectsDropdown)}
-                className={`py-2 px-4 rounded-md text-sm font-medium transition-colors w-full text-center whitespace-nowrap ${
+                className={`py-2 px-4 rounded-md text-sm font-medium transition-colors w-full text-center whitespace-nowrap overflow-hidden ${
                   showProjectsDropdown
                     ? 'bg-white text-gray-900 shadow-sm'
                     : 'text-gray-600 hover:text-gray-900'
                 }`}
+                title={currentProjectName || 'Projects'}
               >
-                Projects
+                <span className="truncate">
+                  {currentProjectName || 'Projects'}
+                </span>
               </button>
               
               {/* Projects Dropdown */}
@@ -580,31 +631,48 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
                   <div className="px-4 py-2 border-b border-gray-200">
                     <h3 className="font-semibold text-gray-900 text-sm">Your Projects</h3>
                   </div>
-                  <div className="py-1">
-                    {currentProjectName ? (
-                      <button
-                        onClick={() => {
-                          console.log('Selected project:', currentProjectName)
-                          setShowProjectsDropdown(false)
-                        }}
-                        className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
-                            <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-                            </svg>
+                  <div className="py-1 max-h-64 overflow-y-auto">
+                    {loadingProjects ? (
+                      <div className="px-4 py-3 text-sm text-gray-500 text-center">
+                        Loading projects...
+                      </div>
+                    ) : userProjects.length > 0 ? (
+                      userProjects.map((project) => (
+                        <button
+                          key={project.id}
+                          onClick={() => {
+                            setCurrentProjectId(project.id)
+                            setCurrentProjectName(project.name)
+                            setShowProjectsDropdown(false)
+                            console.log('Switched to project:', project.name)
+                          }}
+                          className={`w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors ${
+                            project.id === currentProjectId ? 'bg-blue-50' : ''
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                              project.id === currentProjectId ? 'bg-blue-100' : 'bg-gray-100'
+                            }`}>
+                              <svg className={`w-4 h-4 ${
+                                project.id === currentProjectId ? 'text-blue-600' : 'text-gray-600'
+                              }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                              </svg>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-gray-900 truncate">
+                                {project.name}
+                              </p>
+                              {project.id === currentProjectId && (
+                                <p className="text-xs text-blue-600">
+                                  Current project
+                                </p>
+                              )}
+                            </div>
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-900 truncate">
-                              {currentProjectName}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              Current project
-                            </p>
-                          </div>
-                        </div>
-                      </button>
+                        </button>
+                      ))
                     ) : (
                       <div className="px-4 py-3 text-sm text-gray-500 text-center">
                         No projects yet
@@ -885,6 +953,7 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
           <SavedMaps 
             onLoadMap={handleLoadSavedMap}
             onDeleteMap={handleDeleteSavedMap}
+            currentProjectId={currentProjectId}
           />
         </div>
       </div>

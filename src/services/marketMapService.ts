@@ -5,6 +5,7 @@ import type { SlideData } from './slideAPI';
 export interface SavedMarketMap {
   id: number;
   user_id: string;
+  project_id: number | null;
   name: string;
   query: string;
   trials_data: ClinicalTrial[];
@@ -28,7 +29,7 @@ export class MarketMapService {
   /**
    * Save a market map to the database
    */
-  static async saveMarketMap(data: CreateMarketMapData): Promise<SavedMarketMap> {
+  static async saveMarketMap(data: CreateMarketMapData, projectId: number | null): Promise<SavedMarketMap> {
     // Get the current user
     const { data: { user } } = await supabase.auth.getUser();
     
@@ -37,6 +38,7 @@ export class MarketMapService {
     }
 
     console.log('Saving to database:', {
+      project_id: projectId,
       chat_history: data.chat_history,
       papers_data: data.papers_data,
       chat_history_length: data.chat_history?.length || 0,
@@ -45,6 +47,7 @@ export class MarketMapService {
 
     const insertData = {
       user_id: user.id,
+      project_id: projectId,
       name: data.name,
       query: data.query,
       trials_data: data.trials_data,
@@ -74,13 +77,20 @@ export class MarketMapService {
   }
 
   /**
-   * Get all market maps for the current user
+   * Get all market maps for the current user, optionally filtered by project
    */
-  static async getUserMarketMaps(): Promise<SavedMarketMap[]> {
-    const { data, error } = await supabase
+  static async getUserMarketMaps(projectId?: number | null): Promise<SavedMarketMap[]> {
+    let query = supabase
       .from('market_maps')
       .select('*')
       .order('created_at', { ascending: false });
+
+    // Filter by project if projectId is provided
+    if (projectId !== undefined && projectId !== null) {
+      query = query.eq('project_id', projectId);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       console.error('Error fetching market maps:', error);
