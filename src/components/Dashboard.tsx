@@ -224,6 +224,29 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
     }
   }, [projectId, projectName])
   
+  // Clear chat history and search state when switching projects
+  React.useEffect(() => {
+    // Only clear if we're switching projects (not initial load)
+    // We detect a switch by checking if currentProjectId exists and changes
+    const isProjectSwitch = currentProjectId !== null && currentProjectId !== projectId
+    
+    if (isProjectSwitch) {
+      console.log('Project switched - clearing chat and search state')
+      setChatHistory([])
+      setTrials([])
+      setPapers([])
+      setPreprints([])
+      setHasSearched(false)
+      setLastQuery('')
+      setMessage('')
+      setDrugGroups([])
+      setSelectedDrug(null)
+      setSelectedPapers([])
+      setShowContextPanel(false)
+      setViewMode('research')
+    }
+  }, [currentProjectId])
+  
   // Drug grouping state
   const [drugGroups, setDrugGroups] = useState<DrugGroup[]>([])
   const [selectedDrug, setSelectedDrug] = useState<DrugGroup | null>(null)
