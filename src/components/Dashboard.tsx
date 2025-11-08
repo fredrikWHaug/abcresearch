@@ -27,9 +27,10 @@ import type { BioRxivPreprint } from '@/types/preprints'
 interface DashboardProps {
   initialShowSavedMaps?: boolean;
   projectName?: string;
+  projectId?: number | null;
 }
 
-export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: DashboardProps) {
+export function Dashboard({ initialShowSavedMaps = false, projectName = '', projectId = null }: DashboardProps) {
   const { signOut, isGuest, exitGuestMode } = useAuth()
   
   const handleSignOut = async () => {
@@ -159,17 +160,21 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
   const [generatingSlide, setGeneratingSlide] = useState(false)
   const [slideError, setSlideError] = useState<string | null>(null)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
-  const [currentProjectId, setCurrentProjectId] = useState<number | null>(null)
+  const [currentProjectId, setCurrentProjectId] = useState<number | null>(projectId)
   const [currentProjectName, setCurrentProjectName] = useState<string>(projectName)
   const [showProjectsDropdown, setShowProjectsDropdown] = useState(false)
   
-  // Set project name when prop changes
+  // Set project ID and name when props change
   React.useEffect(() => {
+    if (projectId) {
+      setCurrentProjectId(projectId)
+      console.log('Project ID set:', projectId)
+    }
     if (projectName) {
       setCurrentProjectName(projectName)
       console.log('New project created:', projectName)
     }
-  }, [projectName])
+  }, [projectId, projectName])
   
   // Drug grouping state
   const [drugGroups, setDrugGroups] = useState<DrugGroup[]>([])

@@ -1,4 +1,4 @@
-LATEST UPDATE: 11/07/25
+LATEST UPDATE: 11/08/25
 
 # ABCresearch - Backend Documentation
 
@@ -1048,6 +1048,108 @@ async function fetchWithRetry(url: string, options: any, maxRetries = 3) {
   }
 }
 ```
+
+---
+
+## Client-Side Services
+
+### Project Service (Nov 8, 2025)
+
+**File**: `src/services/projectService.ts`
+
+**Purpose**: Client-side service for managing projects in Supabase database
+
+**Implementation**: Direct Supabase client calls (no backend proxy needed)
+
+#### Interface
+
+```typescript
+interface Project {
+  id: number
+  user_id: string
+  name: string
+  description?: string
+  created_at: string
+  updated_at: string
+}
+```
+
+#### Functions
+
+**1. Create Project**
+
+```typescript
+export async function createProject(name: string, description?: string): Promise<Project>
+```
+
+- Creates a new project for the authenticated user
+- Automatically sets `user_id` from current session
+- Returns the created project with generated `id`
+- Includes comprehensive logging for debugging
+
+**Example**:
+```typescript
+const project = await createProject('GLP-1 Research Q3 2025', 'Obesity treatment landscape')
+console.log(project.id) // 1
+```
+
+**2. Get User Projects**
+
+```typescript
+export async function getUserProjects(): Promise<Project[]>
+```
+
+- Fetches all projects for the current user
+- Sorted by `updated_at` descending (most recent first)
+- Protected by RLS (users only see their own projects)
+
+**3. Get Single Project**
+
+```typescript
+export async function getProject(id: number): Promise<Project | null>
+```
+
+- Fetches a specific project by ID
+- Returns `null` if not found
+- RLS ensures users can only access their own projects
+
+**4. Update Project**
+
+```typescript
+export async function updateProject(
+  id: number, 
+  updates: { name?: string, description?: string }
+): Promise<Project>
+```
+
+- Updates project fields
+- Automatically updates `updated_at` timestamp
+- Returns updated project
+
+**5. Delete Project**
+
+```typescript
+export async function deleteProject(id: number): Promise<void>
+```
+
+- Deletes a project by ID
+- RLS ensures users can only delete their own projects
+
+#### Security
+
+- All functions require authentication
+- RLS policies enforce user isolation:
+  - Users can only view their own projects
+  - Users can only create projects for themselves
+  - Users can only update/delete their own projects
+- No API proxy needed - Supabase client handles authentication via JWT
+
+#### Logging
+
+All functions include comprehensive emoji-based logging:
+- 🔵 `[ProjectService]` - Operation logs
+- ✅ Success logs with returned data
+- ❌ Error logs with detailed error information
 
 ---
 

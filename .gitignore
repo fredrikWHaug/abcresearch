@@ -47,3 +47,6 @@ env/
 .vercel
 .env*.local
 .playwright-mcp/
+
+# cursor
+.cursor/
