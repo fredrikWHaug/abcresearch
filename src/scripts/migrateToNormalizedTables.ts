@@ -108,8 +108,8 @@ export async function migrateToNormalizedTables() {
   }
 }
 
-// Allow running directly from command line
-if (require.main === module) {
+// Allow running directly from command line (Node.js only)
+if (typeof require !== 'undefined' && typeof module !== 'undefined' && require.main === module) {
   migrateToNormalizedTables()
     .then(result => {
       console.log('\nMigration result:', result)
