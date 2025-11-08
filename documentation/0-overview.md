@@ -1,4 +1,4 @@
-LATEST UPDATE: 10/26/25
+LATEST UPDATE: 11/07/25
 
 # ABCresearch - Application Overview
 
@@ -21,7 +21,7 @@ The platform serves as a centralized hub for:
 ### 1. Discovery-Focused AI Search
 - **Phrase-based discovery**: AI generates 5 conceptual search strategies (e.g., "GLP-1 receptor agonist diabetes") to uncover drugs across all development stages
 - Natural language query processing powered by Claude (Anthropic) and Gemini (Google)
-- Intent classification for intelligent search suggestions
+- **Claude-powered intent detection** (HW8 ABC-57): AI determines search intent using metadata-first architecture for reliable parsing
 - **88% cost reduction** and **2.5x faster** than previous drug-specific approach
 - Discovers **175% more drugs** including emerging pipeline candidates
 
@@ -73,7 +73,8 @@ The platform serves as a centralized hub for:
 
 1. **Query Input**
    - User enters natural language query (e.g., "GLP-1 agonists for diabetes")
-   - AI classifies intent and suggests search strategies
+   - Claude analyzes intent using metadata-first format (HW8 ABC-57)
+   - AI suggests search strategies with extracted medical terms
 
 2. **Data Gathering**
    - AI generates 5 phrase-based discovery queries
@@ -145,7 +146,7 @@ The platform serves as a centralized hub for:
 ```
 User Query (e.g., "GLP-1 receptor agonists")
     ↓
-AI Intent Classification (Claude)
+Claude Intent Detection (HW8 ABC-57: metadata-first format)
     ↓
 AI Query Enhancement (Gemini) → 5 phrase-based discovery strategies
     ↓
