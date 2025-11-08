@@ -1069,6 +1069,7 @@ interface Project {
   user_id: string
   name: string
   description?: string
+  chat_history?: any[] // Array of chat messages (persisted across sessions)
   created_at: string
   updated_at: string
 }
@@ -1134,6 +1135,46 @@ export async function deleteProject(id: number): Promise<void>
 
 - Deletes a project by ID
 - RLS ensures users can only delete their own projects
+
+**6. Save Chat History**
+
+```typescript
+export async function saveChatHistory(projectId: number, chatHistory: any[]): Promise<void>
+```
+
+- Saves chat conversation history to the `projects.chat_history` column
+- Auto-updates `updated_at` timestamp
+- Used for persisting chat across sessions
+- Supports debounced auto-save (triggered every 2 seconds in Dashboard)
+
+**Example**:
+```typescript
+const chatHistory = [
+  { type: 'user', message: 'Search for GLP-1 trials' },
+  { type: 'system', message: 'I found 206 trials...', searchSuggestions: [...] }
+]
+await saveChatHistory(projectId, chatHistory)
+```
+
+**7. Load Chat History**
+
+```typescript
+export async function loadChatHistory(projectId: number): Promise<any[]>
+```
+
+- Loads saved chat history for a project
+- Returns empty array if no history or on error
+- Called on project mount and project switch
+- Supports seamless restoration of conversation context
+
+**Example**:
+```typescript
+const chatHistory = await loadChatHistory(projectId)
+if (chatHistory.length > 0) {
+  console.log(`Restored ${chatHistory.length} messages`)
+  setChatHistory(chatHistory)
+}
+```
 
 #### Security
 

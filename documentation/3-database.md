@@ -13,9 +13,13 @@ LATEST UPDATE: 11/08/25
 - ✅ `projects` table is now connected to the UI
 - ✅ Users can create projects that persist in the database
 - ✅ Market maps linked to projects via `project_id` foreign key
-- ✅ Chat history persists per project (in-memory cache)
+- ✅ Chat history persists per project (database + in-memory cache)
+  - Auto-saves to database every 2 seconds (debounced)
+  - Immediate save on project switch
+  - Loads from database on project mount/refresh
+  - Persists across browser sessions
 - 📋 **Next**: Run migration script to backfill existing JSONB data
-- 📋 **Planned**: Deprecate JSONB columns after migration and testing period
+- 📋 **Planned**: Deprecate JSONB columns after migration and testing period (migration file created)
 
 ## Migration from JSONB to Normalized Schema
 
