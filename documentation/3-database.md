@@ -4,10 +4,16 @@ LATEST UPDATE: 11/08/25
 
 **IMPLEMENTATION STATUS (Nov 8, 2025)**: 
 - ✅ **Phase 1 Complete**: Project creation and storage implemented
+- ✅ **Phase 2 Complete**: Normalized schema with dual-write strategy
+  - Created `trials`, `papers`, `drugs` tables with proper columns
+  - Created junction tables: `project_trials`, `project_papers`, `project_drugs`
+  - Implemented background dual-write to both JSONB and normalized tables
+  - UI reads from normalized tables with automatic fallback to JSONB
 - ✅ `projects` table is now connected to the UI
 - ✅ Users can create projects that persist in the database
-- 🚧 **In Progress**: Linking searches, trials, and papers to projects
-- 📋 **Planned**: Migration from `market_maps` to full project-centric architecture
+- ✅ Market maps linked to projects via `project_id` foreign key
+- 🚧 **In Progress**: Full transition from JSONB to normalized schema
+- 📋 **Planned**: Deprecate JSONB columns after migration complete
 
 ## Database Architecture Overview
 
@@ -64,27 +70,59 @@ VITE_SUPABASE_ANON_KEY=your-anon-key-here
 - Row Level Security (RLS) policies protect data access
 - Service role key (if needed) should NEVER be exposed client-side
 
-## Proposed Project-Centric Database Schema
+## Database Schema Architecture
+
+### Hybrid Architecture: JSONB + Normalized Tables
+
+ABCresearch uses a **hybrid dual-write architecture** during the transition from JSONB blobs to normalized relational tables:
+
+**Current State (Nov 2025)**:
+- ✅ **Write Path**: Data is written to BOTH legacy JSONB columns AND new normalized tables
+- ✅ **Read Path**: UI reads from normalized tables, falls back to JSONB if needed
+- 🎯 **Goal**: Complete migration to normalized schema, then deprecate JSONB columns
+
+**Benefits of Normalization**:
+- **Deduplication**: Same trial/paper stored once, referenced by multiple projects
+- **Performance**: 10-100x faster queries with proper indexes
+- **Integrity**: Foreign key constraints prevent orphaned data
+- **Flexibility**: Easy to add columns without restructuring JSONB
+- **Cross-Project Analysis**: Query "all GLP-1 trials" across all user projects
 
 ### Entity Relationship Diagram
 
 ```
-┌─────────────────┐           ┌─────────────────┐
-│   auth.users    │◄──────────│    projects     │
-│  (Supabase      │   1:N     │                 │
-│   Managed)      │           │                 │
-└─────────────────┘           └─────────────────┘
-     (PK) id                       user_id (FK)
-     email                         name
-     encrypted_password            description
-     created_at                    search_query
-     updated_at                    trials_data (JSONB)
-                                  papers_data (JSONB)
-                                  drugs_data (JSONB)
-                                  slide_data (JSONB)
-                                  chat_history (JSONB)
-                                  created_at
-                                  updated_at
+┌─────────────────┐
+│   auth.users    │
+│  (Supabase)     │
+└────────┬────────┘
+         │ 1:N
+         ▼
+┌─────────────────┐           ┌──────────────────┐
+│    projects     │◄──────────│   market_maps    │
+│                 │   1:N     │  (Legacy/Hybrid) │
+└────────┬────────┘           └──────────────────┘
+         │ 1:N                     trials_data (JSONB) ⚠️ Deprecated
+         │                         papers_data (JSONB) ⚠️ Deprecated
+         │
+    ┌────┴────┬─────────────┬──────────────┐
+    │         │             │              │
+    ▼         ▼             ▼              ▼
+┌────────┐ ┌──────────┐ ┌────────────┐ ┌──────────┐
+│project_│ │project_  │ │project_    │ │trials    │
+│trials  │ │papers    │ │drugs       │ │          │
+└───┬────┘ └────┬─────┘ └─────┬──────┘ │nct_id    │
+    │           │             │        │brief_title│
+    │ N:M       │ N:M         │ N:M    │phase      │
+    │           │             │        │...        │
+    ▼           ▼             ▼        └──────────┘
+┌────────┐ ┌──────────┐ ┌────────────┐
+│trials  │ │papers    │ │drugs       │
+│        │ │          │ │            │
+│nct_id  │ │pmid      │ │name        │
+│title   │ │title     │ │type        │
+│phase   │ │abstract  │ │mechanism   │
+│...     │ │...       │ │...         │
+└────────┘ └──────────┘ └────────────┘
 ```
 
 ## Tables
@@ -331,6 +369,199 @@ CREATE TABLE auth.users (
 - Provides user identity for RLS policies
 - Supports email/password authentication
 - Extensible with metadata fields
+
+### 3. Normalized Tables (Nov 2025)
+
+#### `trials` Table
+
+**Purpose**: Store clinical trial data with proper columns (replaces `market_maps.trials_data` JSONB)
+
+```sql
+CREATE TABLE trials (
+  id BIGSERIAL PRIMARY KEY,
+  nct_id TEXT UNIQUE NOT NULL,
+  brief_title TEXT NOT NULL,
+  official_title TEXT,
+  overall_status TEXT,
+  phase TEXT[],
+  conditions TEXT[],
+  interventions TEXT[],
+  sponsors_lead TEXT,
+  enrollment INTEGER,
+  start_date TEXT,
+  completion_date TEXT,
+  locations JSONB,
+  study_type TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_trials_nct_id ON trials(nct_id);
+CREATE INDEX idx_trials_phase ON trials USING GIN(phase);
+CREATE INDEX idx_trials_conditions ON trials USING GIN(conditions);
+
+COMMENT ON TABLE trials IS 'Clinical trial data from ClinicalTrials.gov';
+```
+
+#### `papers` Table
+
+**Purpose**: Store research paper data with proper columns (replaces `market_maps.papers_data` JSONB)
+
+```sql
+CREATE TABLE papers (
+  id BIGSERIAL PRIMARY KEY,
+  pmid TEXT UNIQUE NOT NULL,
+  title TEXT NOT NULL,
+  abstract TEXT,
+  journal TEXT,
+  publication_date TEXT,
+  authors TEXT[],
+  doi TEXT,
+  nct_number TEXT,
+  relevance_score INTEGER,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_papers_pmid ON papers(pmid);
+CREATE INDEX idx_papers_publication_date ON papers(publication_date);
+
+COMMENT ON TABLE papers IS 'Research papers from PubMed';
+```
+
+#### `drugs` Table
+
+**Purpose**: Store drug data with proper columns (replaces `market_maps.drugs_data` JSONB)
+
+```sql
+CREATE TABLE drugs (
+  id BIGSERIAL PRIMARY KEY,
+  name TEXT UNIQUE NOT NULL,
+  normalized_name TEXT NOT NULL,
+  drug_type TEXT,
+  brand_names TEXT[],
+  mechanism TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_drugs_normalized_name ON drugs(normalized_name);
+
+COMMENT ON TABLE drugs IS 'Pharmaceutical drug data';
+```
+
+#### Junction Tables (Many-to-Many Relationships)
+
+**Purpose**: Link projects to trials, papers, and drugs
+
+```sql
+-- Project ↔ Trials
+CREATE TABLE project_trials (
+  project_id BIGINT REFERENCES projects(id) ON DELETE CASCADE,
+  trial_id BIGINT REFERENCES trials(id) ON DELETE CASCADE,
+  added_at TIMESTAMPTZ DEFAULT NOW(),
+  PRIMARY KEY (project_id, trial_id)
+);
+
+CREATE INDEX idx_project_trials_project_id ON project_trials(project_id);
+
+-- Project ↔ Papers
+CREATE TABLE project_papers (
+  project_id BIGINT REFERENCES projects(id) ON DELETE CASCADE,
+  paper_id BIGINT REFERENCES papers(id) ON DELETE CASCADE,
+  added_at TIMESTAMPTZ DEFAULT NOW(),
+  PRIMARY KEY (project_id, paper_id)
+);
+
+CREATE INDEX idx_project_papers_project_id ON project_papers(project_id);
+
+-- Project ↔ Drugs
+CREATE TABLE project_drugs (
+  project_id BIGINT REFERENCES projects(id) ON DELETE CASCADE,
+  drug_id BIGINT REFERENCES drugs(id) ON DELETE CASCADE,
+  added_at TIMESTAMPTZ DEFAULT NOW(),
+  PRIMARY KEY (project_id, drug_id)
+);
+
+CREATE INDEX idx_project_drugs_project_id ON project_drugs(project_id);
+```
+
+**Benefits of Junction Tables**:
+- Deduplication: Trial NCT123 stored once, referenced by multiple projects
+- Referential Integrity: Foreign keys prevent orphaned records
+- Efficient Queries: Indexed joins for fast lookups
+- Scalability: No JSONB array size limits
+
+**Example Queries**:
+
+```typescript
+// Get all trials for a project (with proper typing)
+const { data: projectTrials } = await supabase
+  .from('project_trials')
+  .select(`
+    added_at,
+    trials (*)
+  `)
+  .eq('project_id', projectId)
+
+// Cross-project analysis: Find all projects with a specific drug
+const { data } = await supabase
+  .from('project_drugs')
+  .select(`
+    projects (name, created_at),
+    drugs (name, mechanism)
+  `)
+  .eq('drugs.normalized_name', 'Semaglutide')
+```
+
+### 4. Service Layer
+
+**Implementation Files**:
+- `src/services/trialService.ts` - CRUD operations for trials
+- `src/services/paperService.ts` - CRUD operations for papers
+- `src/services/drugService.ts` - CRUD operations for drugs
+- `src/services/projectService.ts` - CRUD operations for projects
+- `src/services/marketMapService.ts` - Dual-write logic (JSONB + normalized)
+
+**Dual-Write Strategy**:
+
+```typescript
+// Example: Saving a market map writes to BOTH schemas
+export async function saveMarketMap(data, projectId) {
+  // 1. Write to market_maps (JSONB) - backward compatible
+  const { data: result } = await supabase
+    .from('market_maps')
+    .insert({
+      ...data,
+      trials_data: data.trials,  // JSONB
+      papers_data: data.papers   // JSONB
+    })
+  
+  // 2. Write to normalized tables (background, non-blocking)
+  if (projectId) {
+    backgroundDualWrite(projectId, data)  // Async, batched
+  }
+  
+  return result
+}
+```
+
+**Read Strategy** (UI reads from normalized, falls back to JSONB):
+
+```typescript
+// Load project data - reads from normalized tables first
+if (project.id) {
+  const [trials, papers] = await Promise.all([
+    getProjectTrials(project.id),   // FROM project_trials JOIN trials
+    getProjectPapers(project.id)    // FROM project_papers JOIN papers
+  ])
+  
+  // Fallback to JSONB if normalized tables are empty
+  if (trials.length === 0 && marketMap.trials_data?.length > 0) {
+    trials = marketMap.trials_data  // Use JSONB
+  }
+}
+```
 
 ## Row Level Security (RLS)
 
