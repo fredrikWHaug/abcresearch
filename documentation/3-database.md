@@ -1,8 +1,13 @@
-LATEST UPDATE: 10/26/25
+LATEST UPDATE: 11/08/25
 
 # ABCresearch - Database Documentation
 
-**IMPORTANT NOTE**: The current database implementation using `market_maps` table is a work in progress and will be replaced with a project-centric design. The schema below represents the proposed new architecture.
+**IMPLEMENTATION STATUS (Nov 8, 2025)**: 
+- ✅ **Phase 1 Complete**: Project creation and storage implemented
+- ✅ `projects` table is now connected to the UI
+- ✅ Users can create projects that persist in the database
+- 🚧 **In Progress**: Linking searches, trials, and papers to projects
+- 📋 **Planned**: Migration from `market_maps` to full project-centric architecture
 
 ## Database Architecture Overview
 
@@ -87,6 +92,15 @@ VITE_SUPABASE_ANON_KEY=your-anon-key-here
 ### 1. `projects` Table
 
 **Purpose**: Core table storing research projects with all associated data (trials, papers, drugs, analysis)
+
+**Current Implementation Status**:
+- ✅ **Phase 1 (Nov 8, 2025)**: Basic project CRUD operations
+  - Table exists in database with `id`, `user_id`, `name`, `description`, `created_at`, `updated_at`
+  - Project creation UI connected and working
+  - Service layer implemented (`src/services/projectService.ts`)
+  - RLS policies configured for user isolation
+- 🚧 **Phase 2 (Planned)**: Add JSONB fields for trials, papers, drugs, slide data, chat history
+- 📋 **Phase 3 (Planned)**: Migrate data from `market_maps` table
 
 #### Schema Definition
 
