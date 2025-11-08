@@ -29,8 +29,6 @@ export interface ProjectTrial extends NormalizedTrial {
  * Returns the trial ID
  */
 export async function upsertTrial(trial: ClinicalTrial): Promise<number> {
-  console.log('[TrialService] Upserting trial:', trial.nctId)
-
   const { data, error } = await supabase
     .from('trials')
     .upsert(
@@ -55,11 +53,10 @@ export async function upsertTrial(trial: ClinicalTrial): Promise<number> {
     .single()
 
   if (error) {
-    console.error('[TrialService] Error upserting trial:', error)
+    console.error('[TrialService] Error upserting trial:', trial.nctId, error)
     throw error
   }
 
-  console.log('[TrialService] Trial upserted with ID:', data.id)
   return data.id
 }
 
@@ -70,8 +67,6 @@ export async function linkTrialToProject(
   projectId: number,
   trialId: number
 ): Promise<void> {
-  console.log('[TrialService] Linking trial to project:', { projectId, trialId })
-
   const { error } = await supabase
     .from('project_trials')
     .upsert(
@@ -86,8 +81,6 @@ export async function linkTrialToProject(
     console.error('[TrialService] Error linking trial to project:', error)
     throw error
   }
-
-  console.log('[TrialService] Trial linked successfully')
 }
 
 /**
