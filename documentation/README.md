@@ -77,5 +77,5 @@ All documentation follows these conventions:
 
 ---
 
-**Last Updated**: October 26, 2025
+**Last Updated**: November 7, 2025
 

@@ -1,4 +1,4 @@
-LATEST UPDATE: 10/26/25
+LATEST UPDATE: 11/07/25
 
 # ABCresearch - Backend Documentation
 
@@ -412,18 +412,22 @@ Rules:
 
 ---
 
-### 5. AI Conversational Response
+### 5. AI Conversational Response (HW8 ABC-57)
 
 **File**: `api/generate-response.ts`
 
 **Endpoint**: `POST /api/generate-response`
 
-**Purpose**: Generate contextual AI responses using Claude
+**Purpose**: Generate contextual AI responses using Claude with intelligent search intent detection
 
 **Request Body**:
 ```typescript
 {
   userQuery: string
+  chatHistory?: Array<{  // Optional: Conversation history
+    type: 'user' | 'system'
+    message: string
+  }>
   contextPapers?: Array<{  // Optional: Papers selected as context
     pmid: string
     title: string
@@ -445,50 +449,148 @@ Rules:
 ```typescript
 {
   success: boolean
-  response: string         // Natural language response
-  shouldSearch: boolean    // Should trigger a search
-  searchQuery?: string     // Extracted search terms
+  response: string         // Natural language response (metadata stripped)
+  shouldSearch: boolean    // Determined by Claude's [SEARCH_INTENT] tag
   searchSuggestions?: Array<{
     id: string
     label: string          // Button text
-    query: string          // Search query to execute
+    query: string          // Search terms from Claude's [SEARCH_TERMS] tag
     description?: string   // Optional explanation
   }>
   intent: 'greeting' | 'search_request' | 'follow_up' | 'clarification' | 'general_question'
 }
 ```
 
-**Two-Stage AI Processing**:
+---
 
-**Stage 1: Intent Classification**
+#### HW8 ABC-57: Metadata-First Architecture
+
+**Key Innovation**: Instead of parsing natural language or using regex, Claude embeds structured metadata directly in its response for reliable parsing.
+
+**Metadata Format**:
+```
+[SEARCH_INTENT: yes/no]
+[SEARCH_TERMS: terms to search for, or "none"]
+Your natural language response here.
+```
+
+**Example Responses**:
+```
+User: "GLP-1"
+Claude Response:
+[SEARCH_INTENT: yes]
+[SEARCH_TERMS: GLP-1 agonists]
+I can search for research on GLP-1 agonists.
+
+User: "Hi there"
+Claude Response:
+[SEARCH_INTENT: no]
+[SEARCH_TERMS: none]
+Hey! How can I help you today?
+```
+
+**Benefits**:
+1. **Reliable Parsing**: Regex extraction of `[SEARCH_INTENT: yes/no]` is deterministic
+2. **Context-Aware**: Claude uses full conversation context to determine intent
+3. **Accurate Search Terms**: AI extracts medical terms better than regex
+4. **Testable**: Clear contract between AI and application code
+
+---
+
+#### Chat Helper Functions
+
+**File**: `api/utils/chatHelpers.ts`
+
+Contains all prompt building and message formatting logic:
+
+**1. System Prompt Builder**:
 ```typescript
-const intentPrompt = `Classify the user's message: "${userQuery}"
+export function buildSystemPrompt(contextPapers?: ContextPaper[]): string
+```
 
-Intents:
-- "greeting": Hello, hi, how are you
-- "search_request": Looking for papers/trials on [topic]
-- "follow_up": Tell me more, what about [topic]
-- "clarification": I meant [topic], focus on [topic]
-- "general_question": What can you help with
+Without context papers:
+```typescript
+const systemPrompt = `You are a thoughtful medical research consultant having a natural conversation with a user.
 
-Determine:
-1. Intent category
-2. Should we search? (true/false)
-3. Search terms if yes
-4. Search suggestions (clickable buttons)
+CRITICAL RULES:
+1. ACTUALLY READ what the user just said - respond to their ACTUAL message
+2. If they ask you a question, ANSWER IT directly first
+3. If they challenge you or seem frustrated, acknowledge it
+4. Be conversational and human-like, not robotic
+5. Only ask about research specifics when they've clearly expressed interest
 
-Return JSON:
-{
-  "intent": "...",
-  "shouldSearch": true/false,
-  "searchQuery": "...",
-  "searchSuggestions": [...],
-  "responseType": "conversational|search_suggestion|clarification_request"
-}
+HW8 ABC-57: RESPONSE FORMAT
+IMPORTANT: Start your response with metadata tags, then your message:
+
+[SEARCH_INTENT: yes/no]
+[SEARCH_TERMS: terms to search for, or "none"]
+Your response here.
+
+CRITICAL: If SEARCH_INTENT is yes, keep your response to 1-2 sentences.
+
+Examples:
+If user says "GLP-1": 
+[SEARCH_INTENT: yes]
+[SEARCH_TERMS: GLP-1 agonists]
+I can search for research on GLP-1 agonists.
+
+If user says "Hi there":
+[SEARCH_INTENT: no]
+[SEARCH_TERMS: none]
+Hey! How can I help you today?
 `
+```
 
-// Call Claude Haiku (fast, cheap)
-const response = await fetch('https://api.anthropic.com/v1/messages', {
+With context papers (for paper analysis view):
+```typescript
+// Builds citation-numbered paper context
+`[1] Paper Title
+Authors: Smith J, Doe A et al.
+Journal: Nature Medicine (2024)
+PMID: 12345678
+Abstract: ...
+
+INSTRUCTIONS FOR USING PAPERS:
+- When referencing a paper, cite it using [1], [2], etc.
+- Only cite papers when relevant to the user's question
+- Be natural and conversational
+`
+```
+
+**2. Message History Builder**:
+```typescript
+export function buildMessagesFromHistory(
+  chatHistory: ChatMessage[],
+  currentQuery: string
+): Array<{ role: 'user' | 'assistant'; content: string }>
+```
+
+Constructs proper Anthropic Messages API format:
+```typescript
+const messages = [
+  // Last 6 messages from history
+  { role: 'user', content: 'Previous user message' },
+  { role: 'assistant', content: 'Previous assistant message' },
+  // ...
+  // Current query with format reminder appended
+  { 
+    role: 'user', 
+    content: `${currentQuery}
+
+[Remember: Start your response with [SEARCH_INTENT: yes/no] and [SEARCH_TERMS: ...] tags]`
+  }
+]
+```
+
+**Format Reminder Strategy**: Appends reminder to every user message to reinforce the metadata requirement.
+
+---
+
+#### Claude API Call
+
+**Anthropic Messages API**:
+```typescript
+const conversationalResponse = await fetch('https://api.anthropic.com/v1/messages', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
@@ -497,16 +599,68 @@ const response = await fetch('https://api.anthropic.com/v1/messages', {
   },
   body: JSON.stringify({
     model: 'claude-3-haiku-20240307',
-    max_tokens: 300,
-    temperature: 0.3,
-    messages: [{ role: 'user', content: intentPrompt }]
+    max_tokens: 200,  // Balanced for metadata + brief response
+    temperature: 0.7,
+    system: buildSystemPrompt(contextPapers),  // Papers persist in system prompt
+    messages: buildMessagesFromHistory(chatHistory, userQuery)
   })
 })
 ```
 
-**Stage 2: Conversational Response**
+**Key Parameters**:
+- `max_tokens: 200` - Encourages brevity while allowing metadata + response
+- `temperature: 0.7` - Balanced between consistency and natural variation
+- `system` - Contains conversational rules and metadata format instructions
+- `messages` - Conversation history + current query with format reminder
+
+---
+
+#### Metadata Parsing
+
+**Extract Metadata from Claude Response**:
 ```typescript
-// If search results provided
+let conversationalResult = conversationalData.content[0].text
+
+// Extract search intent
+const searchIntentMatch = conversationalResult.match(/\[SEARCH_INTENT:\s*(yes|no)\]/i)
+const claudeSearchIntent = searchIntentMatch ? searchIntentMatch[1].toLowerCase() === 'yes' : null
+
+// Extract search terms
+const searchTermsMatch = conversationalResult.match(/\[SEARCH_TERMS:\s*(.+?)\]/i)
+const claudeSearchTerms = searchTermsMatch ? searchTermsMatch[1].trim() : null
+
+// Remove metadata from user-facing response
+conversationalResult = conversationalResult
+  .replace(/\[SEARCH_INTENT:\s*(yes|no)\]/gi, '')
+  .replace(/\[SEARCH_TERMS:\s*.+?\]/gi, '')
+  .trim()
+
+// Clean up stage directions (e.g., "*smiles*", "*responds warmly*")
+conversationalResult = conversationalResult
+  .replace(/\*[^*]+\*/g, '')
+  .trim()
+```
+
+**Generate Search Suggestions**:
+```typescript
+const shouldSearch = claudeSearchIntent === true
+const searchSuggestions = shouldSearch && claudeSearchTerms && claudeSearchTerms !== 'none' 
+  ? [{
+      id: 'search-1',
+      label: `Search for ${claudeSearchTerms}`,
+      query: claudeSearchTerms,
+      description: `Find clinical trials and research papers about ${claudeSearchTerms}`
+    }]
+  : []
+```
+
+---
+
+#### Search Results Response
+
+When `searchResults` are provided (after a search completes):
+
+```typescript
 const searchResultsPrompt = `User searched for: "${userQuery}"
 
 Results:
@@ -520,66 +674,99 @@ PAPERS: ${papers.length}
 
 Generate natural, conversational response:
 1. Acknowledge what user was looking for
-2. Summarize findings
+2. Summarize findings engagingly
 3. Highlight interesting insights
 4. Mention both trials and papers
 5. Professional but conversational tone
 
 Keep concise (2-3 sentences).
 `
+```
 
-// Build context papers section if available
-let contextSection = ''
-if (contextPapers && contextPapers.length > 0) {
-  contextSection = `\n\nThe user has selected ${contextPapers.length} paper(s) as relevant context:\n\n`
-  contextPapers.forEach((paper, index) => {
-    contextSection += `Paper ${index + 1}:
-Title: ${paper.title}
-Journal: ${paper.journal}
-Publication Date: ${paper.publicationDate}
-Authors: ${paper.authors.slice(0, 3).join(', ')}${paper.authors.length > 3 ? ' et al.' : ''}
-Abstract: ${paper.abstract}
+This bypasses the metadata system and returns a direct summary response.
+
 ---
-`
-  })
-  contextSection += '\nWhen answering, reference these papers if relevant. Cite by title or as "Paper 1", "Paper 2", etc.'
-}
 
-// Otherwise, generate conversational response
-const conversationalPrompt = `User said: "${userQuery}"
-Intent: ${intentResult.intent}
-Response type: ${intentResult.responseType}${contextSection}
+#### Comprehensive Test Suite (HW8 ABC-57)
 
-Generate appropriate response:
-- greeting: Be friendly, explain capabilities
-- search_request: Acknowledge, suggest conducting search
-- follow_up: Answer follow-up question, referencing context papers if relevant
-- clarification: Ask for clarification
-- general_question: Answer about capabilities, referencing context papers if relevant
+**Unit Tests**: `api/utils/__tests__/chatHelpers.test.ts` (232 lines)
+- Tests system prompt includes metadata format instructions
+- Tests format reminders are appended to user messages
+- Tests prompt structure and examples
+- Validates brevity instructions
 
-${contextPapers && contextPapers.length > 0 ? 
-  'IMPORTANT: The user has provided specific papers for context. If their question relates to these papers, reference them in your response.' : 
-  ''}
+**Integration Tests**: `api/__tests__/generate-response.abc57.test.ts` (296 lines)
+- **17 comprehensive tests** with real Claude API calls
+- **Positive cases** (5 tests): Medical queries that should trigger search
+  - "What's the latest on semaglutide for obesity?"
+  - "Tell me about GLP-1 agonists in diabetes trials"
+  - "Has anyone studied pembrolizumab in melanoma?"
+- **Negative cases** (5 tests): Conversational queries that shouldn't trigger search
+  - "Hello, how are you?"
+  - "Thanks for that information"
+  - "What does phase 3 mean?"
+- **Edge cases** (3 tests): Mixed intent and context awareness
+  - "Hi, I want to know about checkpoint inhibitors" (should search)
+  - "What did you mean about semaglutide?" (clarification, shouldn't search)
+- **Response quality** (2 tests): Brevity enforcement
+- **Known bugs** (1 test): Documents Claude verbosity issue
 
-Keep conversational, helpful, professional. 1-2 sentences max unless analyzing context papers.
-`
+**Running Tests**:
+```bash
+npm test api/__tests__/generate-response.abc57.test.ts
 ```
 
-**Response Parsing**:
-```typescript
-// Clean Claude response (remove markdown, extract JSON)
-let cleanedText = rawText.trim()
-if (cleanedText.startsWith('```json')) {
-  cleanedText = cleanedText
-    .replace(/^```json\s*/, '')
-    .replace(/\s*```$/, '')
-}
+**Test Coverage**:
+- ✅ Search intent detection accuracy
+- ✅ Search term extraction quality
+- ✅ Metadata format compliance
+- ✅ Context awareness (conversation history)
+- ✅ Response brevity (with known failures documented)
 
-const jsonMatch = cleanedText.match(/\{[\s\S]*\}/)
-if (jsonMatch) {
-  intentResult = JSON.parse(jsonMatch[0])
-}
+---
+
+#### Known Issues (HW8 ABC-57)
+
+**Bug: Claude Ignores Brevity Instructions**
+
+**Desired Behavior**: When `SEARCH_INTENT: yes`, response should be 1-2 sentences (~20 words)
+
+**Actual Behavior**: Claude often provides 50-60+ word explanations despite explicit instructions
+
+**Example**:
 ```
+User: "I'm trying to understand GLP-1s"
+Expected: "I can search for GLP-1 research."
+Actual: "GLP-1 receptor agonists are a class of medications primarily used for treating type 2 diabetes and obesity. They work by mimicking the action of the GLP-1 hormone, which stimulates insulin secretion and reduces appetite. I can search for the latest clinical trials and research papers on GLP-1 agonists if you'd like."
+```
+
+**Documented In**: Test "KNOWN BUG: documents that Claude ignores brevity instruction"
+
+**Potential Solutions**:
+1. Further reduce `max_tokens` (currently 200)
+2. Add stronger stop sequences
+3. Try different Claude models (Opus vs Haiku)
+4. Post-process to truncate long responses
+5. Use structured output mode (if available in Claude API)
+
+**Workaround**: Frontend can truncate responses or the metadata parsing is reliable enough that verbose responses don't break functionality
+
+---
+
+#### Migration from Previous Version
+
+**Old Approach** (Pre-ABC-57):
+- Two-stage processing: intent classification, then response generation
+- Regex-based search term extraction
+- Separate API calls for intent and response
+
+**New Approach** (ABC-57):
+- Single API call with metadata embedded in response
+- AI-powered search term extraction
+- More context-aware with conversation history
+- Better handling of edge cases (greetings with search intent)
+
+**Breaking Changes**: None - response format remains compatible
 
 ---
 
