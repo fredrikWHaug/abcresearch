@@ -78,7 +78,7 @@ export async function linkPaperToProject(
 /**
  * Get all papers for a project
  */
-export async function getProjectPapers(projectId: number): Promise<ProjectPaper[]> {
+export async function getProjectPapers(projectId: number): Promise<PubMedArticle[]> {
   console.log('[PaperService] Fetching papers for project:', projectId)
 
   const { data, error } = await supabase
@@ -95,10 +95,21 @@ export async function getProjectPapers(projectId: number): Promise<ProjectPaper[
     throw error
   }
 
-  // Flatten the structure
-  const papers = data.map((row: any) => ({
-    ...row.papers,
-    added_at: row.added_at,
+  // Map database columns to PubMedArticle interface (snake_case → camelCase)
+  const papers: PubMedArticle[] = data.map((row: any) => ({
+    pmid: row.papers.pmid,
+    title: row.papers.title,
+    abstract: row.papers.abstract,
+    journal: row.papers.journal,
+    publicationDate: row.papers.publication_date,
+    authors: row.papers.authors,
+    doi: row.papers.doi,
+    nctNumber: row.papers.nct_number,
+    relevanceScore: row.papers.relevance_score,
+    fullTextLinks: {
+      doi: row.papers.doi ? `https://doi.org/${row.papers.doi}` : undefined,
+      pubmed: `https://pubmed.ncbi.nlm.nih.gov/${row.papers.pmid}/`
+    }
   }))
 
   console.log('[PaperService] Found', papers.length, 'papers for project')

@@ -70,14 +70,12 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
     return selectedPapers.some(p => p.pmid === pmid);
   }
 
-  const handleLoadSavedMap = (savedMap: SavedMarketMap) => {
+  const handleLoadSavedMap = async (savedMap: SavedMarketMap) => {
     console.log('Loading saved map:', savedMap);
-    console.log('Chat history from saved map:', savedMap.chat_history);
-    console.log('Papers data from saved map:', savedMap.papers_data);
+    console.log('Project ID:', savedMap.project_id);
     
     // COMPLETELY REPLACE all current state with the loaded project's state
-    setCurrentProjectId(savedMap.id);
-    setTrials(savedMap.trials_data);
+    setCurrentProjectId(savedMap.project_id); // Use project_id, not map id
     setSlideData(savedMap.slide_data);
     setLastQuery(savedMap.query);
     setHasSearched(true);
@@ -92,18 +90,51 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
       setChatHistory([]); // Clear current chat history
     }
     
-    // Restore papers data (replace current papers completely)
-    if (savedMap.papers_data && Array.isArray(savedMap.papers_data) && savedMap.papers_data.length > 0) {
-      console.log('Setting papers data:', savedMap.papers_data);
-      setPapers(savedMap.papers_data);
+    // Fetch from normalized tables if project_id exists, otherwise fallback to JSONB
+    if (savedMap.project_id) {
+      console.log('[Dashboard] Fetching from normalized tables for project:', savedMap.project_id);
+      try {
+        // Dynamic imports to avoid circular dependencies
+        const { getProjectTrials } = await import('@/services/trialService');
+        const { getProjectPapers } = await import('@/services/paperService');
+        
+        const [trials, papers] = await Promise.all([
+          getProjectTrials(savedMap.project_id),
+          getProjectPapers(savedMap.project_id)
+        ]);
+        
+        console.log('[Dashboard] Loaded from normalized tables:', { 
+          trials: trials.length, 
+          papers: papers.length 
+        });
+        
+        // If normalized tables are empty (dual-write not complete), fallback to JSONB
+        const trialsEmpty = trials.length === 0 && savedMap.trials_data && savedMap.trials_data.length > 0;
+        const papersEmpty = papers.length === 0 && savedMap.papers_data && savedMap.papers_data.length > 0;
+        
+        if (trialsEmpty || papersEmpty) {
+          console.log('[Dashboard] Normalized tables incomplete, using JSONB fallback');
+          setTrials(savedMap.trials_data || []);
+          setPapers(savedMap.papers_data || []);
+        } else {
+          setTrials(trials);
+          setPapers(papers);
+        }
+      } catch (error) {
+        console.error('[Dashboard] Error loading from normalized tables, falling back to JSONB:', error);
+        // Fallback to JSONB if normalized tables fail
+        setTrials(savedMap.trials_data || []);
+        setPapers(savedMap.papers_data || []);
+      }
     } else {
-      console.log('No papers data to restore - clearing current papers');
-      setPapers([]); // Clear current papers
+      // Legacy: No project_id, use JSONB data
+      console.log('[Dashboard] No project_id, using JSONB data');
+      setTrials(savedMap.trials_data || []);
+      setPapers(savedMap.papers_data || []);
     }
     
     // Clear any errors
     setSlideError(null);
-    setSlideData(savedMap.slide_data); // Restore the saved slide data
     setGeneratingSlide(false);
   }
 

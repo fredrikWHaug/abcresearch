@@ -86,7 +86,7 @@ export async function linkTrialToProject(
 /**
  * Get all trials for a project
  */
-export async function getProjectTrials(projectId: number): Promise<ProjectTrial[]> {
+export async function getProjectTrials(projectId: number): Promise<ClinicalTrial[]> {
   console.log('[TrialService] Fetching trials for project:', projectId)
 
   const { data, error } = await supabase
@@ -103,10 +103,21 @@ export async function getProjectTrials(projectId: number): Promise<ProjectTrial[
     throw error
   }
 
-  // Flatten the structure
-  const trials = data.map((row: any) => ({
-    ...row.trials,
-    added_at: row.added_at,
+  // Map database columns to ClinicalTrial interface (snake_case → camelCase)
+  const trials: ClinicalTrial[] = data.map((row: any) => ({
+    nctId: row.trials.nct_id,
+    briefTitle: row.trials.brief_title,
+    officialTitle: row.trials.official_title,
+    overallStatus: row.trials.overall_status,
+    phase: row.trials.phase,
+    conditions: row.trials.conditions,
+    interventions: row.trials.interventions,
+    sponsors: { lead: row.trials.sponsors_lead },
+    enrollment: row.trials.enrollment,
+    startDate: row.trials.start_date,
+    completionDate: row.trials.completion_date,
+    locations: row.trials.locations,
+    studyType: row.trials.study_type,
   }))
 
   console.log('[TrialService] Found', trials.length, 'trials for project')
