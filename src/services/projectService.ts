@@ -10,6 +10,7 @@ export interface Project {
   user_id: string
   name: string
   description?: string
+  chat_history?: any[] // Array of chat messages
   created_at: string
   updated_at: string
 }
@@ -140,5 +141,41 @@ export async function deleteProject(id: number): Promise<void> {
     console.error('Error deleting project:', error)
     throw error
   }
+}
+
+/**
+ * Save chat history for a project
+ */
+export async function saveChatHistory(projectId: number, chatHistory: any[]): Promise<void> {
+  const { error } = await supabase
+    .from('projects')
+    .update({
+      chat_history: chatHistory,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', projectId)
+
+  if (error) {
+    console.error('[ProjectService] Error saving chat history:', error)
+    throw error
+  }
+}
+
+/**
+ * Load chat history for a project
+ */
+export async function loadChatHistory(projectId: number): Promise<any[]> {
+  const { data, error } = await supabase
+    .from('projects')
+    .select('chat_history')
+    .eq('id', projectId)
+    .single()
+
+  if (error) {
+    console.error('[ProjectService] Error loading chat history:', error)
+    return []
+  }
+
+  return data?.chat_history || []
 }
 
