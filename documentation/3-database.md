@@ -9,11 +9,51 @@ LATEST UPDATE: 11/08/25
   - Created junction tables: `project_trials`, `project_papers`, `project_drugs`
   - Implemented background dual-write to both JSONB and normalized tables
   - UI reads from normalized tables with automatic fallback to JSONB
+  - Migration utility created for backfilling old data
 - ✅ `projects` table is now connected to the UI
 - ✅ Users can create projects that persist in the database
 - ✅ Market maps linked to projects via `project_id` foreign key
-- 🚧 **In Progress**: Full transition from JSONB to normalized schema
-- 📋 **Planned**: Deprecate JSONB columns after migration complete
+- ✅ Chat history persists per project (in-memory cache)
+- 📋 **Next**: Run migration script to backfill existing JSONB data
+- 📋 **Planned**: Deprecate JSONB columns after migration and testing period
+
+## Migration from JSONB to Normalized Schema
+
+### Running the Migration
+
+To backfill existing JSONB data into the new normalized tables:
+
+1. **Open browser console** on the running app (localhost:5173 or production)
+2. **Run migration command**:
+   ```javascript
+   await window.runMigration()
+   ```
+3. **Monitor progress** in the console - you'll see:
+   - Number of market maps processed
+   - Trials and papers migrated
+   - Any errors encountered
+
+### What the Migration Does
+
+- Reads all `market_maps` with JSONB data (`trials_data`, `papers_data`)
+- Upserts each trial/paper into normalized `trials`/`papers` tables
+- Links entities to projects via junction tables (`project_trials`, `project_papers`)
+- Handles duplicates automatically (same NCT ID or PMID → single row)
+- Logs progress and errors for troubleshooting
+
+### Safety Features
+
+- **Non-destructive**: JSONB data remains untouched as fallback
+- **Idempotent**: Can run multiple times safely (upserts, not inserts)
+- **Error handling**: Individual failures don't stop entire migration
+- **Automatic fallback**: UI uses JSONB if normalized tables are empty
+
+### After Migration
+
+- New data writes to both JSONB and normalized tables (dual-write)
+- UI reads from normalized tables with JSONB fallback
+- Plan to deprecate JSONB columns after testing period (2-4 weeks)
+- Eventually drop JSONB columns to complete migration
 
 ## Database Architecture Overview
 

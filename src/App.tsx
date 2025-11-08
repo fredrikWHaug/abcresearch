@@ -5,6 +5,7 @@ import { Dashboard } from '@/components/Dashboard'
 import { EntryChoice } from '@/components/EntryChoice'
 import { CreateProjectModal } from '@/components/CreateProjectModal'
 import { createProject } from '@/services/projectService'
+import '@/utils/runMigration' // Makes window.runMigration() available in console
 
 function AppContent() {
   const { user, loading, isGuest } = useAuth()
