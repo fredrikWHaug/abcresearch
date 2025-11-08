@@ -116,7 +116,7 @@ export function MarketMap({
           papers_data: papers,
         });
       } else {
-        console.log('Creating new project');
+        console.log('Creating new market map');
         await MarketMapService.saveMarketMap({
           name: saveName.trim(),
           query,
@@ -124,7 +124,7 @@ export function MarketMap({
           slide_data: slideData,
           chat_history: chatHistory,
           papers_data: papers,
-        });
+        }, currentProjectId);
       }
       
       setShowSaveDialog(false);
@@ -327,6 +327,7 @@ export function MarketMap({
           trials={trials}
           chatHistory={chatHistory}
           papers={papers}
+          currentProjectId={currentProjectId}
           onSaveSuccess={onSaveSuccess}
         />
       )}
