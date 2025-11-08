@@ -236,14 +236,16 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
       setTrials([])
       setPapers([])
       setPreprints([])
-      setHasSearched(false)
+      // Keep hasSearched true so user stays in Dashboard
+      // setHasSearched(false) - removed
       setLastQuery('')
       setMessage('')
       setDrugGroups([])
       setSelectedDrug(null)
       setSelectedPapers([])
       setShowContextPanel(false)
-      setViewMode('research')
+      // Stay in current view mode instead of forcing 'research'
+      // setViewMode('research') - removed
     }
   }, [currentProjectId])
   
