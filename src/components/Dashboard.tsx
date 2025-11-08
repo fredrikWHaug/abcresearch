@@ -255,29 +255,57 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
     }
   }, [projectId, projectName])
   
-  // Clear chat history and search state when switching projects
+  // Store chat history per project (in-memory cache)
+  const projectChatHistoryRef = React.useRef<Map<number, typeof chatHistory>>(new Map())
+  const previousProjectIdRef = React.useRef<number | null>(null)
+  const chatHistoryRef = React.useRef(chatHistory)
+
+  // Keep ref in sync with state
   React.useEffect(() => {
-    // Only clear if we're switching projects (not initial load)
-    // We detect a switch by checking if currentProjectId exists and changes
-    const isProjectSwitch = currentProjectId !== null && currentProjectId !== projectId
+    chatHistoryRef.current = chatHistory
+  }, [chatHistory])
+
+  // Load/Save chat history when switching projects
+  React.useEffect(() => {
+    console.log('[Dashboard] Project effect triggered. Current:', currentProjectId, 'Previous:', previousProjectIdRef.current)
+    console.log('[Dashboard] Current chat length:', chatHistoryRef.current.length)
+    console.log('[Dashboard] Saved chats in cache:', Array.from(projectChatHistoryRef.current.keys()))
+    
+    const isProjectSwitch = currentProjectId !== null && currentProjectId !== previousProjectIdRef.current && previousProjectIdRef.current !== null
     
     if (isProjectSwitch) {
-      console.log('Project switched - clearing chat and search state')
-      setChatHistory([])
+      console.log('[Dashboard] ✅ Project switched from', previousProjectIdRef.current, 'to', currentProjectId)
+      
+      // FIRST: Save current chat to PREVIOUS project (before loading new chat)
+      if (chatHistoryRef.current.length > 0) {
+        console.log('[Dashboard] 💾 Saving', chatHistoryRef.current.length, 'messages to PREVIOUS project', previousProjectIdRef.current)
+        projectChatHistoryRef.current.set(previousProjectIdRef.current!, [...chatHistoryRef.current])
+      }
+      
+      // THEN: Load chat history for new project (or start fresh)
+      const savedChat = projectChatHistoryRef.current.get(currentProjectId)
+      if (savedChat && savedChat.length > 0) {
+        console.log('[Dashboard] ✅ Loading saved chat history for project', currentProjectId, ':', savedChat.length, 'messages')
+        setChatHistory([...savedChat])
+      } else {
+        console.log('[Dashboard] ✅ No saved chat for project', currentProjectId, ', starting fresh')
+        setChatHistory([])
+      }
+      
+      // Clear search results when switching projects
       setTrials([])
       setPapers([])
       setPreprints([])
-      // Keep hasSearched true so user stays in Dashboard
-      // setHasSearched(false) - removed
       setLastQuery('')
       setMessage('')
       setDrugGroups([])
       setSelectedDrug(null)
       setSelectedPapers([])
       setShowContextPanel(false)
-      // Stay in current view mode instead of forcing 'research'
-      // setViewMode('research') - removed
     }
+    
+    // Update previous project ref
+    previousProjectIdRef.current = currentProjectId
   }, [currentProjectId])
   
   // Drug grouping state
