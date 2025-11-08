@@ -236,6 +236,20 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
     if (projectId) {
       setCurrentProjectId(projectId)
       console.log('Project ID set:', projectId)
+      
+      // Load chat history for this project from database
+      import('@/services/projectService').then(async ({ loadChatHistory }) => {
+        try {
+          const dbChat = await loadChatHistory(projectId)
+          if (dbChat && dbChat.length > 0) {
+            console.log('[Dashboard] 📥 Loaded', dbChat.length, 'messages from database on mount')
+            setChatHistory([...dbChat])
+            projectChatHistoryRef.current.set(projectId, [...dbChat])
+          }
+        } catch (error) {
+          console.error('[Dashboard] Failed to load chat history on mount:', error)
+        }
+      })
     }
     if (projectName) {
       setCurrentProjectName(projectName)
@@ -255,15 +269,43 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
     }
   }, [projectId, projectName])
   
-  // Store chat history per project (in-memory cache)
+  // Store chat history per project (in-memory cache + database)
   const projectChatHistoryRef = React.useRef<Map<number, typeof chatHistory>>(new Map())
   const previousProjectIdRef = React.useRef<number | null>(null)
   const chatHistoryRef = React.useRef(chatHistory)
+  const saveChatTimeoutRef = React.useRef<NodeJS.Timeout | null>(null)
 
   // Keep ref in sync with state
   React.useEffect(() => {
     chatHistoryRef.current = chatHistory
   }, [chatHistory])
+  
+  // Auto-save chat history to database (debounced)
+  React.useEffect(() => {
+    if (currentProjectId === null || chatHistory.length === 0) return
+    
+    // Clear previous timeout
+    if (saveChatTimeoutRef.current) {
+      clearTimeout(saveChatTimeoutRef.current)
+    }
+    
+    // Debounce: save after 2 seconds of inactivity
+    saveChatTimeoutRef.current = setTimeout(async () => {
+      try {
+        const { saveChatHistory } = await import('@/services/projectService')
+        await saveChatHistory(currentProjectId, chatHistory)
+        console.log('[Dashboard] 💾 Auto-saved chat history to database:', chatHistory.length, 'messages')
+      } catch (error) {
+        console.error('[Dashboard] Failed to save chat history:', error)
+      }
+    }, 2000)
+    
+    return () => {
+      if (saveChatTimeoutRef.current) {
+        clearTimeout(saveChatTimeoutRef.current)
+      }
+    }
+  }, [chatHistory, currentProjectId])
 
   // Load/Save chat history when switching projects
   React.useEffect(() => {
@@ -276,21 +318,46 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
     if (isProjectSwitch) {
       console.log('[Dashboard] ✅ Project switched from', previousProjectIdRef.current, 'to', currentProjectId)
       
-      // FIRST: Save current chat to PREVIOUS project (before loading new chat)
-      if (chatHistoryRef.current.length > 0) {
-        console.log('[Dashboard] 💾 Saving', chatHistoryRef.current.length, 'messages to PREVIOUS project', previousProjectIdRef.current)
-        projectChatHistoryRef.current.set(previousProjectIdRef.current!, [...chatHistoryRef.current])
+      // FIRST: Save current chat to PREVIOUS project database immediately
+      if (chatHistoryRef.current.length > 0 && previousProjectIdRef.current !== null) {
+        console.log('[Dashboard] 💾 Saving', chatHistoryRef.current.length, 'messages to PREVIOUS project DB', previousProjectIdRef.current)
+        projectChatHistoryRef.current.set(previousProjectIdRef.current, [...chatHistoryRef.current])
+        
+        // Save to database immediately (don't wait for debounce)
+        import('@/services/projectService').then(({ saveChatHistory }) => {
+          saveChatHistory(previousProjectIdRef.current!, chatHistoryRef.current).catch(error => {
+            console.error('[Dashboard] Failed to save chat on switch:', error)
+          })
+        })
       }
       
-      // THEN: Load chat history for new project (or start fresh)
-      const savedChat = projectChatHistoryRef.current.get(currentProjectId)
-      if (savedChat && savedChat.length > 0) {
-        console.log('[Dashboard] ✅ Loading saved chat history for project', currentProjectId, ':', savedChat.length, 'messages')
-        setChatHistory([...savedChat])
-      } else {
-        console.log('[Dashboard] ✅ No saved chat for project', currentProjectId, ', starting fresh')
-        setChatHistory([])
-      }
+      // THEN: Load chat history for new project from database
+      console.log('[Dashboard] 📥 Loading chat history for project', currentProjectId, 'from database...')
+      
+      import('@/services/projectService').then(async ({ loadChatHistory }) => {
+        try {
+          const dbChat = await loadChatHistory(currentProjectId)
+          
+          if (dbChat && dbChat.length > 0) {
+            console.log('[Dashboard] ✅ Loaded', dbChat.length, 'messages from database for project', currentProjectId)
+            setChatHistory([...dbChat])
+            projectChatHistoryRef.current.set(currentProjectId, [...dbChat])
+          } else {
+            // Check in-memory cache as fallback
+            const cachedChat = projectChatHistoryRef.current.get(currentProjectId)
+            if (cachedChat && cachedChat.length > 0) {
+              console.log('[Dashboard] ✅ Loading', cachedChat.length, 'messages from cache for project', currentProjectId)
+              setChatHistory([...cachedChat])
+            } else {
+              console.log('[Dashboard] ✅ No chat history for project', currentProjectId, ', starting fresh')
+              setChatHistory([])
+            }
+          }
+        } catch (error) {
+          console.error('[Dashboard] Failed to load chat history:', error)
+          setChatHistory([])
+        }
+      })
       
       // Clear search results when switching projects
       setTrials([])
