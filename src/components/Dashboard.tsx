@@ -12,6 +12,7 @@ import { DrugDetail } from '@/components/DrugDetail'
 import { DrugDetailModal } from '@/components/DrugDetailModal'
 import { AssetDevelopmentPipeline } from '@/components/AssetDevelopmentPipeline'
 import { PDFExtraction } from '@/components/PDFExtraction'
+import { ExtractionHistory } from '@/components/ExtractionHistory'
 import { RealtimeFeed } from '@/components/RealtimeFeed'
 import { GatherSearchResultsService } from '@/services/gatherSearchResults'
 import type { PubMedArticle } from '@/types/papers'
@@ -185,7 +186,7 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
   const [papers, setPapers] = useState<PubMedArticle[]>([])
   const [preprints, setPreprints] = useState<BioRxivPreprint[]>([])
   const [papersLoading, setPapersLoading] = useState(false)
-  const [viewMode, setViewMode] = useState<'research' | 'marketmap' | 'savedmaps' | 'pipeline' | 'dataextraction' | 'realtimefeed'>(initialShowSavedMaps ? 'savedmaps' : 'research')
+  const [viewMode, setViewMode] = useState<'research' | 'marketmap' | 'savedmaps' | 'pipeline' | 'dataextraction' | 'extractionhistory' | 'realtimefeed'>(initialShowSavedMaps ? 'savedmaps' : 'research')
   const [researchTab, setResearchTab] = useState<'trials' | 'papers'>('papers')
   const [slideData, setSlideData] = useState<SlideData | null>(null)
   const [generatingSlide, setGeneratingSlide] = useState(false)
@@ -755,7 +756,7 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
       </div>
       
       {/* Toggle Buttons - Absolutely positioned center with equal widths */}
-      {(hasSearched || viewMode === 'savedmaps' || viewMode === 'pipeline' || viewMode === 'dataextraction' || viewMode === 'realtimefeed') && (
+      {(hasSearched || viewMode === 'savedmaps' || viewMode === 'pipeline' || viewMode === 'dataextraction' || viewMode === 'extractionhistory' || viewMode === 'realtimefeed') && (
         <div 
           className="absolute z-20"
           style={{ left: '50%', transform: 'translateX(-50%)' }}
@@ -882,6 +883,16 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
               }`}
             >
               Data Extraction
+            </button>
+            <button
+              onClick={() => setViewMode('extractionhistory')}
+              className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
+                viewMode === 'extractionhistory'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Extraction History
             </button>
             <button
               onClick={() => setViewMode('realtimefeed')}
@@ -1175,6 +1186,20 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
         {/* PDF Data Extraction Content */}
         <div className="flex-1 overflow-y-auto">
           <PDFExtraction />
+        </div>
+      </div>
+    );
+  }
+
+  // Extraction History mode
+  if (viewMode === 'extractionhistory') {
+    return (
+      <div className="h-screen flex flex-col bg-gray-50">
+        <Header onStartNewProject={handleStartNewProject} currentProjectId={currentProjectId} />
+        
+        {/* Extraction History Content */}
+        <div className="flex-1 overflow-y-auto">
+          <ExtractionHistory />
         </div>
       </div>
     );
