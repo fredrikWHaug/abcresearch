@@ -1,10 +1,13 @@
-LATEST UPDATE: 11/08/25
+**Documentation Version**: 3.0   
+**Last Updated**: November 10, 2025  
+**Last Updated by**: Bozhen (Paul) Peng
 
 # ABCresearch - Database Documentation
 
-**IMPLEMENTATION STATUS (Nov 8, 2025)**: 
+**IMPLEMENTATION STATUS (Nov 10, 2025)**: 
 - ✅ **Phase 1 Complete**: Project creation and storage implemented
 - ✅ **Phase 2 Complete**: Normalized schema with dual-write strategy
+- ✅ **PDF Extraction Async System**: Job queue and results tables added (Nov 10, 2025)
   - Created `trials`, `papers`, `drugs` tables with proper columns
   - Created junction tables: `project_trials`, `project_papers`, `project_drugs`
   - Implemented background dual-write to both JSONB and normalized tables
@@ -140,34 +143,43 @@ ABCresearch uses a **hybrid dual-write architecture** during the transition from
 │  (Supabase)     │
 └────────┬────────┘
          │ 1:N
-         ▼
-┌─────────────────┐           ┌──────────────────┐
-│    projects     │◄──────────│   market_maps    │
-│                 │   1:N     │  (Legacy/Hybrid) │
-└────────┬────────┘           └──────────────────┘
+         ├────────────────────────────────┐
+         │                                │
+         ▼                                ▼
+┌─────────────────┐           ┌──────────────────────────┐
+│    projects     │◄──────────│   market_maps            │
+│                 │   1:N     │   (Legacy/Hybrid)        │
+└────────┬────────┘           └──────────────────────────┘
          │ 1:N                     trials_data (JSONB) ⚠️ Deprecated
          │                         papers_data (JSONB) ⚠️ Deprecated
          │
-    ┌────┴────┬─────────────┬──────────────┐
-    │         │             │              │
-    ▼         ▼             ▼              ▼
-┌────────┐ ┌──────────┐ ┌────────────┐ ┌──────────┐
-│project_│ │project_  │ │project_    │ │trials    │
-│trials  │ │papers    │ │drugs       │ │          │
-└───┬────┘ └────┬─────┘ └─────┬──────┘ │nct_id    │
-    │           │             │        │brief_title│
-    │ N:M       │ N:M         │ N:M    │phase      │
-    │           │             │        │...        │
-    ▼           ▼             ▼        └──────────┘
-┌────────┐ ┌──────────┐ ┌────────────┐
-│trials  │ │papers    │ │drugs       │
-│        │ │          │ │            │
-│nct_id  │ │pmid      │ │name        │
-│title   │ │title     │ │type        │
-│phase   │ │abstract  │ │mechanism   │
-│...     │ │...       │ │...         │
-└────────┘ └──────────┘ └────────────┘
+    ┌────┴────┬─────────────┬──────────────┬──────────────┐
+    │         │             │              │              │
+    ▼         ▼             ▼              ▼              ▼
+┌────────┐ ┌──────────┐ ┌────────────┐ ┌──────────┐  ┌────────────────────┐
+│project_│ │project_  │ │project_    │ │trials    │  │pdf_extraction_jobs │
+│trials  │ │papers    │ │drugs       │ │          │  │                    │
+└───┬────┘ └────┬─────┘ └─────┬──────┘ │nct_id    │  │id (UUID)           │
+    │           │             │        │brief_title│  │status              │
+    │ N:M       │ N:M         │ N:M    │phase      │  │progress            │
+    │           │             │        │...        │  │file_name           │
+    ▼           ▼             ▼        └──────────┘  └────────┬───────────┘
+┌────────┐ ┌──────────┐ ┌────────────┐                       │ 1:1
+│trials  │ │papers    │ │drugs       │                       ▼
+│        │ │          │ │            │              ┌────────────────────────┐
+│nct_id  │ │pmid      │ │name        │              │pdf_extraction_results  │
+│title   │ │title     │ │type        │              │                        │
+│phase   │ │abstract  │ │mechanism   │              │job_id (FK)             │
+│...     │ │...       │ │...         │              │markdown_content        │
+└────────┘ └──────────┘ └────────────┘              │graphify_results (JSONB)│
+                                                     │original_images (JSONB) │
+                                                     │...                     │
+                                                     └────────────────────────┘
 ```
+
+**New Tables (Nov 2025)**:
+- `pdf_extraction_jobs`: Track async PDF extraction with status/progress
+- `pdf_extraction_results`: Store completed extraction results (markdown, images, graphs)
 
 ## Tables
 
@@ -558,7 +570,200 @@ const { data } = await supabase
   .eq('drugs.normalized_name', 'Semaglutide')
 ```
 
-### 4. Service Layer
+### 4. PDF Extraction Tables (Nov 2025)
+
+**Purpose**: Support asynchronous PDF extraction with job queue and persistent results
+
+#### `pdf_extraction_jobs` Table
+
+**Purpose**: Track PDF extraction jobs with status and progress
+
+```sql
+CREATE TABLE pdf_extraction_jobs (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  project_id BIGINT REFERENCES projects(id) ON DELETE SET NULL,
+  
+  -- File information
+  file_name TEXT NOT NULL,
+  file_size INTEGER NOT NULL,
+  
+  -- Job configuration
+  enable_graphify BOOLEAN DEFAULT true,
+  force_ocr BOOLEAN DEFAULT false,
+  max_graphify_images INTEGER DEFAULT 10,
+  
+  -- Job status and progress
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'completed', 'failed', 'cancelled')),
+  progress INTEGER DEFAULT 0 CHECK (progress >= 0 AND progress <= 100),
+  current_stage TEXT,
+  
+  -- Processing details
+  datalab_job_id TEXT,
+  datalab_check_url TEXT,
+  error_message TEXT,
+  retry_count INTEGER DEFAULT 0,
+  max_retries INTEGER DEFAULT 3,
+  
+  -- Timestamps
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  started_at TIMESTAMPTZ,
+  completed_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Indexes
+CREATE INDEX idx_pdf_jobs_user_id ON pdf_extraction_jobs(user_id);
+CREATE INDEX idx_pdf_jobs_project_id ON pdf_extraction_jobs(project_id) WHERE project_id IS NOT NULL;
+CREATE INDEX idx_pdf_jobs_status ON pdf_extraction_jobs(status);
+CREATE INDEX idx_pdf_jobs_created_at ON pdf_extraction_jobs(created_at DESC);
+CREATE INDEX idx_pdf_jobs_user_status ON pdf_extraction_jobs(user_id, status, created_at DESC);
+
+COMMENT ON TABLE pdf_extraction_jobs IS 'Tracks PDF extraction job queue with status, progress, and configuration';
+```
+
+#### `pdf_extraction_results` Table
+
+**Purpose**: Store completed extraction results linked to jobs
+
+```sql
+CREATE TABLE pdf_extraction_results (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  job_id UUID NOT NULL REFERENCES pdf_extraction_jobs(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  
+  -- Extracted content
+  markdown_content TEXT,
+  
+  -- JSON results (stored as JSONB for queryability)
+  response_json JSONB,
+  original_images JSONB,
+  graphify_results JSONB,
+  tables_data JSONB,
+  
+  -- Statistics
+  images_found INTEGER DEFAULT 0,
+  graphs_detected INTEGER DEFAULT 0,
+  tables_found INTEGER DEFAULT 0,
+  processing_time_ms INTEGER,
+  
+  -- Timestamps
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Indexes
+CREATE INDEX idx_pdf_results_job_id ON pdf_extraction_results(job_id);
+CREATE INDEX idx_pdf_results_user_id ON pdf_extraction_results(user_id);
+CREATE INDEX idx_pdf_results_created_at ON pdf_extraction_results(created_at DESC);
+
+COMMENT ON TABLE pdf_extraction_results IS 'Stores completed PDF extraction results including markdown, images, and GPT analysis';
+```
+
+#### Row Level Security (RLS) Policies
+
+```sql
+ALTER TABLE pdf_extraction_jobs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE pdf_extraction_results ENABLE ROW LEVEL SECURITY;
+
+-- Jobs: Users can only access their own jobs
+CREATE POLICY "Users can view their own extraction jobs"
+  ON pdf_extraction_jobs FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can create extraction jobs"
+  ON pdf_extraction_jobs FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update their own extraction jobs"
+  ON pdf_extraction_jobs FOR UPDATE
+  USING (auth.uid() = user_id);
+
+-- Results: Users can only access their own results
+CREATE POLICY "Users can view their own extraction results"
+  ON pdf_extraction_results FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can create extraction results"
+  ON pdf_extraction_results FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+```
+
+#### Example Queries
+
+```typescript
+// Submit a new extraction job
+const { data: job } = await supabase
+  .from('pdf_extraction_jobs')
+  .insert({
+    user_id: user.id,
+    project_id: currentProjectId,
+    file_name: 'research-paper.pdf',
+    file_size: 2500000,
+    enable_graphify: true,
+    max_graphify_images: 10
+  })
+  .select()
+  .single()
+
+// Get user's extraction history
+const { data: jobs } = await supabase
+  .from('pdf_extraction_jobs')
+  .select('*')
+  .order('created_at', { ascending: false })
+  .limit(20)
+
+// Get job with results (for completed jobs)
+const { data } = await supabase
+  .from('pdf_extraction_jobs')
+  .select(`
+    *,
+    pdf_extraction_results (*)
+  `)
+  .eq('id', jobId)
+  .single()
+
+// Update job progress
+await supabase
+  .from('pdf_extraction_jobs')
+  .update({
+    status: 'processing',
+    progress: 50,
+    current_stage: 'Processing images with GPT Vision...'
+  })
+  .eq('id', jobId)
+
+// Store extraction result
+await supabase
+  .from('pdf_extraction_results')
+  .insert({
+    job_id: jobId,
+    user_id: userId,
+    markdown_content: extractedMarkdown,
+    response_json: datalabResponse,
+    original_images: { ... },
+    graphify_results: { ... },
+    images_found: 5,
+    graphs_detected: 3,
+    processing_time_ms: 45000
+  })
+```
+
+**Key Features**:
+- **Async Processing**: Jobs run in background without blocking UI
+- **Progress Tracking**: Real-time status updates via polling
+- **Error Recovery**: Failed jobs can be retried
+- **Persistent Storage**: All results saved permanently
+- **Project Association**: Link extractions to specific projects
+- **Supabase Storage**: Temporary PDF file storage
+
+**Related Files**:
+- Migration: `supabase/migrations/add_pdf_extraction_async.sql`
+- API Endpoints: `api/submit-pdf-job.ts`, `api/process-pdf-job.ts`, `api/get-pdf-job.ts`, `api/list-pdf-jobs.ts`, `api/retry-pdf-job.ts`
+- Services: `src/services/pdfExtractionJobService.ts`, `src/services/notificationService.ts`
+- Components: `src/components/PDFExtraction.tsx`, `src/components/ExtractionHistory.tsx`
+
+### 5. Service Layer
 
 **Implementation Files**:
 - `src/services/trialService.ts` - CRUD operations for trials
@@ -566,6 +771,7 @@ const { data } = await supabase
 - `src/services/drugService.ts` - CRUD operations for drugs
 - `src/services/projectService.ts` - CRUD operations for projects
 - `src/services/marketMapService.ts` - Dual-write logic (JSONB + normalized)
+- `src/services/pdfExtractionJobService.ts` - PDF extraction job management
 
 **Dual-Write Strategy**:
 

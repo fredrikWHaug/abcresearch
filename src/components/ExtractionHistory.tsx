@@ -15,7 +15,6 @@ import {
   CheckCircle2, 
   XCircle, 
   Loader2,
-  Eye,
   Trash2
 } from 'lucide-react'
 import { PDFExtractionJobService } from '@/services/pdfExtractionJobService'
@@ -191,7 +190,7 @@ export function ExtractionHistory() {
                   View and manage your PDF extraction jobs
                 </CardDescription>
               </div>
-              <Button onClick={loadJobs} variant="outline" size="sm">
+              <Button onClick={loadJobs} variant="outline" size="sm" className="cursor-pointer">
                 <RefreshCw className="h-4 w-4" />
                 Refresh
               </Button>
@@ -223,10 +222,10 @@ export function ExtractionHistory() {
                         
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
-                            <h3 className="text-sm font-medium truncate">
+                            <h3 className="text-sm font-medium truncate max-w-md" title={job.file_name}>
                               {job.file_name}
                             </h3>
-                            <span className="text-xs px-2 py-0.5 rounded capitalize border">
+                            <span className="text-xs px-2 py-0.5 rounded capitalize border flex-shrink-0">
                               {job.status}
                             </span>
                           </div>
@@ -268,16 +267,17 @@ export function ExtractionHistory() {
                             <Button
                               onClick={() => handleViewResult(job)}
                               size="sm"
-                              variant="ghost"
-                              className="h-8"
+                              variant="outline"
+                              className="h-8 cursor-pointer text-xs"
                             >
-                              <Eye className="h-4 w-4" />
+                              View Analysis
                             </Button>
                             <Button
                               onClick={() => handleDownloadResult(job)}
                               size="sm"
                               variant="ghost"
-                              className="h-8"
+                              className="h-8 cursor-pointer"
+                              title="Download Markdown"
                             >
                               <Download className="h-4 w-4" />
                             </Button>
@@ -289,7 +289,8 @@ export function ExtractionHistory() {
                             onClick={() => handleRetry(job.id)}
                             size="sm"
                             variant="ghost"
-                            className="h-8"
+                            className="h-8 cursor-pointer"
+                            title="Retry extraction"
                           >
                             <RefreshCw className="h-4 w-4" />
                           </Button>

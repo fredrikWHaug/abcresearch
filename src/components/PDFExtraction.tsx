@@ -7,6 +7,7 @@ import { PDFExtractionJobService } from '@/services/pdfExtractionJobService'
 import type { PDFExtractionJob, PDFExtractionResultRecord } from '@/types/pdf-extraction-job'
 import { NotificationService } from '@/services/notificationService'
 import { PaperAnalysisView } from './PaperAnalysisView'
+import { ExtractionHistory } from './ExtractionHistory'
 
 export function PDFExtraction() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
@@ -337,8 +338,9 @@ export function PDFExtraction() {
 
   return (
     <div className="min-h-screen w-full overflow-y-auto bg-gray-50">
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-6 py-10">
-        <Card className="w-full">
+      <div className="mx-auto flex w-full flex-col gap-6 px-6 py-10">
+        <div className="max-w-3xl w-full mx-auto">
+          <Card className="w-full">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <FileText className="h-6 w-6" />
@@ -697,6 +699,12 @@ export function PDFExtraction() {
           )}
           </CardContent>
         </Card>
+        </div>
+
+        {/* Extraction History - Full width */}
+        <div className="w-full">
+          <ExtractionHistory />
+        </div>
       </div>
     </div>
   )
