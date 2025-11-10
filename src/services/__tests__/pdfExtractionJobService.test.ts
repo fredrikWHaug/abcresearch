@@ -19,9 +19,19 @@ vi.mock('@/lib/supabase', () => ({
 global.fetch = vi.fn()
 
 describe('PDFExtractionJobService', () => {
-  const mockSession = {
+  const mockSession: any = {
     access_token: 'mock-token',
-    user: { id: 'user-123' }
+    refresh_token: 'mock-refresh-token',
+    expires_in: 3600,
+    token_type: 'bearer',
+    user: { 
+      id: 'user-123',
+      email: 'test@example.com',
+      app_metadata: {},
+      user_metadata: {},
+      aud: 'authenticated',
+      created_at: new Date().toISOString()
+    }
   }
 
   const mockJob = {
