@@ -1213,31 +1213,6 @@ try {
 }
 ```
 
-## Supabase Edge Functions
-
-### extract-pdf-tables Function
-
-**Purpose**: Server-side PDF processing with Deno runtime
-
-**Configuration**: `supabase/config.toml`
-```toml
-[functions.extract-pdf-tables]
-enabled = true
-verify_jwt = true
-import_map = "./functions/extract-pdf-tables/deno.json"
-entrypoint = "./functions/extract-pdf-tables/index.ts"
-```
-
-**Function**: `supabase/functions/extract-pdf-tables/index.ts`
-- Runs in Deno runtime (not Node.js)
-- Handles PDF file uploads
-- Calls Vercel Node.js API for actual processing
-- Returns extracted table data
-
-**Authentication**:
-- `verify_jwt = true`: Requires authenticated user
-- Authorization header checked in function
-
 ## Future Database Enhancements
 
 ### Potential Schema Additions
