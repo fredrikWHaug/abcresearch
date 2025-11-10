@@ -1,6 +1,6 @@
 **Documentation Version**: 3.0   
 **Last Updated**: November 10, 2025  
-**Last Updated b**:
+**Last Updated by**: Bozhen (Paul) Peng
 
 
 # ABCresearch - PDF Content Extraction Documentation
