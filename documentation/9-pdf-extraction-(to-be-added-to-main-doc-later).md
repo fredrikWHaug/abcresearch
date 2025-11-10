@@ -1,4 +1,4 @@
-**Documentation Version**: 2.1  
+**Documentation Version**: 2.1   
 **Last Updated**: November 3, 2025  
 
 # ABCresearch - PDF Content Extraction Documentation
