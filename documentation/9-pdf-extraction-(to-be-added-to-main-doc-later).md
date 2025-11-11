@@ -302,11 +302,13 @@ CREATE TABLE pdf_extraction_results (
 ```
 
 2. **API Endpoints**:
-- `/api/submit-pdf-job` - Create job, upload PDF to storage, return job ID
-- `/api/process-pdf-job` - Background worker that processes extraction
-- `/api/get-pdf-job` - Get job status and results
-- `/api/list-pdf-jobs` - List user's extraction jobs
-- `/api/retry-pdf-job` - Retry a failed extraction
+- `/api/submit-pdf-job` - Create job, upload PDF to storage, return job ID (public)
+- `/api/process-pdf-job` - Background worker that processes extraction (protected by INTERNAL_API_KEY)
+- `/api/get-pdf-job` - Get job status and results (public)
+- `/api/list-pdf-jobs` - List user's extraction jobs (public)
+- `/api/retry-pdf-job` - Retry a failed extraction (public)
+
+**Note**: The `/api/process-pdf-job` endpoint requires the `x-internal-key` header with a valid `INTERNAL_API_KEY` to prevent unauthorized access. This endpoint is only called internally by `submit-pdf-job`, never directly by clients.
 
 3. **Supabase Storage**:
 - Bucket: `pdf-extraction-uploads` (temporary storage)
@@ -1782,6 +1784,8 @@ Fields:
 **For Production (Vercel Dashboard)**:
 ```bash
 DATALAB_API_KEY=dla-your-datalab-api-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key-here
+INTERNAL_API_KEY=generate-a-random-secure-key-here
 ```
 
 **Optional Variables**:
@@ -1805,9 +1809,37 @@ GOOGLE_GEMINI_API_KEY=...
 | Variable | Required | Default | Impact if Missing |
 |----------|----------|---------|-------------------|
 | `DATALAB_API_KEY` | Yes | None | Extraction fails completely |
+| `SUPABASE_SERVICE_ROLE_KEY` | Yes | None | Background worker cannot access database |
+| `INTERNAL_API_KEY` | Yes | None | Background worker cannot be invoked (security block) |
 | `OPENAI_API_KEY` | No | None | Graph detection skipped, markdown still works |
 | `GPT_MODEL` | No | gpt-4o-mini | Uses default model |
 | `OPENAI_API_BASE` | No | api.openai.com | Uses default OpenAI endpoint |
+
+### Generating INTERNAL_API_KEY
+
+The `INTERNAL_API_KEY` is a shared secret used to authenticate internal API calls between your frontend and the background worker. Generate a secure random string:
+
+**Using Node.js:**
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+**Using OpenSSL:**
+```bash
+openssl rand -hex 32
+```
+
+**Using Python:**
+```bash
+python -c "import secrets; print(secrets.token_hex(32))"
+```
+
+**Result:** A 64-character hexadecimal string like:
+```
+a3f9d8e7c2b1a0f9e8d7c6b5a4f3e2d1c0b9a8f7e6d5c4b3a2f1e0d9c8b7a6f5
+```
+
+Add this value to your Vercel environment variables as `INTERNAL_API_KEY`.
 
 ---
 
@@ -2029,11 +2061,22 @@ try {
 **Vercel Dashboard Steps**:
 1. Go to Settings → Environment Variables
 2. Add `DATALAB_API_KEY` (required)
-3. Add `OPENAI_API_KEY` (optional but recommended)
-4. Add `VITE_SUPABASE_URL` (required for job queue)
-5. Add `VITE_SUPABASE_ANON_KEY` (required for job queue)
-6. Set for: Production, Preview, Development
-7. Redeploy to apply changes
+3. Add `SUPABASE_SERVICE_ROLE_KEY` (required for background worker)
+4. Add `INTERNAL_API_KEY` (required - generate random 64-char hex string)
+5. Add `OPENAI_API_KEY` (optional but recommended)
+6. Add `VITE_SUPABASE_URL` (required for job queue)
+7. Add `VITE_SUPABASE_ANON_KEY` (required for job queue)
+8. Set for: Production, Preview, Development
+9. Redeploy to apply changes
+
+**Generating INTERNAL_API_KEY**:
+```bash
+# Generate a secure random key
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+
+# Example output:
+# a3f9d8e7c2b1a0f9e8d7c6b5a4f3e2d1c0b9a8f7e6d5c4b3a2f1e0d9c8b7a6f5
+```
 
 **Supabase Setup**:
 1. Run database migration: `supabase/migrations/add_pdf_extraction_async.sql`
@@ -2176,6 +2219,45 @@ const apiKey = process.env.DATALAB_API_KEY
 - Injected at runtime
 - Never committed to git
 - Separate for development/production
+
+### Internal API Key Protection
+
+**Purpose**: The `INTERNAL_API_KEY` protects the background worker endpoint (`/api/process-pdf-job`) from unauthorized access.
+
+**Why It's Needed**:
+- The worker endpoint performs expensive operations (Datalab API calls, GPT Vision processing)
+- These operations have real monetary costs
+- Without protection, anyone could discover the endpoint and abuse it
+- Direct calls could bypass rate limiting or job tracking
+
+**How It Works**:
+```typescript
+// In process-pdf-job.ts
+const internalKey = req.headers['x-internal-key']
+if (internalKey !== process.env.INTERNAL_API_KEY && internalKey !== 'dev-key') {
+  return res.status(403).json({ success: false, error: 'Forbidden' })
+}
+```
+
+**Security Model**:
+1. Client submits job via `/api/submit-pdf-job` (authenticated via Supabase)
+2. `submit-pdf-job` internally calls `/api/process-pdf-job` with `INTERNAL_API_KEY` in header
+3. Worker verifies the key matches before processing
+4. External users cannot call worker directly (don't have the key)
+
+**Key Characteristics**:
+- Shared secret between your own services (not a user credential)
+- Should be 32+ random bytes (64 hex characters)
+- Never exposed to browser/client
+- Different from Supabase keys (this is for your internal API only)
+- `'dev-key'` fallback only for local development
+
+**Best Practices**:
+- Generate using cryptographically secure random number generator
+- Rotate periodically (e.g., quarterly)
+- Use different keys for production/staging/development
+- Store only in Vercel environment variables (never in code)
+- Monitor for unauthorized access attempts (403 errors in logs)
 
 ### File Upload Security
 
@@ -2641,6 +2723,24 @@ Fix: Enable graphify, add API key, or increase image limit
 Check: extractionResult.success === true
 Check: Blobs exist in response
 Fix: Verify backend returns base64-encoded blobs
+```
+
+**Issue**: Jobs stuck in "pending" status
+```
+Check: INTERNAL_API_KEY is set in Vercel environment variables
+Check: Worker is being triggered from client-side
+Check: Vercel function logs for worker errors
+Fix: Add INTERNAL_API_KEY to Vercel dashboard
+Fix: Verify worker endpoint is accessible
+Fix: Check for 403 Forbidden errors in logs
+```
+
+**Issue**: Worker returns 403 Forbidden
+```
+Check: INTERNAL_API_KEY matches between environments
+Check: Key is set correctly in Vercel dashboard
+Fix: Regenerate key and update in all environments
+Fix: Ensure no extra spaces or quotes in environment variable
 ```
 
 ### Debug Commands
