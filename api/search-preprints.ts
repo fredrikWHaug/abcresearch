@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import type { BioRxivPreprint, BioRxivSearchParams, BioRxivAPIResponse } from '../src/types/preprints';
+import type { BioRxivPreprint, BioRxivSearchParams, BioRxivAPIResponse } from '../src/types/preprints.js';
 
 // Rate limiting for bioRxiv API
 const RATE_LIMIT_DELAY = 1000; // 1 second between requests

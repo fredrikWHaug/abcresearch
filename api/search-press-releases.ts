@@ -1,6 +1,6 @@
 // Vercel API Route for Press Releases search via NewsAPI
 
-import type { PressRelease, PressReleaseSearchParams } from '../src/types/press-releases';
+import type { PressRelease, PressReleaseSearchParams } from '../src/types/press-releases.js';
 
 interface NewsAPIArticle {
   source: {
