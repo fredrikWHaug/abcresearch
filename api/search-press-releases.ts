@@ -72,11 +72,29 @@ function calculateRelevanceScore(article: NewsAPIArticle, query: string): number
 }
 
 function extractCompanyName(article: NewsAPIArticle): string {
-  // Try to extract company name from title
+  // Priority 1: Use author field if available (often contains company name)
+  if (article.author && article.author.trim().length > 0) {
+    // Clean up author field (sometimes has extra text like "Press Release by...")
+    const author = article.author.trim();
+    // Remove common prefixes
+    const cleanAuthor = author
+      .replace(/^(Press Release by|By|From)\s+/i, '')
+      .trim();
+
+    if (cleanAuthor.length > 0 && cleanAuthor.toLowerCase() !== 'unknown') {
+      return cleanAuthor;
+    }
+  }
+
+  // Priority 2: Try to extract company name from title
   const title = article.title;
   const patterns = [
-    /^([A-Z][a-zA-Z\s&]+?)\s+(announces|reports|says|releases)/,
-    /^([A-Z][a-zA-Z\s&]+?):/
+    // Match: "Company Name Announces..." or "Company Name Reports..."
+    /^([A-Z][a-zA-Z0-9\s&.,'\-]+?)\s+(announces|reports|says|releases|completes|receives|expands|launches|partners|signs)/i,
+    // Match: "Company Name:"
+    /^([A-Z][a-zA-Z0-9\s&.,'\-]+?):/,
+    // Match: "Company Name, Inc. Announces..."
+    /^([A-Z][a-zA-Z0-9\s&.,'\-]+?(?:,\s*(?:Inc|LLC|Ltd|Corp|Co)\.?))\s+/i
   ];
 
   for (const pattern of patterns) {
@@ -86,15 +104,19 @@ function extractCompanyName(article: NewsAPIArticle): string {
     }
   }
 
-  // Fallback to source name
+  // Fallback: if title is very short or no match, return source name
   return article.source.name;
 }
 
 function transformToPressRelease(article: NewsAPIArticle, query: string): PressRelease {
   const company = extractCompanyName(article);
 
+  // Generate unique ID using full URL hash
+  const urlHash = Buffer.from(article.url).toString('base64').replace(/[+/=]/g, '').substring(0, 32);
+  const timestamp = new Date(article.publishedAt).getTime();
+
   return {
-    id: `pr-${Buffer.from(article.url).toString('base64').substring(0, 16)}`,
+    id: `pr-${urlHash}-${timestamp}`,
     title: article.title,
     company: company,
     releaseDate: article.publishedAt.split('T')[0],

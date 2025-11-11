@@ -2,31 +2,24 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { FileText, ExternalLink, Star, Building2, Megaphone } from 'lucide-react';
+import { FileText, ExternalLink, Star, Building2, Megaphone, Plus, Check } from 'lucide-react';
 import type { PressRelease } from '@/types/press-releases';
 
 interface PressReleasesDiscoveryProps {
   pressReleases: PressRelease[];
   query: string;
   loading: boolean;
+  onAddPressReleaseToContext?: (pressRelease: PressRelease) => void;
+  isPressReleaseInContext?: (id: string) => boolean;
 }
 
 export const PressReleasesDiscovery: React.FC<PressReleasesDiscoveryProps> = ({
   query,
   pressReleases,
-  loading
+  loading,
+  onAddPressReleaseToContext,
+  isPressReleaseInContext
 }) => {
-  const [selectedReleases, setSelectedReleases] = useState<Set<string>>(new Set());
-
-  const handleReleaseSelect = (id: string) => {
-    const newSelected = new Set(selectedReleases);
-    if (newSelected.has(id)) {
-      newSelected.delete(id);
-    } else {
-      newSelected.add(id);
-    }
-    setSelectedReleases(newSelected);
-  };
 
   const getRelevanceColor = (score: number) => {
     if (score >= 80) return 'bg-green-100 text-green-800';
@@ -79,44 +72,34 @@ export const PressReleasesDiscovery: React.FC<PressReleasesDiscoveryProps> = ({
       {/* Content - Scrollable */}
       <div className="flex-1 overflow-y-auto p-4">
         <div className="space-y-4">
-          {selectedReleases.size > 0 && (
-            <div className="flex justify-end">
-              <Button variant="outline" size="sm">
-                Export Selected ({selectedReleases.size})
-              </Button>
-            </div>
-          )}
-
-          <div className="space-y-4">
-            {sortedReleases.map((release) => (
-              <Card
-                key={release.id}
-                className={`hover:shadow-lg transition-shadow cursor-pointer ${
-                  selectedReleases.has(release.id) ? 'ring-2 ring-blue-500' : ''
-                }`}
-                onClick={() => handleReleaseSelect(release.id)}
-              >
-                <CardHeader>
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <CardTitle className="text-lg line-clamp-2">{release.title}</CardTitle>
-                      <div className="flex items-center gap-2 mt-2">
-                        <Building2 className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm text-muted-foreground">
-                          {release.company}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Badge className={getRelevanceColor(release.relevanceScore)}>
-                        <Star className="h-3 w-3 mr-1" />
-                        {release.relevanceScore}
-                      </Badge>
+          {sortedReleases.map((release) => (
+            <Card
+              key={release.id}
+              className={`hover:shadow-lg transition-shadow ${
+                isPressReleaseInContext?.(release.id) ? 'ring-2 ring-blue-500' : ''
+              }`}
+            >
+              <CardHeader>
+                <div className="flex justify-between items-start">
+                  <div className="flex-1">
+                    <CardTitle className="text-lg line-clamp-2">{release.title}</CardTitle>
+                    <div className="flex items-center gap-2 mt-2">
+                      <Building2 className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm text-muted-foreground">
+                        {release.company}
+                      </span>
                     </div>
                   </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Badge className={getRelevanceColor(release.relevanceScore)}>
+                      <Star className="h-3 w-3 mr-1" />
+                      {release.relevanceScore}
+                    </Badge>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
                     <div className="flex flex-wrap gap-2">
                       <Badge variant="outline">
                         <FileText className="h-3 w-3 mr-1" />
@@ -158,25 +141,52 @@ export const PressReleasesDiscovery: React.FC<PressReleasesDiscoveryProps> = ({
                           {release.financialImpact}
                         </div>
                       )}
-                      {release.url && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            window.open(release.url, '_blank');
-                          }}
-                        >
-                          <ExternalLink className="h-4 w-4 mr-1" />
-                          View Release
-                        </Button>
-                      )}
+                      <div className="flex gap-2">
+                        {onAddPressReleaseToContext && (
+                          <Button
+                            variant={isPressReleaseInContext?.(release.id) ? "default" : "outline"}
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (!isPressReleaseInContext?.(release.id)) {
+                                onAddPressReleaseToContext(release);
+                              }
+                            }}
+                            disabled={isPressReleaseInContext?.(release.id)}
+                            className={isPressReleaseInContext?.(release.id) ? "bg-blue-600 hover:bg-blue-600" : ""}
+                          >
+                            {isPressReleaseInContext?.(release.id) ? (
+                              <>
+                                <Check className="h-3 w-3 mr-1" />
+                                In Context
+                              </>
+                            ) : (
+                              <>
+                                <Plus className="h-3 w-3 mr-1" />
+                                Add to Context
+                              </>
+                            )}
+                          </Button>
+                        )}
+                        {release.url && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              window.open(release.url, '_blank');
+                            }}
+                          >
+                            <ExternalLink className="h-4 w-4 mr-1" />
+                            View Release
+                          </Button>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
         </div>
       </div>
     </div>

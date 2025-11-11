@@ -1,12 +1,13 @@
 // Vercel API Route for generating dynamic AI responses
 
-import { 
-  buildConversationContext, 
+import {
+  buildConversationContext,
   generateSearchSuggestions,
   buildSystemPrompt,
   buildMessagesFromHistory,
   type ChatMessage,
-  type ContextPaper
+  type ContextPaper,
+  type ContextPressRelease
 } from './utils/chatHelpers.js'
 
 interface GenerateResponseRequest {
@@ -22,6 +23,17 @@ interface GenerateResponseRequest {
     journal: string;
     publicationDate: string;
     authors: string[];
+  }>;
+  contextPressReleases?: Array<{
+    id: string;
+    title: string;
+    company: string;
+    releaseDate: string;
+    summary: string;
+    fullText?: string;
+    source: string;
+    url?: string;
+    keyAnnouncements?: string[];
   }>;
   searchResults?: {
     trials: any[];
@@ -58,11 +70,12 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    const { userQuery, chatHistory, searchResults, contextPapers }: GenerateResponseRequest = req.body;
+    const { userQuery, chatHistory, searchResults, contextPapers, contextPressReleases }: GenerateResponseRequest = req.body;
     console.log('Parsed userQuery:', userQuery);
     console.log('Parsed chatHistory:', chatHistory?.length || 0, 'messages');
     console.log('Parsed searchResults:', searchResults);
     console.log('Context papers count:', contextPapers?.length || 0);
+    console.log('Context press releases count:', contextPressReleases?.length || 0);
 
     if (!userQuery) {
       console.log('No userQuery provided');
@@ -87,9 +100,9 @@ export default async function handler(req: any, res: any) {
       });
     }
 
-    // ABC-39: Build system prompt with context papers (persistent)
-    const systemPrompt = buildSystemPrompt(contextPapers);
-    
+    // ABC-39, HW9: Build system prompt with context papers and press releases (persistent)
+    const systemPrompt = buildSystemPrompt(contextPapers, contextPressReleases);
+
     // ABC-39: Build messages array from chat history and current query
     const messages = buildMessagesFromHistory(chatHistory || [], userQuery);
 

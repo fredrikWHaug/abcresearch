@@ -3,8 +3,11 @@ import { Button } from '@/components/ui/button';
 import { X } from 'lucide-react';
 import type { DrugGroup } from '@/services/drugGroupingService';
 import type { PubMedArticle } from '@/types/papers';
+import type { PressRelease } from '@/types/press-releases';
 import { PapersDiscovery } from './PapersDiscovery';
 import { TrialsList } from './TrialsList';
+import { PressReleasesDiscovery } from './PressReleasesDiscovery';
+import { IRDecksDiscovery } from './IRDecksDiscovery';
 
 interface DrugDetailModalProps {
   drugGroup: DrugGroup;
@@ -12,16 +15,20 @@ interface DrugDetailModalProps {
   onClose: () => void;
   onAddPaperToContext?: (paper: PubMedArticle) => void;
   isPaperInContext?: (pmid: string) => boolean;
+  onAddPressReleaseToContext?: (pressRelease: PressRelease) => void;
+  isPressReleaseInContext?: (id: string) => boolean;
 }
 
-export function DrugDetailModal({ 
-  drugGroup, 
-  query, 
+export function DrugDetailModal({
+  drugGroup,
+  query,
   onClose,
   onAddPaperToContext,
-  isPaperInContext
+  isPaperInContext,
+  onAddPressReleaseToContext,
+  isPressReleaseInContext
 }: DrugDetailModalProps) {
-  const [viewMode, setViewMode] = useState<'papers' | 'trials' | 'both'>('both');
+  const [viewMode, setViewMode] = useState<'papers' | 'trials' | 'pressReleases' | 'irDecks' | 'both'>('both');
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
@@ -42,36 +49,56 @@ export function DrugDetailModal({
 
           {/* View Mode Toggle */}
           <div className="flex items-center justify-center">
-            <div className="flex rounded-lg bg-gray-100 p-1 w-[30rem]">
+            <div className="flex rounded-lg bg-gray-100 p-1 w-[50rem]">
               <button
                 onClick={() => setViewMode('papers')}
-                className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
+                className={`py-2 px-3 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
                   viewMode === 'papers'
                     ? 'bg-white text-gray-900 shadow-sm'
                     : 'text-gray-600 hover:text-gray-900'
                 }`}
               >
-                Papers Only ({drugGroup.papers.length})
+                Papers ({drugGroup.papers.length})
+              </button>
+              <button
+                onClick={() => setViewMode('trials')}
+                className={`py-2 px-3 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
+                  viewMode === 'trials'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                Trials ({drugGroup.trials.length})
+              </button>
+              <button
+                onClick={() => setViewMode('pressReleases')}
+                className={`py-2 px-3 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
+                  viewMode === 'pressReleases'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                Press ({drugGroup.pressReleases.length})
+              </button>
+              <button
+                onClick={() => setViewMode('irDecks')}
+                className={`py-2 px-3 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
+                  viewMode === 'irDecks'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                IR Decks ({drugGroup.irDecks.length})
               </button>
               <button
                 onClick={() => setViewMode('both')}
-                className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
+                className={`py-2 px-3 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
                   viewMode === 'both'
                     ? 'bg-white text-gray-900 shadow-sm'
                     : 'text-gray-600 hover:text-gray-900'
                 }`}
               >
                 Side by Side
-              </button>
-              <button
-                onClick={() => setViewMode('trials')}
-                className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
-                  viewMode === 'trials'
-                    ? 'bg-white text-gray-900 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                Trials Only ({drugGroup.trials.length})
               </button>
             </div>
           </div>
@@ -131,12 +158,30 @@ export function DrugDetailModal({
                 isPaperInContext={isPaperInContext}
               />
             </div>
-          ) : (
+          ) : viewMode === 'trials' ? (
             <div className="h-full bg-gray-50">
               <TrialsList
                 trials={drugGroup.trials}
                 loading={false}
                 query={query}
+              />
+            </div>
+          ) : viewMode === 'pressReleases' ? (
+            <div className="h-full bg-gray-50">
+              <PressReleasesDiscovery
+                pressReleases={drugGroup.pressReleases}
+                query={query}
+                loading={false}
+                onAddPressReleaseToContext={onAddPressReleaseToContext}
+                isPressReleaseInContext={isPressReleaseInContext}
+              />
+            </div>
+          ) : (
+            <div className="h-full bg-gray-50">
+              <IRDecksDiscovery
+                irDecks={drugGroup.irDecks}
+                query={query}
+                loading={false}
               />
             </div>
           )}

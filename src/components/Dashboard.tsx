@@ -22,8 +22,8 @@ import { pubmedAPI } from '@/services/pubmedAPI'
 import { supabase } from '@/lib/supabase'
 import type { ClinicalTrial } from '@/types/trials'
 import type { SlideData } from '@/services/slideAPI'
-import type { BioRxivPreprint } from '@/types/preprints'
 import type { PressRelease } from '@/types/press-releases'
+import type { IRDeck } from '@/types/ir-decks'
 
 interface DashboardProps {
   initialShowSavedMaps?: boolean;
@@ -63,11 +63,29 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
 
   const handleClearContext = () => {
     setSelectedPapers([]);
+    setSelectedPressReleases([]);
     setShowContextPanel(false);
   }
 
   const isPaperInContext = (pmid: string) => {
     return selectedPapers.some(p => p.pmid === pmid);
+  }
+
+  // Press Release context handlers
+  const handleAddPressReleaseToContext = (pressRelease: PressRelease) => {
+    // Check if press release is already in context
+    if (selectedPressReleases.some(pr => pr.id === pressRelease.id)) {
+      return; // Already added
+    }
+    setSelectedPressReleases(prev => [...prev, pressRelease]);
+  }
+
+  const handleRemovePressReleaseFromContext = (id: string) => {
+    setSelectedPressReleases(prev => prev.filter(pr => pr.id !== id));
+  }
+
+  const isPressReleaseInContext = (id: string) => {
+    return selectedPressReleases.some(pr => pr.id === id);
   }
 
   const handleLoadSavedMap = (savedMap: SavedMarketMap) => {
@@ -116,7 +134,6 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
     setHasSearched(false);
     setChatHistory([]);
     setPapers([]);
-    setPreprints([]);
     setPressReleases([]);
     setSlideError(null);
     setGeneratingSlide(false);
@@ -146,15 +163,16 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
   const [loading, setLoading] = useState(false)
   const [lastQuery, setLastQuery] = useState('')
   const [chatHistory, setChatHistory] = useState<Array<{
-    type: 'user' | 'system', 
-    message: string, 
+    type: 'user' | 'system',
+    message: string,
     searchSuggestions?: Array<{id: string, label: string, query: string, description?: string}>,
-    contextPapers?: PubMedArticle[]
+    contextPapers?: PubMedArticle[],
+    contextPressReleases?: PressRelease[]
   }>>([])
   const [hasSearched, setHasSearched] = useState(false)
   const [papers, setPapers] = useState<PubMedArticle[]>([])
-  const [preprints, setPreprints] = useState<BioRxivPreprint[]>([])
   const [pressReleases, setPressReleases] = useState<PressRelease[]>([])
+  const [irDecks, setIRDecks] = useState<IRDeck[]>([])
   const [papersLoading, setPapersLoading] = useState(false)
   const [viewMode, setViewMode] = useState<'research' | 'marketmap' | 'savedmaps' | 'pipeline' | 'dataextraction' | 'realtimefeed'>(initialShowSavedMaps ? 'savedmaps' : 'research')
   const [researchTab, setResearchTab] = useState<'trials' | 'papers'>('papers')
@@ -189,6 +207,7 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
   
   // Paper context state (for AI conversation)
   const [selectedPapers, setSelectedPapers] = useState<PubMedArticle[]>([])
+  const [selectedPressReleases, setSelectedPressReleases] = useState<PressRelease[]>([])
   const [showContextPanel, setShowContextPanel] = useState(false)
 
   // Close menu, context panel, and projects dropdown when clicking outside
@@ -231,25 +250,28 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
 
   const handleSendMessage = async () => {
     if (!message.trim()) return;
-    
+
     const userMessage = message.trim();
     const messageContextPapers = [...selectedPapers]; // Snapshot current context
+    const messageContextPressReleases = [...selectedPressReleases]; // Snapshot press releases context
     setMessage('');
     setHasSearched(true); // Switch to wide screen chat interface after first message
-    
-    // Add user message to chat history with context papers
-    setChatHistory(prev => [...prev, { 
-      type: 'user', 
+
+    // Add user message to chat history with context papers and press releases
+    setChatHistory(prev => [...prev, {
+      type: 'user',
       message: userMessage,
-      contextPapers: messageContextPapers.length > 0 ? messageContextPapers : undefined
+      contextPapers: messageContextPapers.length > 0 ? messageContextPapers : undefined,
+      contextPressReleases: messageContextPressReleases.length > 0 ? messageContextPressReleases : undefined
     }]);
-    
+
     try {
       setLoading(true);
-      
+
       console.log('Sending request to generate-response API with query:', userMessage);
       console.log('Chat history being sent:', chatHistory.length, 'messages');
-      
+      console.log('Context papers:', selectedPapers.length, 'press releases:', selectedPressReleases.length);
+
       // First, get intent classification and response with conversation context
       const response = await fetch('/api/generate-response', {
         method: 'POST',
@@ -259,7 +281,8 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
         body: JSON.stringify({
           userQuery: userMessage,
           chatHistory: chatHistory,
-          contextPapers: selectedPapers.length > 0 ? selectedPapers : undefined
+          contextPapers: selectedPapers.length > 0 ? selectedPapers : undefined,
+          contextPressReleases: selectedPressReleases.length > 0 ? selectedPressReleases : undefined
         })
       });
 
@@ -357,7 +380,8 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
         papers: sortedPapers,
         trials: sortedTrials,
         pressReleases: [],
-        totalResults: sortedPapers.length + sortedTrials.length
+        irDecks: result.irDecks || [],
+        totalResults: sortedPapers.length + sortedTrials.length + (result.irDecks?.length || 0)
       };
       
       // Update drugGroups to include this updated drug or add it if new
@@ -475,13 +499,20 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
           return prText.includes(normalizedDrugName);
         });
 
+        // Find IR decks mentioning this drug
+        const drugIRDecks = (initialResult.irDecks || []).filter(irDeck => {
+          const irText = [irDeck.title, irDeck.company, irDeck.description || ''].join(' ').toLowerCase();
+          return irText.includes(normalizedDrugName);
+        });
+
         return {
           drugName,
           normalizedName: normalizedDrugName,
           papers: drugPapers,
           trials: drugTrials,
           pressReleases: drugPressReleases,
-          totalResults: drugPapers.length + drugTrials.length + drugPressReleases.length
+          irDecks: drugIRDecks,
+          totalResults: drugPapers.length + drugTrials.length + drugPressReleases.length + drugIRDecks.length
         };
       });
       
@@ -496,8 +527,8 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
       setDrugGroups(filteredDrugGroups);
       setTrials(initialResult.trials);
       setPapers(initialResult.papers);
-      setPreprints(initialResult.preprints);
       setPressReleases(initialResult.pressReleases);
+      setIRDecks(initialResult.irDecks || []);
 
       // Calculate total stats
       const totalTrials = filteredDrugGroups.reduce((sum, g) => sum + g.trials.length, 0);
@@ -506,7 +537,7 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
       // Add final message to chat
       setChatHistory(prev => [...prev, {
         type: 'system' as const,
-        message: `Discovery complete! Found ${filteredDrugGroups.length} drugs with ${initialResult.trials.length} clinical trials, ${initialResult.papers.length} research papers, ${initialResult.preprints.length} preprints, and ${initialResult.pressReleases.length} press releases. Results are displayed on the right.`,
+        message: `Discovery complete! Found ${filteredDrugGroups.length} drugs with ${initialResult.trials.length} clinical trials, ${initialResult.papers.length} research papers, and ${initialResult.pressReleases.length} press releases. Results are displayed on the right.`,
         searchSuggestions: []
       }]);
       
@@ -759,10 +790,10 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
             <h1 className="text-3xl font-semibold text-gray-800 mb-2">Welcome back</h1>
           </div>
           
-          {/* Context Papers Display */}
-          {selectedPapers.length > 0 && (
+          {/* Context Display (Papers + Press Releases) */}
+          {(selectedPapers.length > 0 || selectedPressReleases.length > 0) && (
             <div className="mb-3 flex justify-center">
-              {selectedPapers.length <= 2 ? (
+              {(selectedPapers.length + selectedPressReleases.length) <= 2 ? (
                 // Show individual pills for 1-2 papers
                 <div className="flex flex-wrap gap-2 justify-center">
                   {selectedPapers.map((paper) => (
@@ -787,9 +818,31 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
                       </button>
                     </div>
                   ))}
+                  {selectedPressReleases.map((pr) => (
+                    <div
+                      key={pr.id}
+                      className="inline-flex items-center gap-2 px-3 py-1.5 bg-purple-50 border border-purple-200 rounded-md text-sm"
+                    >
+                      <svg className="w-3.5 h-3.5 text-purple-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
+                      </svg>
+                      <span className="text-purple-900 font-medium line-clamp-1 max-w-[200px]" title={pr.title}>
+                        {pr.title}
+                      </span>
+                      <button
+                        onClick={() => handleRemovePressReleaseFromContext(pr.id)}
+                        className="flex-shrink-0 text-purple-400 hover:text-purple-600 transition-colors"
+                        title="Remove from context"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  ))}
                 </div>
               ) : (
-                // Show compact button for 3+ papers
+                // Show compact button for 3+ items
                 <div className="relative context-panel-container">
                   <button
                     onClick={() => setShowContextPanel(!showContextPanel)}
@@ -799,7 +852,7 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
                     <span className="text-sm font-medium text-blue-900">
-                      Context ({selectedPapers.length})
+                      Context ({selectedPapers.length + selectedPressReleases.length})
                     </span>
                     <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
@@ -810,7 +863,7 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
                   {showContextPanel && (
                     <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-white rounded-lg shadow-xl border border-gray-200 py-2 w-96 max-h-96 overflow-y-auto z-50">
                       <div className="px-4 py-2 border-b border-gray-200 flex items-center justify-between">
-                        <h3 className="font-semibold text-gray-900">Papers in AI Context</h3>
+                        <h3 className="font-semibold text-gray-900">AI Context</h3>
                         <button
                           onClick={handleClearContext}
                           className="text-xs text-red-600 hover:text-red-700 font-medium"
@@ -835,6 +888,32 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
                               </div>
                               <button
                                 onClick={() => handleRemovePaperFromContext(paper.pmid)}
+                                className="flex-shrink-0 text-gray-400 hover:text-red-600 transition-colors"
+                                title="Remove from context"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                        {selectedPressReleases.map((pr) => (
+                          <div
+                            key={pr.id}
+                            className="px-4 py-3 hover:bg-gray-50 border-b border-gray-100 last:border-b-0 bg-purple-50/30"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-gray-900 line-clamp-2">
+                                  {pr.title}
+                                </p>
+                                <p className="text-xs text-purple-600 mt-1">
+                                  Press Release • {pr.releaseDate}
+                                </p>
+                              </div>
+                              <button
+                                onClick={() => handleRemovePressReleaseFromContext(pr.id)}
                                 className="flex-shrink-0 text-gray-400 hover:text-red-600 transition-colors"
                                 title="Remove from context"
                               >
@@ -1030,40 +1109,78 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
                           {item.message}
                         </div>
                         
-                        {/* Context Papers Indicator */}
-                        {item.contextPapers && item.contextPapers.length > 0 && (
-                          <div className="mt-2">
-                            <details className="cursor-pointer">
-                              <summary className={`text-xs font-medium inline-flex items-center gap-1 px-2 py-1 rounded ${
-                                item.type === 'user' 
-                                  ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' 
-                                  : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-                              }`}>
-                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                </svg>
-                                Context ({item.contextPapers.length})
-                              </summary>
-                              <div className="mt-2 space-y-1">
-                                {item.contextPapers.map((paper) => (
-                                  <div
-                                    key={paper.pmid}
-                                    className={`text-xs p-2 rounded ${
-                                      item.type === 'user' 
-                                        ? 'bg-gray-700 text-gray-300' 
-                                        : 'bg-white border border-gray-200'
-                                    }`}
-                                  >
-                                    <div className="font-medium line-clamp-2">{paper.title}</div>
-                                    <div className={`text-xs mt-1 ${
-                                      item.type === 'user' ? 'text-gray-400' : 'text-gray-500'
-                                    }`}>
-                                      {paper.journal} • {paper.publicationDate}
+                        {/* Context Indicators */}
+                        {((item.contextPapers && item.contextPapers.length > 0) || (item.contextPressReleases && item.contextPressReleases.length > 0)) && (
+                          <div className="mt-2 space-y-2">
+                            {/* Context Papers */}
+                            {item.contextPapers && item.contextPapers.length > 0 && (
+                              <details className="cursor-pointer">
+                                <summary className={`text-xs font-medium inline-flex items-center gap-1 px-2 py-1 rounded ${
+                                  item.type === 'user'
+                                    ? 'bg-blue-700 text-blue-100 hover:bg-blue-600'
+                                    : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                                }`}>
+                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                  </svg>
+                                  Papers ({item.contextPapers.length})
+                                </summary>
+                                <div className="mt-2 space-y-1">
+                                  {item.contextPapers.map((paper) => (
+                                    <div
+                                      key={paper.pmid}
+                                      className={`text-xs p-2 rounded ${
+                                        item.type === 'user'
+                                          ? 'bg-gray-700 text-gray-300'
+                                          : 'bg-white border border-gray-200'
+                                      }`}
+                                    >
+                                      <div className="font-medium line-clamp-2">{paper.title}</div>
+                                      <div className={`text-xs mt-1 ${
+                                        item.type === 'user' ? 'text-gray-400' : 'text-gray-500'
+                                      }`}>
+                                        {paper.journal} • {paper.publicationDate}
+                                      </div>
                                     </div>
-                                  </div>
-                                ))}
-                              </div>
-                            </details>
+                                  ))}
+                                </div>
+                              </details>
+                            )}
+
+                            {/* Context Press Releases */}
+                            {item.contextPressReleases && item.contextPressReleases.length > 0 && (
+                              <details className="cursor-pointer">
+                                <summary className={`text-xs font-medium inline-flex items-center gap-1 px-2 py-1 rounded ${
+                                  item.type === 'user'
+                                    ? 'bg-purple-700 text-purple-100 hover:bg-purple-600'
+                                    : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
+                                }`}>
+                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
+                                  </svg>
+                                  Press Releases ({item.contextPressReleases.length})
+                                </summary>
+                                <div className="mt-2 space-y-1">
+                                  {item.contextPressReleases.map((pr) => (
+                                    <div
+                                      key={pr.id}
+                                      className={`text-xs p-2 rounded ${
+                                        item.type === 'user'
+                                          ? 'bg-gray-700 text-gray-300'
+                                          : 'bg-white border border-purple-200'
+                                      }`}
+                                    >
+                                      <div className="font-medium line-clamp-2">{pr.title}</div>
+                                      <div className={`text-xs mt-1 ${
+                                        item.type === 'user' ? 'text-gray-400' : 'text-purple-600'
+                                      }`}>
+                                        {pr.company} • {pr.releaseDate}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </details>
+                            )}
                           </div>
                         )}
                       </>
@@ -1117,11 +1234,11 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
           {/* Input Area - Fixed at bottom */}
           <div className="p-6 border-t bg-background flex-shrink-0">
             <div className="max-w-2xl mx-auto">
-              {/* Context Papers Display */}
-              {selectedPapers.length > 0 && (
+              {/* Context Display (Papers + Press Releases) */}
+              {(selectedPapers.length > 0 || selectedPressReleases.length > 0) && (
                 <div className="mb-3">
-                  {selectedPapers.length <= 2 ? (
-                    // Show individual pills for 1-2 papers
+                  {(selectedPapers.length + selectedPressReleases.length) <= 2 ? (
+                    // Show individual pills for 1-2 items
                     <div className="flex flex-wrap gap-2">
                       {selectedPapers.map((paper) => (
                         <div
@@ -1145,9 +1262,31 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
                           </button>
                         </div>
                       ))}
+                      {selectedPressReleases.map((pr) => (
+                        <div
+                          key={pr.id}
+                          className="inline-flex items-center gap-2 px-3 py-1.5 bg-purple-50 border border-purple-200 rounded-md text-sm"
+                        >
+                          <svg className="w-3.5 h-3.5 text-purple-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
+                          </svg>
+                          <span className="text-purple-900 font-medium line-clamp-1 max-w-[200px]" title={pr.title}>
+                            {pr.title}
+                          </span>
+                          <button
+                            onClick={() => handleRemovePressReleaseFromContext(pr.id)}
+                            className="flex-shrink-0 text-purple-400 hover:text-purple-600 transition-colors"
+                            title="Remove from context"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </div>
+                      ))}
                     </div>
                   ) : (
-                    // Show compact button for 3+ papers
+                    // Show compact button for 3+ items
                     <div className="relative">
                       <button
                         onClick={() => setShowContextPanel(!showContextPanel)}
@@ -1157,18 +1296,18 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                         </svg>
                         <span className="text-sm font-medium text-blue-900">
-                          Context ({selectedPapers.length})
+                          Context ({selectedPapers.length + selectedPressReleases.length})
                         </span>
                         <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
                         </svg>
                       </button>
-                      
+
                       {/* Context Panel Dropup */}
                       {showContextPanel && (
                         <div className="absolute bottom-full left-0 mb-2 bg-white rounded-lg shadow-xl border border-gray-200 py-2 w-96 max-h-96 overflow-y-auto z-50">
                           <div className="px-4 py-2 border-b border-gray-200 flex items-center justify-between">
-                            <h3 className="font-semibold text-gray-900">Papers in AI Context</h3>
+                            <h3 className="font-semibold text-gray-900">AI Context</h3>
                             <button
                               onClick={handleClearContext}
                               className="text-xs text-red-600 hover:text-red-700 font-medium"
@@ -1193,6 +1332,32 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
                                   </div>
                                   <button
                                     onClick={() => handleRemovePaperFromContext(paper.pmid)}
+                                    className="flex-shrink-0 text-gray-400 hover:text-red-600 transition-colors"
+                                    title="Remove from context"
+                                  >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                            {selectedPressReleases.map((pr) => (
+                              <div
+                                key={pr.id}
+                                className="px-4 py-3 hover:bg-gray-50 border-b border-gray-100 last:border-b-0 bg-purple-50/30"
+                              >
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium text-gray-900 line-clamp-2">
+                                      {pr.title}
+                                    </p>
+                                    <p className="text-xs text-purple-600 mt-1">
+                                      {pr.company} • {pr.releaseDate}
+                                    </p>
+                                  </div>
+                                  <button
+                                    onClick={() => handleRemovePressReleaseFromContext(pr.id)}
                                     className="flex-shrink-0 text-gray-400 hover:text-red-600 transition-colors"
                                     title="Remove from context"
                                   >
@@ -1243,6 +1408,8 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
               onExpandFullscreen={() => setShowDrugModal(true)}
               onAddPaperToContext={handleAddPaperToContext}
               isPaperInContext={isPaperInContext}
+              onAddPressReleaseToContext={handleAddPressReleaseToContext}
+              isPressReleaseInContext={isPressReleaseInContext}
             />
           ) : (
             <DrugsList
@@ -1267,6 +1434,8 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
           }}
           onAddPaperToContext={handleAddPaperToContext}
           isPaperInContext={isPaperInContext}
+          onAddPressReleaseToContext={handleAddPressReleaseToContext}
+          isPressReleaseInContext={isPressReleaseInContext}
         />
       )}
     </div>
@@ -1304,40 +1473,78 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
                     {item.message}
                   </div>
                   
-                  {/* Context Papers Indicator */}
-                  {item.contextPapers && item.contextPapers.length > 0 && (
-                    <div className="mt-2">
-                      <details className="cursor-pointer">
-                        <summary className={`text-xs font-medium inline-flex items-center gap-1 px-2 py-1 rounded ${
-                          item.type === 'user' 
-                            ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' 
-                            : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-                        }`}>
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                          </svg>
-                          Context ({item.contextPapers.length})
-                        </summary>
-                        <div className="mt-2 space-y-1">
-                          {item.contextPapers.map((paper) => (
-                            <div
-                              key={paper.pmid}
-                              className={`text-xs p-2 rounded ${
-                                item.type === 'user' 
-                                  ? 'bg-gray-700 text-gray-300' 
-                                  : 'bg-white border border-gray-200'
-                              }`}
-                            >
-                              <div className="font-medium line-clamp-2">{paper.title}</div>
-                              <div className={`text-xs mt-1 ${
-                                item.type === 'user' ? 'text-gray-400' : 'text-gray-500'
-                              }`}>
-                                {paper.journal} • {paper.publicationDate}
+                  {/* Context Indicators */}
+                  {((item.contextPapers && item.contextPapers.length > 0) || (item.contextPressReleases && item.contextPressReleases.length > 0)) && (
+                    <div className="mt-2 space-y-2">
+                      {/* Context Papers */}
+                      {item.contextPapers && item.contextPapers.length > 0 && (
+                        <details className="cursor-pointer">
+                          <summary className={`text-xs font-medium inline-flex items-center gap-1 px-2 py-1 rounded ${
+                            item.type === 'user'
+                              ? 'bg-blue-700 text-blue-100 hover:bg-blue-600'
+                              : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                          }`}>
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            Papers ({item.contextPapers.length})
+                          </summary>
+                          <div className="mt-2 space-y-1">
+                            {item.contextPapers.map((paper) => (
+                              <div
+                                key={paper.pmid}
+                                className={`text-xs p-2 rounded ${
+                                  item.type === 'user'
+                                    ? 'bg-gray-700 text-gray-300'
+                                    : 'bg-white border border-gray-200'
+                                }`}
+                              >
+                                <div className="font-medium line-clamp-2">{paper.title}</div>
+                                <div className={`text-xs mt-1 ${
+                                  item.type === 'user' ? 'text-gray-400' : 'text-gray-500'
+                                }`}>
+                                  {paper.journal} • {paper.publicationDate}
+                                </div>
                               </div>
-                            </div>
-                          ))}
-                        </div>
-                      </details>
+                            ))}
+                          </div>
+                        </details>
+                      )}
+
+                      {/* Context Press Releases */}
+                      {item.contextPressReleases && item.contextPressReleases.length > 0 && (
+                        <details className="cursor-pointer">
+                          <summary className={`text-xs font-medium inline-flex items-center gap-1 px-2 py-1 rounded ${
+                            item.type === 'user'
+                              ? 'bg-purple-700 text-purple-100 hover:bg-purple-600'
+                              : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
+                          }`}>
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
+                            </svg>
+                            Press Releases ({item.contextPressReleases.length})
+                          </summary>
+                          <div className="mt-2 space-y-1">
+                            {item.contextPressReleases.map((pr) => (
+                              <div
+                                key={pr.id}
+                                className={`text-xs p-2 rounded ${
+                                  item.type === 'user'
+                                    ? 'bg-gray-700 text-gray-300'
+                                    : 'bg-white border border-purple-200'
+                                }`}
+                              >
+                                <div className="font-medium line-clamp-2">{pr.title}</div>
+                                <div className={`text-xs mt-1 ${
+                                  item.type === 'user' ? 'text-gray-400' : 'text-purple-600'
+                                }`}>
+                                  {pr.company} • {pr.releaseDate}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </details>
+                      )}
                     </div>
                   )}
                   
@@ -1369,11 +1576,11 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
 
         {/* Message Input */}
         <div>
-          {/* Context Papers Display */}
-          {selectedPapers.length > 0 && (
+          {/* Context Display (Papers + Press Releases) */}
+          {(selectedPapers.length > 0 || selectedPressReleases.length > 0) && (
             <div className="mb-3">
-              {selectedPapers.length <= 2 ? (
-                // Show individual pills for 1-2 papers
+              {(selectedPapers.length + selectedPressReleases.length) <= 2 ? (
+                // Show individual pills for 1-2 items
                 <div className="flex flex-wrap gap-2">
                   {selectedPapers.map((paper) => (
                     <div
@@ -1397,9 +1604,31 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
                       </button>
                     </div>
                   ))}
+                  {selectedPressReleases.map((pr) => (
+                    <div
+                      key={pr.id}
+                      className="inline-flex items-center gap-2 px-3 py-1.5 bg-purple-50 border border-purple-200 rounded-md text-sm"
+                    >
+                      <svg className="w-3.5 h-3.5 text-purple-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
+                      </svg>
+                      <span className="text-purple-900 font-medium line-clamp-1 max-w-[200px]" title={pr.title}>
+                        {pr.title}
+                      </span>
+                      <button
+                        onClick={() => handleRemovePressReleaseFromContext(pr.id)}
+                        className="flex-shrink-0 text-purple-400 hover:text-purple-600 transition-colors"
+                        title="Remove from context"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  ))}
                 </div>
               ) : (
-                // Show compact button for 3+ papers
+                // Show compact button for 3+ items
                 <div className="relative context-panel-container">
                   <button
                     onClick={() => setShowContextPanel(!showContextPanel)}
@@ -1409,7 +1638,7 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
                     <span className="text-sm font-medium text-blue-900">
-                      Context ({selectedPapers.length})
+                      Context ({selectedPapers.length + selectedPressReleases.length})
                     </span>
                     <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
@@ -1420,7 +1649,7 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
                   {showContextPanel && (
                     <div className="absolute bottom-full left-0 mb-2 bg-white rounded-lg shadow-xl border border-gray-200 py-2 w-96 max-h-96 overflow-y-auto z-50">
                       <div className="px-4 py-2 border-b border-gray-200 flex items-center justify-between">
-                        <h3 className="font-semibold text-gray-900">Papers in AI Context</h3>
+                        <h3 className="font-semibold text-gray-900">AI Context</h3>
                         <button
                           onClick={handleClearContext}
                           className="text-xs text-red-600 hover:text-red-700 font-medium"
@@ -1445,6 +1674,32 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
                               </div>
                               <button
                                 onClick={() => handleRemovePaperFromContext(paper.pmid)}
+                                className="flex-shrink-0 text-gray-400 hover:text-red-600 transition-colors"
+                                title="Remove from context"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                        {selectedPressReleases.map((pr) => (
+                          <div
+                            key={pr.id}
+                            className="px-4 py-3 hover:bg-gray-50 border-b border-gray-100 last:border-b-0 bg-purple-50/30"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-gray-900 line-clamp-2">
+                                  {pr.title}
+                                </p>
+                                <p className="text-xs text-purple-600 mt-1">
+                                  Press Release • {pr.releaseDate}
+                                </p>
+                              </div>
+                              <button
+                                onClick={() => handleRemovePressReleaseFromContext(pr.id)}
                                 className="flex-shrink-0 text-gray-400 hover:text-red-600 transition-colors"
                                 title="Remove from context"
                               >
