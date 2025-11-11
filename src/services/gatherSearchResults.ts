@@ -5,6 +5,7 @@
 import type { ClinicalTrial, SearchParams } from '@/types/trials';
 import type { PubMedArticle } from '@/types/papers';
 import type { BioRxivPreprint } from '@/types/preprints';
+import type { PressRelease } from '@/types/press-releases';
 import { pubmedAPI } from './pubmedAPI';
 import { TrialRankingService } from './trialRankingService';
 import { searchBioRxivWithDefaults } from './biorxivService';
@@ -36,6 +37,7 @@ export interface GatherSearchResultsResponse {
   trials: ClinicalTrial[];
   papers: PubMedArticle[];
   preprints: BioRxivPreprint[];
+  pressReleases: PressRelease[];
   totalCount: number;
   searchStrategies: StrategyResult[];
   strategiesUsed: number;
@@ -390,6 +392,42 @@ export class GatherSearchResultsService {
   }
 
   /**
+   * Search for press releases from news sources
+   * Searches recent press releases (last 30 days by default)
+   */
+  private static async searchPressReleases(userQuery: string): Promise<PressRelease[]> {
+    try {
+      console.log(`📰 Searching press releases...`);
+
+      const response = await fetch(buildApiUrl('/api/search-press-releases'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          query: userQuery,
+          maxResults: 30
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Press releases API error: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      const pressReleases = data.pressReleases || [];
+
+      console.log(`  ✓ Found ${pressReleases.length} press releases`);
+
+      return pressReleases;
+    } catch (error) {
+      console.error('Error searching press releases:', error);
+      // Don't throw - just return empty array if press releases fail
+      return [];
+    }
+  }
+
+  /**
    * Main method: Discover drugs through phrase-based searches
    * Orchestrates 5 LLM-generated queries for trials and 5 for papers
    * Goal: UNCOVER drugs across all stages (discovery → approved)
@@ -400,26 +438,29 @@ export class GatherSearchResultsService {
       console.log(`   Strategy: Phrase-based discovery (NOT drug-specific)`);
       console.log('=' .repeat(80));
       
-      // Search clinical trials, research papers, and preprints in parallel
+      // Search clinical trials, research papers, preprints, and press releases in parallel
       // Trials and papers each use 5 LLM-generated phrase-based queries
-      const [trialsResult, papers, preprints] = await Promise.all([
+      const [trialsResult, papers, preprints, pressReleases] = await Promise.all([
         this.searchClinicalTrials(userQuery),
         this.searchResearchPapers(userQuery),
-        this.searchPreprints(userQuery)
+        this.searchPreprints(userQuery),
+        this.searchPressReleases(userQuery)
       ]);
 
       console.log(`\n✅ Discovery search complete!`);
       console.log(`   Unique trials: ${trialsResult.trials.length}`);
       console.log(`   Unique papers: ${papers.length}`);
       console.log(`   Unique preprints: ${preprints.length}`);
+      console.log(`   Press releases: ${pressReleases.length}`);
       console.log(`   Discovery strategies: ${trialsResult.searchStrategies.length}`);
-      console.log(`   → Now extract drug names from these ${trialsResult.trials.length + papers.length + preprints.length} results`);
+      console.log(`   → Now extract drug names from these ${trialsResult.trials.length + papers.length + preprints.length + pressReleases.length} results`);
       console.log('=' .repeat(80) + '\n');
 
       return {
         trials: trialsResult.trials,
         papers: papers,
         preprints: preprints,
+        pressReleases: pressReleases,
         totalCount: trialsResult.trials.length,
         searchStrategies: trialsResult.searchStrategies,
         strategiesUsed: trialsResult.searchStrategies.length
@@ -438,14 +479,15 @@ export class GatherSearchResultsService {
       // Parse query and search directly
       const params = this.parseQuery(userQuery);
 
-      // Search trials, papers, and preprints in parallel
-      const [trialsResult, papers, preprints] = await Promise.all([
+      // Search trials, papers, preprints, and press releases in parallel
+      const [trialsResult, papers, preprints, pressReleases] = await Promise.all([
         this.searchTrials(params),
         pubmedAPI.searchPapers({
           query: `${userQuery} AND ("Clinical Trial"[Publication Type] OR "Randomized Controlled Trial"[Publication Type])`,
           maxResults: 30
         }),
-        this.searchPreprints(userQuery)
+        this.searchPreprints(userQuery),
+        this.searchPressReleases(userQuery)
       ]);
 
       // Apply ranking
@@ -455,6 +497,7 @@ export class GatherSearchResultsService {
         trials: rankedTrials,
         papers: papers,
         preprints: preprints,
+        pressReleases: pressReleases,
         totalCount: rankedTrials.length,
         searchStrategies: [{
           strategy: {

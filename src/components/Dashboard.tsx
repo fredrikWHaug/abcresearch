@@ -23,6 +23,7 @@ import { supabase } from '@/lib/supabase'
 import type { ClinicalTrial } from '@/types/trials'
 import type { SlideData } from '@/services/slideAPI'
 import type { BioRxivPreprint } from '@/types/preprints'
+import type { PressRelease } from '@/types/press-releases'
 
 interface DashboardProps {
   initialShowSavedMaps?: boolean;
@@ -116,6 +117,7 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
     setChatHistory([]);
     setPapers([]);
     setPreprints([]);
+    setPressReleases([]);
     setSlideError(null);
     setGeneratingSlide(false);
     setViewMode('research');
@@ -152,6 +154,7 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
   const [hasSearched, setHasSearched] = useState(false)
   const [papers, setPapers] = useState<PubMedArticle[]>([])
   const [preprints, setPreprints] = useState<BioRxivPreprint[]>([])
+  const [pressReleases, setPressReleases] = useState<PressRelease[]>([])
   const [papersLoading, setPapersLoading] = useState(false)
   const [viewMode, setViewMode] = useState<'research' | 'marketmap' | 'savedmaps' | 'pipeline' | 'dataextraction' | 'realtimefeed'>(initialShowSavedMaps ? 'savedmaps' : 'research')
   const [researchTab, setResearchTab] = useState<'trials' | 'papers'>('papers')
@@ -464,13 +467,20 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
           const paperText = [paper.title, paper.abstract].join(' ').toLowerCase();
           return paperText.includes(normalizedDrugName);
         });
-        
+
+        // Find press releases mentioning this drug
+        const drugPressReleases = initialResult.pressReleases.filter(pressRelease => {
+          const prText = [pressRelease.title, pressRelease.summary, pressRelease.company].join(' ').toLowerCase();
+          return prText.includes(normalizedDrugName);
+        });
+
         return {
           drugName,
           normalizedName: normalizedDrugName,
           papers: drugPapers,
           trials: drugTrials,
-          totalResults: drugPapers.length + drugTrials.length
+          pressReleases: drugPressReleases,
+          totalResults: drugPapers.length + drugTrials.length + drugPressReleases.length
         };
       });
       
@@ -486,6 +496,7 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
       setTrials(initialResult.trials);
       setPapers(initialResult.papers);
       setPreprints(initialResult.preprints);
+      setPressReleases(initialResult.pressReleases);
 
       // Calculate total stats
       const totalTrials = filteredDrugGroups.reduce((sum, g) => sum + g.trials.length, 0);
@@ -494,7 +505,7 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
       // Add final message to chat
       setChatHistory(prev => [...prev, {
         type: 'system' as const,
-        message: `Discovery complete! Found ${filteredDrugGroups.length} drugs with ${initialResult.trials.length} clinical trials, ${initialResult.papers.length} research papers, and ${initialResult.preprints.length} preprints. Results are displayed on the right.`,
+        message: `Discovery complete! Found ${filteredDrugGroups.length} drugs with ${initialResult.trials.length} clinical trials, ${initialResult.papers.length} research papers, ${initialResult.preprints.length} preprints, and ${initialResult.pressReleases.length} press releases. Results are displayed on the right.`,
         searchSuggestions: []
       }]);
       

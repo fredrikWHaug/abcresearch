@@ -5,6 +5,7 @@ import type { DrugGroup } from '@/services/drugGroupingService';
 import type { PubMedArticle } from '@/types/papers';
 import { PapersDiscovery } from './PapersDiscovery';
 import { TrialsList } from './TrialsList';
+import { PressReleasesDiscovery } from './PressReleasesDiscovery';
 
 interface DrugDetailProps {
   drugGroup: DrugGroup;
@@ -15,15 +16,15 @@ interface DrugDetailProps {
   isPaperInContext?: (pmid: string) => boolean;
 }
 
-export function DrugDetail({ 
-  drugGroup, 
-  query, 
-  onBack, 
+export function DrugDetail({
+  drugGroup,
+  query,
+  onBack,
   onExpandFullscreen,
   onAddPaperToContext,
   isPaperInContext
 }: DrugDetailProps) {
-  const [activeTab, setActiveTab] = useState<'papers' | 'trials'>('papers');
+  const [activeTab, setActiveTab] = useState<'papers' | 'trials' | 'pressReleases'>('papers');
 
   return (
     <div className="w-full h-full flex flex-col">
@@ -56,7 +57,7 @@ export function DrugDetail({
 
         {/* Tab Toggle */}
         <div className="flex items-center justify-center mt-4">
-          <div className="flex rounded-lg bg-gray-100 p-1 w-[20rem]">
+          <div className="flex rounded-lg bg-gray-100 p-1 w-[30rem]">
             <button
               onClick={() => setActiveTab('papers')}
               className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
@@ -77,6 +78,16 @@ export function DrugDetail({
             >
               Trials ({drugGroup.trials.length})
             </button>
+            <button
+              onClick={() => setActiveTab('pressReleases')}
+              className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
+                activeTab === 'pressReleases'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Press Releases ({drugGroup.pressReleases.length})
+            </button>
           </div>
         </div>
       </div>
@@ -92,11 +103,17 @@ export function DrugDetail({
             onAddPaperToContext={onAddPaperToContext}
             isPaperInContext={isPaperInContext}
           />
-        ) : (
+        ) : activeTab === 'trials' ? (
           <TrialsList
             trials={drugGroup.trials}
             loading={false}
             query={query}
+          />
+        ) : (
+          <PressReleasesDiscovery
+            pressReleases={drugGroup.pressReleases}
+            query={query}
+            loading={false}
           />
         )}
       </div>
