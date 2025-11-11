@@ -28,9 +28,10 @@ import type { IRDeck } from '@/types/ir-decks'
 interface DashboardProps {
   initialShowSavedMaps?: boolean;
   projectName?: string;
+  projectId?: number | null;
 }
 
-export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: DashboardProps) {
+export function Dashboard({ initialShowSavedMaps = false, projectName = '', projectId = null }: DashboardProps) {
   const { signOut, isGuest, exitGuestMode } = useAuth()
   
   const handleSignOut = async () => {
@@ -71,31 +72,30 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
     return selectedPapers.some(p => p.pmid === pmid);
   }
 
-  // Press Release context handlers
-  const handleAddPressReleaseToContext = (pressRelease: PressRelease) => {
-    // Check if press release is already in context
-    if (selectedPressReleases.some(pr => pr.id === pressRelease.id)) {
-      return; // Already added
+    // Press Release context handlers
+    const handleAddPressReleaseToContext = (pressRelease: PressRelease) => {
+      // Check if press release is already in context
+      if (selectedPressReleases.some(pr => pr.id === pressRelease.id)) {
+        return; // Already added
+      }
+      setSelectedPressReleases(prev => [...prev, pressRelease]);
     }
-    setSelectedPressReleases(prev => [...prev, pressRelease]);
-  }
 
-  const handleRemovePressReleaseFromContext = (id: string) => {
-    setSelectedPressReleases(prev => prev.filter(pr => pr.id !== id));
-  }
+    const handleRemovePressReleaseFromContext = (id: string) => {
+      setSelectedPressReleases(prev => prev.filter(pr => pr.id !== id));
+    }
 
-  const isPressReleaseInContext = (id: string) => {
-    return selectedPressReleases.some(pr => pr.id === id);
-  }
+    const isPressReleaseInContext = (id: string) => {
+      return selectedPressReleases.some(pr => pr.id === id);
+    }
 
-  const handleLoadSavedMap = (savedMap: SavedMarketMap) => {
-    console.log('Loading saved map:', savedMap);
-    console.log('Chat history from saved map:', savedMap.chat_history);
-    console.log('Papers data from saved map:', savedMap.papers_data);
+    const handleLoadSavedMap = async (savedMap: SavedMarketMap) => {
+      console.log('Loading saved map:', savedMap);
+      console.log('Project ID:', savedMap.project_id);
+      
     
     // COMPLETELY REPLACE all current state with the loaded project's state
-    setCurrentProjectId(savedMap.id);
-    setTrials(savedMap.trials_data);
+    setCurrentProjectId(savedMap.project_id); // Use project_id, not map id
     setSlideData(savedMap.slide_data);
     setLastQuery(savedMap.query);
     setHasSearched(true);
@@ -110,18 +110,51 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
       setChatHistory([]); // Clear current chat history
     }
     
-    // Restore papers data (replace current papers completely)
-    if (savedMap.papers_data && Array.isArray(savedMap.papers_data) && savedMap.papers_data.length > 0) {
-      console.log('Setting papers data:', savedMap.papers_data);
-      setPapers(savedMap.papers_data);
+    // Fetch from normalized tables if project_id exists, otherwise fallback to JSONB
+    if (savedMap.project_id) {
+      console.log('[Dashboard] Fetching from normalized tables for project:', savedMap.project_id);
+      try {
+        // Dynamic imports to avoid circular dependencies
+        const { getProjectTrials } = await import('@/services/trialService');
+        const { getProjectPapers } = await import('@/services/paperService');
+        
+        const [trials, papers] = await Promise.all([
+          getProjectTrials(savedMap.project_id),
+          getProjectPapers(savedMap.project_id)
+        ]);
+        
+        console.log('[Dashboard] Loaded from normalized tables:', { 
+          trials: trials.length, 
+          papers: papers.length 
+        });
+        
+        // If normalized tables are empty (dual-write not complete), fallback to JSONB
+        const trialsEmpty = trials.length === 0 && savedMap.trials_data && savedMap.trials_data.length > 0;
+        const papersEmpty = papers.length === 0 && savedMap.papers_data && savedMap.papers_data.length > 0;
+        
+        if (trialsEmpty || papersEmpty) {
+          console.log('[Dashboard] Normalized tables incomplete, using JSONB fallback');
+          setTrials(savedMap.trials_data || []);
+          setPapers(savedMap.papers_data || []);
+        } else {
+          setTrials(trials);
+          setPapers(papers);
+        }
+      } catch (error) {
+        console.error('[Dashboard] Error loading from normalized tables, falling back to JSONB:', error);
+        // Fallback to JSONB if normalized tables fail
+        setTrials(savedMap.trials_data || []);
+        setPapers(savedMap.papers_data || []);
+      }
     } else {
-      console.log('No papers data to restore - clearing current papers');
-      setPapers([]); // Clear current papers
+      // Legacy: No project_id, use JSONB data
+      console.log('[Dashboard] No project_id, using JSONB data');
+      setTrials(savedMap.trials_data || []);
+      setPapers(savedMap.papers_data || []);
     }
     
     // Clear any errors
     setSlideError(null);
-    setSlideData(savedMap.slide_data); // Restore the saved slide data
     setGeneratingSlide(false);
   }
 
@@ -180,17 +213,189 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
   const [generatingSlide, setGeneratingSlide] = useState(false)
   const [slideError, setSlideError] = useState<string | null>(null)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
-  const [currentProjectId, setCurrentProjectId] = useState<number | null>(null)
+  const [currentProjectId, setCurrentProjectId] = useState<number | null>(projectId)
   const [currentProjectName, setCurrentProjectName] = useState<string>(projectName)
   const [showProjectsDropdown, setShowProjectsDropdown] = useState(false)
+  const [userProjects, setUserProjects] = useState<Array<{id: number, name: string, description?: string}>>([])
+  const [loadingProjects, setLoadingProjects] = useState(false)
   
-  // Set project name when prop changes
+  // Fetch user's projects on mount
   React.useEffect(() => {
+    const fetchUserProjects = async () => {
+      if (isGuest) return;
+      
+      try {
+        setLoadingProjects(true)
+        const { getUserProjects } = await import('@/services/projectService')
+        const projects = await getUserProjects()
+        setUserProjects(projects)
+        
+        // If we have a projectId but no projectName, look it up
+        if (projectId && !projectName && projects.length > 0) {
+          const project = projects.find(p => p.id === projectId)
+          if (project) {
+            setCurrentProjectName(project.name)
+          }
+        }
+        
+        // If no current project but user has projects, set the first one as current
+        if (!projectId && projects.length > 0) {
+          setCurrentProjectId(projects[0].id)
+          setCurrentProjectName(projects[0].name)
+        }
+      } catch (error) {
+        console.error('Error fetching user projects:', error)
+      } finally {
+        setLoadingProjects(false)
+      }
+    }
+    
+    fetchUserProjects()
+  }, [isGuest])
+  
+  // Set project ID and name when props change
+  React.useEffect(() => {
+    if (projectId) {
+      setCurrentProjectId(projectId)
+      console.log('Project ID set:', projectId)
+      
+      // Load chat history for this project from database
+      import('@/services/projectService').then(async ({ loadChatHistory }) => {
+        try {
+          const dbChat = await loadChatHistory(projectId)
+          if (dbChat && dbChat.length > 0) {
+            console.log('[Dashboard] 📥 Loaded', dbChat.length, 'messages from database on mount')
+            setChatHistory([...dbChat])
+            projectChatHistoryRef.current.set(projectId, [...dbChat])
+          }
+        } catch (error) {
+          console.error('[Dashboard] Failed to load chat history on mount:', error)
+        }
+      })
+    }
     if (projectName) {
       setCurrentProjectName(projectName)
       console.log('New project created:', projectName)
+      
+      // Refresh projects list when a new project is created
+      const refreshProjects = async () => {
+        try {
+          const { getUserProjects } = await import('@/services/projectService')
+          const projects = await getUserProjects()
+          setUserProjects(projects)
+        } catch (error) {
+          console.error('Error refreshing projects:', error)
+        }
+      }
+      refreshProjects()
     }
-  }, [projectName])
+  }, [projectId, projectName])
+  
+  // Store chat history per project (in-memory cache + database)
+  const projectChatHistoryRef = React.useRef<Map<number, typeof chatHistory>>(new Map())
+  const previousProjectIdRef = React.useRef<number | null>(null)
+  const chatHistoryRef = React.useRef(chatHistory)
+  const saveChatTimeoutRef = React.useRef<NodeJS.Timeout | null>(null)
+
+  // Keep ref in sync with state
+  React.useEffect(() => {
+    chatHistoryRef.current = chatHistory
+  }, [chatHistory])
+  
+  // Auto-save chat history to database (debounced)
+  React.useEffect(() => {
+    if (currentProjectId === null || chatHistory.length === 0) return
+    
+    // Clear previous timeout
+    if (saveChatTimeoutRef.current) {
+      clearTimeout(saveChatTimeoutRef.current)
+    }
+    
+    // Debounce: save after 2 seconds of inactivity
+    saveChatTimeoutRef.current = setTimeout(async () => {
+      try {
+        const { saveChatHistory } = await import('@/services/projectService')
+        await saveChatHistory(currentProjectId, chatHistory)
+        console.log('[Dashboard] 💾 Auto-saved chat history to database:', chatHistory.length, 'messages')
+      } catch (error) {
+        console.error('[Dashboard] Failed to save chat history:', error)
+      }
+    }, 2000)
+    
+    return () => {
+      if (saveChatTimeoutRef.current) {
+        clearTimeout(saveChatTimeoutRef.current)
+      }
+    }
+  }, [chatHistory, currentProjectId])
+
+  // Load/Save chat history when switching projects
+  React.useEffect(() => {
+    console.log('[Dashboard] Project effect triggered. Current:', currentProjectId, 'Previous:', previousProjectIdRef.current)
+    console.log('[Dashboard] Current chat length:', chatHistoryRef.current.length)
+    console.log('[Dashboard] Saved chats in cache:', Array.from(projectChatHistoryRef.current.keys()))
+    
+    const isProjectSwitch = currentProjectId !== null && currentProjectId !== previousProjectIdRef.current && previousProjectIdRef.current !== null
+    
+    if (isProjectSwitch) {
+      console.log('[Dashboard] ✅ Project switched from', previousProjectIdRef.current, 'to', currentProjectId)
+      
+      // FIRST: Save current chat to PREVIOUS project database immediately
+      if (chatHistoryRef.current.length > 0 && previousProjectIdRef.current !== null) {
+        console.log('[Dashboard] 💾 Saving', chatHistoryRef.current.length, 'messages to PREVIOUS project DB', previousProjectIdRef.current)
+        projectChatHistoryRef.current.set(previousProjectIdRef.current, [...chatHistoryRef.current])
+        
+        // Save to database immediately (don't wait for debounce)
+        import('@/services/projectService').then(({ saveChatHistory }) => {
+          saveChatHistory(previousProjectIdRef.current!, chatHistoryRef.current).catch(error => {
+            console.error('[Dashboard] Failed to save chat on switch:', error)
+          })
+        })
+      }
+      
+      // THEN: Load chat history for new project from database
+      console.log('[Dashboard] 📥 Loading chat history for project', currentProjectId, 'from database...')
+      
+      import('@/services/projectService').then(async ({ loadChatHistory }) => {
+        try {
+          const dbChat = await loadChatHistory(currentProjectId)
+          
+          if (dbChat && dbChat.length > 0) {
+            console.log('[Dashboard] ✅ Loaded', dbChat.length, 'messages from database for project', currentProjectId)
+            setChatHistory([...dbChat])
+            projectChatHistoryRef.current.set(currentProjectId, [...dbChat])
+          } else {
+            // Check in-memory cache as fallback
+            const cachedChat = projectChatHistoryRef.current.get(currentProjectId)
+            if (cachedChat && cachedChat.length > 0) {
+              console.log('[Dashboard] ✅ Loading', cachedChat.length, 'messages from cache for project', currentProjectId)
+              setChatHistory([...cachedChat])
+            } else {
+              console.log('[Dashboard] ✅ No chat history for project', currentProjectId, ', starting fresh')
+              setChatHistory([])
+            }
+          }
+        } catch (error) {
+          console.error('[Dashboard] Failed to load chat history:', error)
+          setChatHistory([])
+        }
+      })
+      
+      // Clear search results when switching projects
+      setTrials([])
+      setPapers([])
+      setPreprints([])
+      setLastQuery('')
+      setMessage('')
+      setDrugGroups([])
+      setSelectedDrug(null)
+      setSelectedPapers([])
+      setShowContextPanel(false)
+    }
+    
+    // Update previous project ref
+    previousProjectIdRef.current = currentProjectId
+  }, [currentProjectId])
   
   // Drug grouping state
   const [drugGroups, setDrugGroups] = useState<DrugGroup[]>([])
@@ -603,13 +808,16 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
             <div className="relative flex-1 projects-dropdown-container">
               <button
                 onClick={() => setShowProjectsDropdown(!showProjectsDropdown)}
-                className={`py-2 px-4 rounded-md text-sm font-medium transition-colors w-full text-center whitespace-nowrap ${
+                className={`py-2 px-4 rounded-md text-sm font-medium transition-colors w-full text-center whitespace-nowrap overflow-hidden ${
                   showProjectsDropdown
                     ? 'bg-white text-gray-900 shadow-sm'
                     : 'text-gray-600 hover:text-gray-900'
                 }`}
+                title={currentProjectName || 'Projects'}
               >
-                Projects
+                <span className="truncate">
+                  {currentProjectName || 'Projects'}
+                </span>
               </button>
               
               {/* Projects Dropdown */}
@@ -618,31 +826,48 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
                   <div className="px-4 py-2 border-b border-gray-200">
                     <h3 className="font-semibold text-gray-900 text-sm">Your Projects</h3>
                   </div>
-                  <div className="py-1">
-                    {currentProjectName ? (
-                      <button
-                        onClick={() => {
-                          console.log('Selected project:', currentProjectName)
-                          setShowProjectsDropdown(false)
-                        }}
-                        className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
-                            <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-                            </svg>
+                  <div className="py-1 max-h-64 overflow-y-auto">
+                    {loadingProjects ? (
+                      <div className="px-4 py-3 text-sm text-gray-500 text-center">
+                        Loading projects...
+                      </div>
+                    ) : userProjects.length > 0 ? (
+                      userProjects.map((project) => (
+                        <button
+                          key={project.id}
+                          onClick={() => {
+                            setCurrentProjectId(project.id)
+                            setCurrentProjectName(project.name)
+                            setShowProjectsDropdown(false)
+                            console.log('Switched to project:', project.name)
+                          }}
+                          className={`w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors ${
+                            project.id === currentProjectId ? 'bg-blue-50' : ''
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                              project.id === currentProjectId ? 'bg-blue-100' : 'bg-gray-100'
+                            }`}>
+                              <svg className={`w-4 h-4 ${
+                                project.id === currentProjectId ? 'text-blue-600' : 'text-gray-600'
+                              }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                              </svg>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-gray-900 truncate">
+                                {project.name}
+                              </p>
+                              {project.id === currentProjectId && (
+                                <p className="text-xs text-blue-600">
+                                  Current project
+                                </p>
+                              )}
+                            </div>
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-900 truncate">
-                              {currentProjectName}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              Current project
-                            </p>
-                          </div>
-                        </div>
-                      </button>
+                        </button>
+                      ))
                     ) : (
                       <div className="px-4 py-3 text-sm text-gray-500 text-center">
                         No projects yet
@@ -971,6 +1196,7 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
           <SavedMaps 
             onLoadMap={handleLoadSavedMap}
             onDeleteMap={handleDeleteSavedMap}
+            currentProjectId={currentProjectId}
           />
         </div>
       </div>
@@ -1045,6 +1271,7 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
       </div>
     );
   }
+
 
   // Realtime Feed mode
   if (viewMode === 'realtimefeed') {

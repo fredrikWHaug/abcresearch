@@ -1,8 +1,66 @@
-LATEST UPDATE: 10/26/25
+**Documentation Version**: 3.0   
+**Last Updated**: November 10, 2025  
+**Last Updated by**: Bozhen (Paul) Peng
 
 # ABCresearch - Database Documentation
 
-**IMPORTANT NOTE**: The current database implementation using `market_maps` table is a work in progress and will be replaced with a project-centric design. The schema below represents the proposed new architecture.
+**IMPLEMENTATION STATUS (Nov 10, 2025)**: 
+- ✅ **Phase 1 Complete**: Project creation and storage implemented
+- ✅ **Phase 2 Complete**: Normalized schema with dual-write strategy
+- ✅ **PDF Extraction Async System**: Job queue and results tables added (Nov 10, 2025)
+  - Created `trials`, `papers`, `drugs` tables with proper columns
+  - Created junction tables: `project_trials`, `project_papers`, `project_drugs`
+  - Implemented background dual-write to both JSONB and normalized tables
+  - UI reads from normalized tables with automatic fallback to JSONB
+  - Migration utility created for backfilling old data
+- ✅ `projects` table is now connected to the UI
+- ✅ Users can create projects that persist in the database
+- ✅ Market maps linked to projects via `project_id` foreign key
+- ✅ Chat history persists per project (database + in-memory cache)
+  - Auto-saves to database every 2 seconds (debounced)
+  - Immediate save on project switch
+  - Loads from database on project mount/refresh
+  - Persists across browser sessions
+- 📋 **Next**: Run migration script to backfill existing JSONB data
+- 📋 **Planned**: Deprecate JSONB columns after migration and testing period (migration file created)
+
+## Migration from JSONB to Normalized Schema
+
+### Running the Migration
+
+To backfill existing JSONB data into the new normalized tables:
+
+1. **Open browser console** on the running app (localhost:5173 or production)
+2. **Run migration command**:
+   ```javascript
+   await window.runMigration()
+   ```
+3. **Monitor progress** in the console - you'll see:
+   - Number of market maps processed
+   - Trials and papers migrated
+   - Any errors encountered
+
+### What the Migration Does
+
+- Reads all `market_maps` with JSONB data (`trials_data`, `papers_data`)
+- Upserts each trial/paper into normalized `trials`/`papers` tables
+- Links entities to projects via junction tables (`project_trials`, `project_papers`)
+- Handles duplicates automatically (same NCT ID or PMID → single row)
+- Logs progress and errors for troubleshooting
+
+### Safety Features
+
+- **Non-destructive**: JSONB data remains untouched as fallback
+- **Idempotent**: Can run multiple times safely (upserts, not inserts)
+- **Error handling**: Individual failures don't stop entire migration
+- **Automatic fallback**: UI uses JSONB if normalized tables are empty
+
+### After Migration
+
+- New data writes to both JSONB and normalized tables (dual-write)
+- UI reads from normalized tables with JSONB fallback
+- Plan to deprecate JSONB columns after testing period (2-4 weeks)
+- Eventually drop JSONB columns to complete migration
 
 ## Database Architecture Overview
 
@@ -59,34 +117,84 @@ VITE_SUPABASE_ANON_KEY=your-anon-key-here
 - Row Level Security (RLS) policies protect data access
 - Service role key (if needed) should NEVER be exposed client-side
 
-## Proposed Project-Centric Database Schema
+## Database Schema Architecture
+
+### Hybrid Architecture: JSONB + Normalized Tables
+
+ABCresearch uses a **hybrid dual-write architecture** during the transition from JSONB blobs to normalized relational tables:
+
+**Current State (Nov 2025)**:
+- ✅ **Write Path**: Data is written to BOTH legacy JSONB columns AND new normalized tables
+- ✅ **Read Path**: UI reads from normalized tables, falls back to JSONB if needed
+- 🎯 **Goal**: Complete migration to normalized schema, then deprecate JSONB columns
+
+**Benefits of Normalization**:
+- **Deduplication**: Same trial/paper stored once, referenced by multiple projects
+- **Performance**: 10-100x faster queries with proper indexes
+- **Integrity**: Foreign key constraints prevent orphaned data
+- **Flexibility**: Easy to add columns without restructuring JSONB
+- **Cross-Project Analysis**: Query "all GLP-1 trials" across all user projects
 
 ### Entity Relationship Diagram
 
 ```
-┌─────────────────┐           ┌─────────────────┐
-│   auth.users    │◄──────────│    projects     │
-│  (Supabase      │   1:N     │                 │
-│   Managed)      │           │                 │
-└─────────────────┘           └─────────────────┘
-     (PK) id                       user_id (FK)
-     email                         name
-     encrypted_password            description
-     created_at                    search_query
-     updated_at                    trials_data (JSONB)
-                                  papers_data (JSONB)
-                                  drugs_data (JSONB)
-                                  slide_data (JSONB)
-                                  chat_history (JSONB)
-                                  created_at
-                                  updated_at
+┌─────────────────┐
+│   auth.users    │
+│  (Supabase)     │
+└────────┬────────┘
+         │ 1:N
+         ├────────────────────────────────┐
+         │                                │
+         ▼                                ▼
+┌─────────────────┐           ┌──────────────────────────┐
+│    projects     │◄──────────│   market_maps            │
+│                 │   1:N     │   (Legacy/Hybrid)        │
+└────────┬────────┘           └──────────────────────────┘
+         │ 1:N                     trials_data (JSONB) ⚠️ Deprecated
+         │                         papers_data (JSONB) ⚠️ Deprecated
+         │
+    ┌────┴────┬─────────────┬──────────────┬──────────────┐
+    │         │             │              │              │
+    ▼         ▼             ▼              ▼              ▼
+┌────────┐ ┌──────────┐ ┌────────────┐ ┌──────────┐  ┌────────────────────┐
+│project_│ │project_  │ │project_    │ │trials    │  │pdf_extraction_jobs │
+│trials  │ │papers    │ │drugs       │ │          │  │                    │
+└───┬────┘ └────┬─────┘ └─────┬──────┘ │nct_id    │  │id (UUID)           │
+    │           │             │        │brief_title│  │status              │
+    │ N:M       │ N:M         │ N:M    │phase      │  │progress            │
+    │           │             │        │...        │  │file_name           │
+    ▼           ▼             ▼        └──────────┘  └────────┬───────────┘
+┌────────┐ ┌──────────┐ ┌────────────┐                       │ 1:1
+│trials  │ │papers    │ │drugs       │                       ▼
+│        │ │          │ │            │              ┌────────────────────────┐
+│nct_id  │ │pmid      │ │name        │              │pdf_extraction_results  │
+│title   │ │title     │ │type        │              │                        │
+│phase   │ │abstract  │ │mechanism   │              │job_id (FK)             │
+│...     │ │...       │ │...         │              │markdown_content        │
+└────────┘ └──────────┘ └────────────┘              │graphify_results (JSONB)│
+                                                     │original_images (JSONB) │
+                                                     │...                     │
+                                                     └────────────────────────┘
 ```
+
+**New Tables (Nov 2025)**:
+- `pdf_extraction_jobs`: Track async PDF extraction with status/progress
+- `pdf_extraction_results`: Store completed extraction results (markdown, images, graphs)
 
 ## Tables
 
 ### 1. `projects` Table
 
 **Purpose**: Core table storing research projects with all associated data (trials, papers, drugs, analysis)
+
+**Current Implementation Status**:
+- ✅ **Phase 1 (Nov 8, 2025)**: Basic project CRUD operations
+  - Table exists in database with `id`, `user_id`, `name`, `description`, `created_at`, `updated_at`
+  - Project creation UI connected and working
+  - Service layer implemented (`src/services/projectService.ts`)
+  - RLS policies configured for user isolation
+- 🚧 **Phase 2 (Planned)**: Add JSONB fields for trials, papers, drugs, slide data, chat history
+- 📋 **Phase 3 (Planned)**: Migrate data from `market_maps` table
 
 #### Schema Definition
 
@@ -317,6 +425,393 @@ CREATE TABLE auth.users (
 - Provides user identity for RLS policies
 - Supports email/password authentication
 - Extensible with metadata fields
+
+### 3. Normalized Tables (Nov 2025)
+
+#### `trials` Table
+
+**Purpose**: Store clinical trial data with proper columns (replaces `market_maps.trials_data` JSONB)
+
+```sql
+CREATE TABLE trials (
+  id BIGSERIAL PRIMARY KEY,
+  nct_id TEXT UNIQUE NOT NULL,
+  brief_title TEXT NOT NULL,
+  official_title TEXT,
+  overall_status TEXT,
+  phase TEXT[],
+  conditions TEXT[],
+  interventions TEXT[],
+  sponsors_lead TEXT,
+  enrollment INTEGER,
+  start_date TEXT,
+  completion_date TEXT,
+  locations JSONB,
+  study_type TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_trials_nct_id ON trials(nct_id);
+CREATE INDEX idx_trials_phase ON trials USING GIN(phase);
+CREATE INDEX idx_trials_conditions ON trials USING GIN(conditions);
+
+COMMENT ON TABLE trials IS 'Clinical trial data from ClinicalTrials.gov';
+```
+
+#### `papers` Table
+
+**Purpose**: Store research paper data with proper columns (replaces `market_maps.papers_data` JSONB)
+
+```sql
+CREATE TABLE papers (
+  id BIGSERIAL PRIMARY KEY,
+  pmid TEXT UNIQUE NOT NULL,
+  title TEXT NOT NULL,
+  abstract TEXT,
+  journal TEXT,
+  publication_date TEXT,
+  authors TEXT[],
+  doi TEXT,
+  nct_number TEXT,
+  relevance_score INTEGER,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_papers_pmid ON papers(pmid);
+CREATE INDEX idx_papers_publication_date ON papers(publication_date);
+
+COMMENT ON TABLE papers IS 'Research papers from PubMed';
+```
+
+#### `drugs` Table
+
+**Purpose**: Store drug data with proper columns (replaces `market_maps.drugs_data` JSONB)
+
+```sql
+CREATE TABLE drugs (
+  id BIGSERIAL PRIMARY KEY,
+  name TEXT UNIQUE NOT NULL,
+  normalized_name TEXT NOT NULL,
+  drug_type TEXT,
+  brand_names TEXT[],
+  mechanism TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_drugs_normalized_name ON drugs(normalized_name);
+
+COMMENT ON TABLE drugs IS 'Pharmaceutical drug data';
+```
+
+#### Junction Tables (Many-to-Many Relationships)
+
+**Purpose**: Link projects to trials, papers, and drugs
+
+```sql
+-- Project ↔ Trials
+CREATE TABLE project_trials (
+  project_id BIGINT REFERENCES projects(id) ON DELETE CASCADE,
+  trial_id BIGINT REFERENCES trials(id) ON DELETE CASCADE,
+  added_at TIMESTAMPTZ DEFAULT NOW(),
+  PRIMARY KEY (project_id, trial_id)
+);
+
+CREATE INDEX idx_project_trials_project_id ON project_trials(project_id);
+
+-- Project ↔ Papers
+CREATE TABLE project_papers (
+  project_id BIGINT REFERENCES projects(id) ON DELETE CASCADE,
+  paper_id BIGINT REFERENCES papers(id) ON DELETE CASCADE,
+  added_at TIMESTAMPTZ DEFAULT NOW(),
+  PRIMARY KEY (project_id, paper_id)
+);
+
+CREATE INDEX idx_project_papers_project_id ON project_papers(project_id);
+
+-- Project ↔ Drugs
+CREATE TABLE project_drugs (
+  project_id BIGINT REFERENCES projects(id) ON DELETE CASCADE,
+  drug_id BIGINT REFERENCES drugs(id) ON DELETE CASCADE,
+  added_at TIMESTAMPTZ DEFAULT NOW(),
+  PRIMARY KEY (project_id, drug_id)
+);
+
+CREATE INDEX idx_project_drugs_project_id ON project_drugs(project_id);
+```
+
+**Benefits of Junction Tables**:
+- Deduplication: Trial NCT123 stored once, referenced by multiple projects
+- Referential Integrity: Foreign keys prevent orphaned records
+- Efficient Queries: Indexed joins for fast lookups
+- Scalability: No JSONB array size limits
+
+**Example Queries**:
+
+```typescript
+// Get all trials for a project (with proper typing)
+const { data: projectTrials } = await supabase
+  .from('project_trials')
+  .select(`
+    added_at,
+    trials (*)
+  `)
+  .eq('project_id', projectId)
+
+// Cross-project analysis: Find all projects with a specific drug
+const { data } = await supabase
+  .from('project_drugs')
+  .select(`
+    projects (name, created_at),
+    drugs (name, mechanism)
+  `)
+  .eq('drugs.normalized_name', 'Semaglutide')
+```
+
+### 4. PDF Extraction Tables (Nov 2025)
+
+**Purpose**: Support asynchronous PDF extraction with job queue and persistent results
+
+#### `pdf_extraction_jobs` Table
+
+**Purpose**: Track PDF extraction jobs with status and progress
+
+```sql
+CREATE TABLE pdf_extraction_jobs (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  project_id BIGINT REFERENCES projects(id) ON DELETE SET NULL,
+  
+  -- File information
+  file_name TEXT NOT NULL,
+  file_size INTEGER NOT NULL,
+  
+  -- Job configuration
+  enable_graphify BOOLEAN DEFAULT true,
+  force_ocr BOOLEAN DEFAULT false,
+  max_graphify_images INTEGER DEFAULT 10,
+  
+  -- Job status and progress
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'completed', 'failed', 'cancelled')),
+  progress INTEGER DEFAULT 0 CHECK (progress >= 0 AND progress <= 100),
+  current_stage TEXT,
+  
+  -- Processing details
+  datalab_job_id TEXT,
+  datalab_check_url TEXT,
+  error_message TEXT,
+  retry_count INTEGER DEFAULT 0,
+  max_retries INTEGER DEFAULT 3,
+  
+  -- Timestamps
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  started_at TIMESTAMPTZ,
+  completed_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Indexes
+CREATE INDEX idx_pdf_jobs_user_id ON pdf_extraction_jobs(user_id);
+CREATE INDEX idx_pdf_jobs_project_id ON pdf_extraction_jobs(project_id) WHERE project_id IS NOT NULL;
+CREATE INDEX idx_pdf_jobs_status ON pdf_extraction_jobs(status);
+CREATE INDEX idx_pdf_jobs_created_at ON pdf_extraction_jobs(created_at DESC);
+CREATE INDEX idx_pdf_jobs_user_status ON pdf_extraction_jobs(user_id, status, created_at DESC);
+
+COMMENT ON TABLE pdf_extraction_jobs IS 'Tracks PDF extraction job queue with status, progress, and configuration';
+```
+
+#### `pdf_extraction_results` Table
+
+**Purpose**: Store completed extraction results linked to jobs
+
+```sql
+CREATE TABLE pdf_extraction_results (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  job_id UUID NOT NULL REFERENCES pdf_extraction_jobs(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  
+  -- Extracted content
+  markdown_content TEXT,
+  
+  -- JSON results (stored as JSONB for queryability)
+  response_json JSONB,
+  original_images JSONB,
+  graphify_results JSONB,
+  tables_data JSONB,
+  
+  -- Statistics
+  images_found INTEGER DEFAULT 0,
+  graphs_detected INTEGER DEFAULT 0,
+  tables_found INTEGER DEFAULT 0,
+  processing_time_ms INTEGER,
+  
+  -- Timestamps
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Indexes
+CREATE INDEX idx_pdf_results_job_id ON pdf_extraction_results(job_id);
+CREATE INDEX idx_pdf_results_user_id ON pdf_extraction_results(user_id);
+CREATE INDEX idx_pdf_results_created_at ON pdf_extraction_results(created_at DESC);
+
+COMMENT ON TABLE pdf_extraction_results IS 'Stores completed PDF extraction results including markdown, images, and GPT analysis';
+```
+
+#### Row Level Security (RLS) Policies
+
+```sql
+ALTER TABLE pdf_extraction_jobs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE pdf_extraction_results ENABLE ROW LEVEL SECURITY;
+
+-- Jobs: Users can only access their own jobs
+CREATE POLICY "Users can view their own extraction jobs"
+  ON pdf_extraction_jobs FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can create extraction jobs"
+  ON pdf_extraction_jobs FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update their own extraction jobs"
+  ON pdf_extraction_jobs FOR UPDATE
+  USING (auth.uid() = user_id);
+
+-- Results: Users can only access their own results
+CREATE POLICY "Users can view their own extraction results"
+  ON pdf_extraction_results FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can create extraction results"
+  ON pdf_extraction_results FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+```
+
+#### Example Queries
+
+```typescript
+// Submit a new extraction job
+const { data: job } = await supabase
+  .from('pdf_extraction_jobs')
+  .insert({
+    user_id: user.id,
+    project_id: currentProjectId,
+    file_name: 'research-paper.pdf',
+    file_size: 2500000,
+    enable_graphify: true,
+    max_graphify_images: 10
+  })
+  .select()
+  .single()
+
+// Get user's extraction history
+const { data: jobs } = await supabase
+  .from('pdf_extraction_jobs')
+  .select('*')
+  .order('created_at', { ascending: false })
+  .limit(20)
+
+// Get job with results (for completed jobs)
+const { data } = await supabase
+  .from('pdf_extraction_jobs')
+  .select(`
+    *,
+    pdf_extraction_results (*)
+  `)
+  .eq('id', jobId)
+  .single()
+
+// Update job progress
+await supabase
+  .from('pdf_extraction_jobs')
+  .update({
+    status: 'processing',
+    progress: 50,
+    current_stage: 'Processing images with GPT Vision...'
+  })
+  .eq('id', jobId)
+
+// Store extraction result
+await supabase
+  .from('pdf_extraction_results')
+  .insert({
+    job_id: jobId,
+    user_id: userId,
+    markdown_content: extractedMarkdown,
+    response_json: datalabResponse,
+    original_images: { ... },
+    graphify_results: { ... },
+    images_found: 5,
+    graphs_detected: 3,
+    processing_time_ms: 45000
+  })
+```
+
+**Key Features**:
+- **Async Processing**: Jobs run in background without blocking UI
+- **Progress Tracking**: Real-time status updates via polling
+- **Error Recovery**: Failed jobs can be retried
+- **Persistent Storage**: All results saved permanently
+- **Project Association**: Link extractions to specific projects
+- **Supabase Storage**: Temporary PDF file storage
+
+**Related Files**:
+- Migration: `supabase/migrations/add_pdf_extraction_async.sql`
+- API Endpoints: `api/submit-pdf-job.ts`, `api/process-pdf-job.ts`, `api/get-pdf-job.ts`, `api/list-pdf-jobs.ts`, `api/retry-pdf-job.ts`
+- Services: `src/services/pdfExtractionJobService.ts`, `src/services/notificationService.ts`
+- Components: `src/components/PDFExtraction.tsx`, `src/components/ExtractionHistory.tsx`
+
+### 5. Service Layer
+
+**Implementation Files**:
+- `src/services/trialService.ts` - CRUD operations for trials
+- `src/services/paperService.ts` - CRUD operations for papers
+- `src/services/drugService.ts` - CRUD operations for drugs
+- `src/services/projectService.ts` - CRUD operations for projects
+- `src/services/marketMapService.ts` - Dual-write logic (JSONB + normalized)
+- `src/services/pdfExtractionJobService.ts` - PDF extraction job management
+
+**Dual-Write Strategy**:
+
+```typescript
+// Example: Saving a market map writes to BOTH schemas
+export async function saveMarketMap(data, projectId) {
+  // 1. Write to market_maps (JSONB) - backward compatible
+  const { data: result } = await supabase
+    .from('market_maps')
+    .insert({
+      ...data,
+      trials_data: data.trials,  // JSONB
+      papers_data: data.papers   // JSONB
+    })
+  
+  // 2. Write to normalized tables (background, non-blocking)
+  if (projectId) {
+    backgroundDualWrite(projectId, data)  // Async, batched
+  }
+  
+  return result
+}
+```
+
+**Read Strategy** (UI reads from normalized, falls back to JSONB):
+
+```typescript
+// Load project data - reads from normalized tables first
+if (project.id) {
+  const [trials, papers] = await Promise.all([
+    getProjectTrials(project.id),   // FROM project_trials JOIN trials
+    getProjectPapers(project.id)    // FROM project_papers JOIN papers
+  ])
+  
+  // Fallback to JSONB if normalized tables are empty
+  if (trials.length === 0 && marketMap.trials_data?.length > 0) {
+    trials = marketMap.trials_data  // Use JSONB
+  }
+}
+```
 
 ## Row Level Security (RLS)
 
@@ -923,31 +1418,6 @@ try {
   // Handle error
 }
 ```
-
-## Supabase Edge Functions
-
-### extract-pdf-tables Function
-
-**Purpose**: Server-side PDF processing with Deno runtime
-
-**Configuration**: `supabase/config.toml`
-```toml
-[functions.extract-pdf-tables]
-enabled = true
-verify_jwt = true
-import_map = "./functions/extract-pdf-tables/deno.json"
-entrypoint = "./functions/extract-pdf-tables/index.ts"
-```
-
-**Function**: `supabase/functions/extract-pdf-tables/index.ts`
-- Runs in Deno runtime (not Node.js)
-- Handles PDF file uploads
-- Calls Vercel Node.js API for actual processing
-- Returns extracted table data
-
-**Authentication**:
-- `verify_jwt = true`: Requires authenticated user
-- Authorization header checked in function
 
 ## Future Database Enhancements
 

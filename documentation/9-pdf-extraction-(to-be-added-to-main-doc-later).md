@@ -1,11 +1,13 @@
-**Documentation Version**: 2.1  
-**Last Updated**: November 3, 2025  
+**Documentation Version**: 3.0   
+**Last Updated**: November 10, 2025  
+**Last Updated by**: Bozhen (Paul) Peng
+
 
 # ABCresearch - PDF Content Extraction Documentation
 
 ## Overview
 
-The PDF Content Extraction feature enables users to upload PDF documents (such as research papers, clinical reports, or regulatory documents) and extract structured content including markdown text, images, tables, and AI-powered graph analysis. This feature integrates Datalab's Marker API for PDF processing and OpenAI's GPT Vision for intelligent graph detection and reconstruction, with a comprehensive Paper Analysis View for in-depth exploration.
+The PDF Content Extraction feature enables users to upload PDF documents (such as research papers, clinical reports, or regulatory documents) and extract structured content including markdown text, images, tables, and AI-powered graph analysis. This feature uses **asynchronous background processing** with a job queue system to ensure reliable extraction without data loss. It integrates Datalab's Marker API for PDF processing, OpenAI's GPT Vision for intelligent graph detection and reconstruction, Supabase for persistent storage, and provides a comprehensive Paper Analysis View for in-depth exploration.
 
 ## Core Purpose
 
@@ -17,8 +19,29 @@ The PDF extraction system serves to:
 - **Generate Reconstruction Code**: Provide Python code to recreate graphs
 - **Enable Data Reuse**: Download multiple formats for different use cases
 - **Provide Comprehensive Analysis**: Interactive view for exploring extracted content
+- **Async Background Processing**: Jobs run in background, survive page navigation
+- **Persistent Job History**: Track all extraction jobs with status and progress
+- **Error Recovery**: Retry failed jobs, preserve partial results
 
 ## Key Features
+
+### 0. Asynchronous Job Queue System (NEW - November 2025)
+- **Background Processing**: Extraction runs asynchronously without blocking UI
+- **Job Persistence**: All jobs stored in Supabase database
+- **Real-time Progress**: Live progress updates with percentage completion
+- **Status Tracking**: Track jobs through states: pending → processing → completed/failed
+- **Extraction History**: View all past and in-progress extractions
+- **Error Recovery**: Retry failed jobs with one click
+- **Survive Navigation**: Jobs continue even if you leave the page
+- **Browser Notifications**: Get notified when extraction completes or fails
+- **Project Association**: Link extractions to specific research projects
+
+**Architecture Highlights**:
+- Database tables: `pdf_extraction_jobs` and `pdf_extraction_results`
+- Client-side worker triggering (Vercel workaround)
+- Real-time UI polling for job status
+- Automatic cleanup of temporary storage files
+- **Timeout Limits**: 5 minutes (Vercel Free), 15 minutes (Vercel Pro), 60 minutes (Enterprise)
 
 ### 1. PDF to Markdown Conversion
 - Powered by Datalab Marker API
@@ -68,7 +91,22 @@ Interactive interface for comprehensive content exploration:
   - Full API response
   - GPT analysis results
 
-### 4. Multiple Download Formats
+### 4. Extraction History View (NEW - November 2025)
+Integrated directly into the Data Extraction page:
+
+- **Job List Display**: View all extraction jobs in chronological order
+- **Status Indicators**: Visual badges for pending, processing, completed, failed states
+- **Progress Tracking**: Real-time progress percentage and current stage
+- **File Information**: Display file name, size, and submission time
+- **Action Buttons**:
+  - **View Analysis**: Open Paper Analysis View for completed extractions
+  - **Download**: Download markdown content directly from history
+  - **Retry**: Re-run failed extractions with one click
+- **Real-time Updates**: Auto-refreshes to show latest job status
+- **Error Messages**: Display detailed error information for failed jobs
+- **Persistent Storage**: All jobs stored in database, accessible across sessions
+
+### 5. Multiple Download Formats
 Users receive up to five downloadable outputs:
 
 1. **Markdown File (.md)**
@@ -102,7 +140,7 @@ Users receive up to five downloadable outputs:
    - Raw markdown for each table
    - Machine-readable format
 
-### 5. Configurable Processing Options
+### 6. Configurable Processing Options
 - **Graph Detection Toggle**: Enable/disable GPT Vision processing
 - **Max Images Limit**: Control processing time and cost (1-20 images)
 - **Drag & Drop Upload**: Modern file upload with drag-and-drop support
@@ -111,11 +149,11 @@ Users receive up to five downloadable outputs:
 
 ## User Workflow
 
-### Typical Extraction Session
+### Typical Extraction Session (Async Job Queue)
 
 1. **Navigate to Data Extraction**
    - Click "Data Extraction" tab in main navigation
-   - Upload interface loads with card-based UI
+   - Upload interface loads at top, Extraction History below
 
 2. **Upload PDF**
    - Click upload area or **drag & drop PDF file**
@@ -129,55 +167,172 @@ Users receive up to five downloadable outputs:
    - Adjust "Max images to analyze" slider (1-20, default: 10)
    - See warning about processing time and cost
 
-4. **Extract Content**
+4. **Submit Extraction Job**
    - Click "Extract Content" button
-   - Processing begins (30 seconds to 5 minutes)
-   - Loading indicator shown with progress message:
-     - "Processing PDF..."
-     - "Extracting tables from your document"
+   - **Job is created immediately** (returns in <1 second)
+   - PDF is uploaded to Supabase Storage
+   - Job appears in Extraction History with "Pending" status
+   - **You can navigate away** - job continues in background
 
-5. **View Initial Results**
-   - Success banner with statistics:
-     - Images found count
-     - Graphs detected count
-     - Tables found count (if applicable)
-     - Processing time in seconds
-   - Graph detection summary (if graphs found, shows first 5)
-   - **"View Comprehensive Analysis" button** (New!)
-   - Download buttons for all formats
+5. **Monitor Progress** (Real-time)
+   - Job status updates automatically in Extraction History
+   - Progress bar shows percentage completion (0-100%)
+   - Current stage displayed:
+     - "Uploading to processing server..."
+     - "Analyzing document structure..."
+     - "Extracting tables..."
+     - "Processing images with GPT Vision..."
+   - **Browser notification** when job completes or fails (if permitted)
 
-6. **Explore Analysis View** (New Workflow)
-   - Click "View Comprehensive Analysis"
+6. **View Results from History**
+   - Completed jobs show green checkmark badge
+   - Click **"View Analysis"** button to open Paper Analysis View
+   - Click **Download** icon to get markdown directly
+   - Failed jobs show red X with error message
+   - Click **Retry** to re-run failed extractions
+
+7. **Explore Analysis View**
+   - Click "View Analysis" from Extraction History
    - Navigate comprehensive interface with tabs:
      - **Markdown**: Toggle rendered/source views
      - **Tables**: Browse extracted tables (if any)
      - **Graphs**: Zoom/pan through detected graphs
-       - **NEW**: Click "Render Graph in Browser" to execute Python code
-       - **NEW**: First render initializes Python environment (10-15s)
-       - **NEW**: Compare original extraction vs AI reconstruction
-       - **NEW**: Verify data accuracy visually
+       - Click "Render Graph in Browser" to execute Python code
+       - First render initializes Python environment (10-15s)
+       - Compare original extraction vs AI reconstruction
+       - Verify data accuracy visually
      - **Data**: Inspect structured JSON data
    - Download individual components from within analysis view
    - Use "Back to Upload" to return to extraction interface
 
-7. **Download Outputs** (Traditional Workflow)
-   - Click "Download Markdown Content" for text content
-   - Click "Download Original Extracted Images" for raw image data
-   - Click "Download Full API Response" for complete data
-   - Click "Download GPT Graph Analysis" (if graphs detected)
-   - Click "Download Tables" (if tables found)
+8. **Access Past Extractions**
+   - All completed extractions persist in database
+   - View extraction history across browser sessions
+   - Re-download results anytime
+   - Re-analyze with Paper Analysis View
+   - Track processing statistics and timestamps
 
-8. **Process Additional PDFs**
-   - Click "Clear and Start Over" button
-   - File input resets
-   - Upload new PDF
-   - Repeat process
+9. **Process Multiple PDFs**
+   - Upload new PDF while others are processing
+   - Multiple jobs can run concurrently (Vercel handles queueing)
+   - Each job tracked independently in history
+   - No need to wait for previous job to complete
+
+**Key Benefits of Async Workflow**:
+- ✅ No data loss if you accidentally close tab
+- ✅ Navigate to other parts of app while extracting
+- ✅ Come back later to check results
+- ✅ Full history of all extractions
+- ✅ Retry failed jobs without re-uploading
 
 ## Technical Architecture
 
-### Backend Implementation
+### Async Job Queue Architecture (NEW - November 2025)
 
-**File**: `api/extract-pdf-content.ts`
+**Overview**: PDF extraction now uses an asynchronous job queue with persistent storage to ensure reliability and prevent data loss.
+
+**Architecture Pattern**:
+```
+User Upload (Frontend)
+    ↓
+Submit Job API (/api/submit-pdf-job)
+    ↓
+Create job record in database (pdf_extraction_jobs)
+Upload PDF to Supabase Storage
+    ↓
+Return job ID immediately (<1s)
+    ↓
+Client triggers worker (/api/process-pdf-job)
+    ↓
+[Background Worker - runs asynchronously]
+    ↓
+Download PDF from storage
+Submit to Datalab Marker API
+Poll for completion (2s intervals)
+    ↓
+Process images with GPT Vision
+    ↓
+Store results in pdf_extraction_results table
+Update job status to 'completed'
+Clean up storage file
+    ↓
+[Frontend - polls job status]
+    ↓
+Display results in Extraction History
+Send browser notification
+```
+
+**Key Components**:
+
+1. **Database Schema** (Supabase PostgreSQL):
+```sql
+-- Job tracking table
+CREATE TABLE pdf_extraction_jobs (
+  id UUID PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id),
+  project_id BIGINT REFERENCES projects(id),
+  file_name TEXT,
+  file_size INTEGER,
+  status TEXT CHECK (status IN ('pending', 'processing', 'completed', 'failed', 'cancelled')),
+  progress INTEGER CHECK (progress >= 0 AND progress <= 100),
+  current_stage TEXT,
+  error_message TEXT,
+  retry_count INTEGER DEFAULT 0,
+  max_retries INTEGER DEFAULT 3,
+  created_at TIMESTAMPTZ,
+  started_at TIMESTAMPTZ,
+  completed_at TIMESTAMPTZ
+);
+
+-- Results storage table
+CREATE TABLE pdf_extraction_results (
+  id UUID PRIMARY KEY,
+  job_id UUID REFERENCES pdf_extraction_jobs(id),
+  user_id UUID REFERENCES auth.users(id),
+  markdown_content TEXT,
+  response_json JSONB,
+  original_images JSONB,
+  graphify_results JSONB,
+  tables_data JSONB,
+  images_found INTEGER,
+  graphs_detected INTEGER,
+  tables_found INTEGER,
+  processing_time_ms INTEGER
+);
+```
+
+2. **API Endpoints**:
+- `/api/submit-pdf-job` - Create job, upload PDF to storage, return job ID (public)
+- `/api/process-pdf-job` - Background worker that processes extraction (protected by INTERNAL_API_KEY)
+- `/api/get-pdf-job` - Get job status and results (public)
+- `/api/list-pdf-jobs` - List user's extraction jobs (public)
+- `/api/retry-pdf-job` - Retry a failed extraction (public)
+
+**Note**: The `/api/process-pdf-job` endpoint requires the `x-internal-key` header with a valid `INTERNAL_API_KEY` to prevent unauthorized access. This endpoint is only called internally by `submit-pdf-job`, never directly by clients.
+
+3. **Supabase Storage**:
+- Bucket: `pdf-extraction-uploads` (temporary storage)
+- PDFs uploaded with unique key: `{userId}/{jobId}/{fileName}`
+- Auto-deletion after processing completes
+- 50MB file size limit
+
+4. **Client-Side Services**:
+- `PDFExtractionJobService` - Submit jobs, poll status, list history
+- `NotificationService` - Browser notifications for job completion
+- Real-time UI polling every 2 seconds when jobs are active
+
+5. **Vercel Limitations & Workarounds**:
+- **Issue**: Serverless functions cannot trigger other functions directly
+- **Solution**: Client-side worker triggering after job submission
+- **Timeout Limits**:
+  - **Free Plan**: 5 minutes maximum
+  - **Pro Plan**: 15 minutes maximum (configurable in vercel.json)
+  - **Enterprise Plan**: 60 minutes maximum
+- **Recommendation**: Use Pro plan for complex PDFs with many images
+
+### Legacy Synchronous Implementation (Deprecated)
+
+**File**: `api/extract-pdf-content.ts` (still exists but not used by default)
 
 **Architecture Pattern**:
 ```
@@ -1437,8 +1592,14 @@ export const config = {
 // Vercel function settings (vercel.json)
 {
   "functions": {
+    "api/submit-pdf-job.ts": {
+      "maxDuration": 10  // Fast job submission (<1s typical)
+    },
+    "api/process-pdf-job.ts": {
+      "maxDuration": 300  // 5 minutes (Free), 900 (15 min on Pro)
+    },
     "api/extract-pdf-content.ts": {
-      "maxDuration": 300  // 5 minutes
+      "maxDuration": 300  // Legacy endpoint (deprecated)
     }
   }
 }
@@ -1623,6 +1784,8 @@ Fields:
 **For Production (Vercel Dashboard)**:
 ```bash
 DATALAB_API_KEY=dla-your-datalab-api-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key-here
+INTERNAL_API_KEY=generate-a-random-secure-key-here
 ```
 
 **Optional Variables**:
@@ -1646,9 +1809,37 @@ GOOGLE_GEMINI_API_KEY=...
 | Variable | Required | Default | Impact if Missing |
 |----------|----------|---------|-------------------|
 | `DATALAB_API_KEY` | Yes | None | Extraction fails completely |
+| `SUPABASE_SERVICE_ROLE_KEY` | Yes | None | Background worker cannot access database |
+| `INTERNAL_API_KEY` | Yes | None | Background worker cannot be invoked (security block) |
 | `OPENAI_API_KEY` | No | None | Graph detection skipped, markdown still works |
 | `GPT_MODEL` | No | gpt-4o-mini | Uses default model |
 | `OPENAI_API_BASE` | No | api.openai.com | Uses default OpenAI endpoint |
+
+### Generating INTERNAL_API_KEY
+
+The `INTERNAL_API_KEY` is a shared secret used to authenticate internal API calls between your frontend and the background worker. Generate a secure random string:
+
+**Using Node.js:**
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+**Using OpenSSL:**
+```bash
+openssl rand -hex 32
+```
+
+**Using Python:**
+```bash
+python -c "import secrets; print(secrets.token_hex(32))"
+```
+
+**Result:** A 64-character hexadecimal string like:
+```
+a3f9d8e7c2b1a0f9e8d7c6b5a4f3e2d1c0b9a8f7e6d5c4b3a2f1e0d9c8b7a6f5
+```
+
+Add this value to your Vercel environment variables as `INTERNAL_API_KEY`.
 
 ---
 
@@ -1824,26 +2015,74 @@ try {
 ```json
 {
   "functions": {
-    "api/extract-pdf-content.ts": {
+    "api/submit-pdf-job.ts": {
+      "maxDuration": 10
+    },
+    "api/process-pdf-job.ts": {
       "maxDuration": 300
+    },
+    "api/get-pdf-job.ts": {
+      "maxDuration": 10
+    },
+    "api/list-pdf-jobs.ts": {
+      "maxDuration": 10
+    },
+    "api/retry-pdf-job.ts": {
+      "maxDuration": 10
     }
   }
 }
 ```
 
+**Timeout Configuration by Plan**:
+
+| Plan | Default Timeout | Maximum Timeout | Recommendation |
+|------|----------------|-----------------|----------------|
+| **Free (Hobby)** | 10 seconds | **5 minutes** | OK for simple PDFs (<10 pages, few images) |
+| **Pro** | 10 seconds | **15 minutes** | **Recommended** - handles most PDFs |
+| **Enterprise** | 10 seconds | **60 minutes** | For very large PDFs with many images |
+
 **Notes**:
-- 300 seconds = 5 minutes (sufficient for most PDFs)
-- Can increase to 600 (10 min) on Vercel Pro plan
-- Longer timeouts cost more in function execution time
+- `submit-pdf-job` and `get-pdf-job` are fast (<1s), need minimal timeout
+- `process-pdf-job` does the heavy lifting, needs longer timeout
+- **Free plan**: 5-minute limit may timeout on large PDFs (>20 pages with graphify enabled)
+- **Pro plan**: 15 minutes is sufficient for 95% of PDFs
+- Set timeout in `vercel.json` for pro plan:
+  ```json
+  "api/process-pdf-job.ts": {
+    "maxDuration": 900  // 15 minutes
+  }
+  ```
+- Longer timeouts consume more execution time (billed by Vercel)
+- Consider disabling graphify for very large PDFs to stay under timeout
 
 ### Environment Setup
 
 **Vercel Dashboard Steps**:
 1. Go to Settings → Environment Variables
 2. Add `DATALAB_API_KEY` (required)
-3. Add `OPENAI_API_KEY` (optional but recommended)
-4. Set for: Production, Preview, Development
-5. Redeploy to apply changes
+3. Add `SUPABASE_SERVICE_ROLE_KEY` (required for background worker)
+4. Add `INTERNAL_API_KEY` (required - generate random 64-char hex string)
+5. Add `OPENAI_API_KEY` (optional but recommended)
+6. Add `VITE_SUPABASE_URL` (required for job queue)
+7. Add `VITE_SUPABASE_ANON_KEY` (required for job queue)
+8. Set for: Production, Preview, Development
+9. Redeploy to apply changes
+
+**Generating INTERNAL_API_KEY**:
+```bash
+# Generate a secure random key
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+
+# Example output:
+# a3f9d8e7c2b1a0f9e8d7c6b5a4f3e2d1c0b9a8f7e6d5c4b3a2f1e0d9c8b7a6f5
+```
+
+**Supabase Setup**:
+1. Run database migration: `supabase/migrations/add_pdf_extraction_async.sql`
+2. Create storage bucket: `pdf-extraction-uploads`
+3. Set bucket to private (authenticated users only)
+4. Configure RLS policies (auto-created by migration)
 
 **Local Development**:
 ```bash
@@ -1980,6 +2219,45 @@ const apiKey = process.env.DATALAB_API_KEY
 - Injected at runtime
 - Never committed to git
 - Separate for development/production
+
+### Internal API Key Protection
+
+**Purpose**: The `INTERNAL_API_KEY` protects the background worker endpoint (`/api/process-pdf-job`) from unauthorized access.
+
+**Why It's Needed**:
+- The worker endpoint performs expensive operations (Datalab API calls, GPT Vision processing)
+- These operations have real monetary costs
+- Without protection, anyone could discover the endpoint and abuse it
+- Direct calls could bypass rate limiting or job tracking
+
+**How It Works**:
+```typescript
+// In process-pdf-job.ts
+const internalKey = req.headers['x-internal-key']
+if (internalKey !== process.env.INTERNAL_API_KEY && internalKey !== 'dev-key') {
+  return res.status(403).json({ success: false, error: 'Forbidden' })
+}
+```
+
+**Security Model**:
+1. Client submits job via `/api/submit-pdf-job` (authenticated via Supabase)
+2. `submit-pdf-job` internally calls `/api/process-pdf-job` with `INTERNAL_API_KEY` in header
+3. Worker verifies the key matches before processing
+4. External users cannot call worker directly (don't have the key)
+
+**Key Characteristics**:
+- Shared secret between your own services (not a user credential)
+- Should be 32+ random bytes (64 hex characters)
+- Never exposed to browser/client
+- Different from Supabase keys (this is for your internal API only)
+- `'dev-key'` fallback only for local development
+
+**Best Practices**:
+- Generate using cryptographically secure random number generator
+- Rotate periodically (e.g., quarterly)
+- Use different keys for production/staging/development
+- Store only in Vercel environment variables (never in code)
+- Monitor for unauthorized access attempts (403 errors in logs)
 
 ### File Upload Security
 
@@ -2172,10 +2450,15 @@ console.error('Error in PDFExtractionService:', error)
 ### Technical Limitations
 
 1. **File Size**: Maximum 50MB per PDF
-2. **Processing Time**: Maximum 5 minutes (Vercel timeout)
+2. **Processing Time Limits** (Vercel serverless timeouts):
+   - **Free Plan**: 5 minutes maximum (may timeout on large PDFs)
+   - **Pro Plan**: 15 minutes maximum (recommended for production)
+   - **Enterprise Plan**: 60 minutes maximum
 3. **Image Limit**: Maximum 20 images processed for graph detection
-4. **Python Execution**: Code generated but NOT executed server-side
+4. **Python Execution**: Code generated but NOT executed server-side (except in browser via Pyodide)
 5. **OCR Accuracy**: Depends on source PDF quality
+6. **Concurrent Jobs**: No hard limit, but Vercel may throttle excessive concurrent requests
+7. **Storage Duration**: Temporary PDF storage (auto-deleted after processing)
 
 ### Known Issues
 
@@ -2185,10 +2468,12 @@ console.error('Error in PDFExtractionService:', error)
 4. **Tables**: Complex tables may lose formatting or require manual correction
 5. **Graph Data Accuracy**: Extracted data is approximate (pixel-based estimation)
 6. **Table Detection**: Frontend-based table parsing may miss tables with unusual markdown formatting
-7. **NEW - Pyodide Initialization**: First graph render takes 10-15 seconds to load Python environment
-8. **NEW - Mobile Performance**: Pyodide rendering may be slow on low-end mobile devices
-9. **NEW - Python Code Execution**: Only executes in browser sandbox, no external files/network access
-10. **NEW - Matplotlib Limitations**: Advanced matplotlib features may not be supported in Pyodide
+7. **Pyodide Initialization**: First graph render takes 10-15 seconds to load Python environment
+8. **Mobile Performance**: Pyodide rendering may be slow on low-end mobile devices
+9. **Python Code Execution**: Only executes in browser sandbox, no external files/network access
+10. **Matplotlib Limitations**: Advanced matplotlib features may not be supported in Pyodide
+11. **Vercel Workaround**: Worker must be triggered from client-side (Vercel serverless functions cannot call each other)
+12. **Timeout on Free Plan**: 5-minute limit may not be sufficient for PDFs with >20 pages and graphify enabled
 
 ### Not Supported
 
@@ -2350,13 +2635,28 @@ if (viewMode === 'dataextraction') {
 Dashboard
   └── viewMode === 'dataextraction'
       └── PDFExtraction
-          ├── Upload Interface (default)
-          └── PaperAnalysisView (conditional, when showAnalysisView === true)
+          ├── Upload Interface (top)
+          │   ├── File upload with drag & drop
+          │   ├── Options configuration
+          │   └── Extract button
+          ├── Extraction History (below upload, integrated)
+          │   ├── Job list with status indicators
+          │   ├── Progress bars for active jobs
+          │   ├── View Analysis buttons
+          │   ├── Download buttons
+          │   └── Retry buttons for failed jobs
+          └── PaperAnalysisView (conditional, when viewing a completed extraction)
               ├── Markdown Tab
               ├── Tables Tab
               ├── Graphs Tab
               └── Data Tab
 ```
+
+**Key Changes (November 2025)**:
+- **Extraction History** is now embedded directly in the Data Extraction page
+- No separate "Extraction History" tab in main navigation
+- Upload interface and history visible simultaneously
+- Seamless workflow from upload → monitor → view results
 
 ### Design System Compliance
 
@@ -2423,6 +2723,24 @@ Fix: Enable graphify, add API key, or increase image limit
 Check: extractionResult.success === true
 Check: Blobs exist in response
 Fix: Verify backend returns base64-encoded blobs
+```
+
+**Issue**: Jobs stuck in "pending" status
+```
+Check: INTERNAL_API_KEY is set in Vercel environment variables
+Check: Worker is being triggered from client-side
+Check: Vercel function logs for worker errors
+Fix: Add INTERNAL_API_KEY to Vercel dashboard
+Fix: Verify worker endpoint is accessible
+Fix: Check for 403 Forbidden errors in logs
+```
+
+**Issue**: Worker returns 403 Forbidden
+```
+Check: INTERNAL_API_KEY matches between environments
+Check: Key is set correctly in Vercel dashboard
+Fix: Regenerate key and update in all environments
+Fix: Ensure no extra spaces or quotes in environment variable
 ```
 
 ### Debug Commands
@@ -2677,10 +2995,13 @@ if (viewMode === 'dataextraction') {
 
 ## Summary
 
-The PDF Content Extraction feature provides a powerful, AI-enhanced way to convert static PDF documents into structured, analyzable data with a comprehensive analysis interface. By integrating Datalab's Marker API for text extraction, GPT Vision for graph detection, and a rich Paper Analysis View for content exploration, users can quickly transform research papers and reports into machine-readable formats and gain deep insights.
+The PDF Content Extraction feature provides a powerful, AI-enhanced way to convert static PDF documents into structured, analyzable data with asynchronous background processing and comprehensive analysis interface. By integrating Datalab's Marker API for text extraction, GPT Vision for graph detection, Supabase for persistent storage, and a rich Paper Analysis View for content exploration, users can reliably transform research papers and reports into machine-readable formats without risk of data loss.
 
 **Key Strengths**:
-- Fast processing (30s - 5min)
+- **Asynchronous processing** (30s - 15min depending on plan)
+- **Job queue system** with persistent storage
+- **Extraction history** with retry capability
+- **No data loss** - survives page navigation
 - Five output formats (Markdown, Original Images, Tables, Full Response, GPT Analysis)
 - Intelligent graph detection with zoom/pan image viewing
 - **Comprehensive Paper Analysis View** with 4 tabs:
@@ -2688,6 +3009,7 @@ The PDF Content Extraction feature provides a powerful, AI-enhanced way to conve
   - Table browser with structured display
   - Graph gallery with AI analysis and reconstruction code
   - Data inspector with syntax-highlighted JSON
+- Browser-based Python execution (Pyodide)
 - Table extraction from markdown (frontend-based)
 - Drag & drop file upload
 - User-configurable options
@@ -2696,40 +3018,61 @@ The PDF Content Extraction feature provides a powerful, AI-enhanced way to conve
 
 **Integration Points**:
 - Accessible via "Data Extraction" tab
+- Extraction History embedded in same page
 - Follows ABCresearch design system
-- Seamless navigation between upload and analysis views
+- Seamless navigation between upload → monitor → view results
 - Consistent with existing API patterns
 - Type-safe implementation
+- Database-backed job tracking
 
 **Cost-Effective**:
-- ~$0.11 per PDF extraction
+- ~$0.11 per PDF extraction (API costs)
 - User control over cost/feature tradeoff
-- Future caching for 80% cost reduction
+- Results stored permanently in database
+- No re-processing needed for past extractions
 
 **User Experience**:
 - Modern drag & drop interface
+- Real-time progress tracking
+- Browser notifications for job completion
 - Interactive content exploration
 - Multiple viewing modes for different use cases
 - Download flexibility (per-component or full data)
-- Zero-friction workflow from upload to insights
+- Zero-friction workflow from upload → monitor → insights
+- Access past extractions anytime
+
+**Deployment Considerations**:
+- **Vercel Free Plan**: 5-minute timeout (OK for simple PDFs)
+- **Vercel Pro Plan**: 15-minute timeout (recommended for production)
+- Supabase storage for temporary PDF files
+- Database tables for job tracking and results
 
 ---
 
 
-**Feature Status**: Production Ready (Enhanced with Pyodide Rendering)  
-**Major Updates**:
-- **NEW**: Browser-based Python graph rendering with Pyodide WebAssembly
-- **NEW**: One-click execution of GPT-generated matplotlib code
-- **NEW**: Side-by-side comparison of original vs AI-reconstructed graphs
-- **NEW**: Visual verification of data extraction accuracy
-- Added Paper Analysis View with tabbed interface
+**Feature Status**: Production Ready (Enhanced with Async Job Queue & Pyodide Rendering)  
+**Major Updates (November 2025)**:
+- **NEW**: Asynchronous job queue system with database persistence
+- **NEW**: Extraction History embedded in Data Extraction page
+- **NEW**: Real-time progress tracking and browser notifications
+- **NEW**: Error recovery with retry functionality
+- **NEW**: Supabase storage integration for temporary files
+- **NEW**: Client-side worker triggering (Vercel workaround)
+- Browser-based Python graph rendering with Pyodide WebAssembly
+- One-click execution of GPT-generated matplotlib code
+- Side-by-side comparison of original vs AI-reconstructed graphs
+- Visual verification of data extraction accuracy
+- Paper Analysis View with tabbed interface
 - Integrated table extraction functionality
 - Enhanced UI with drag & drop support
 - Improved GPT prompt (temperature: 1, more detailed instructions)
-- Added zoom/pan for image viewing
+- Zoom/pan for image viewing
 - Syntax highlighting for code and JSON
 - Markdown rendering with GFM support
 
 **Related Documentation**:
-- See `PYODIDE_GRAPH_RENDERING.md` for detailed technical documentation on the Pyodide rendering feature
+- See `ASYNC_PDF_EXTRACTION_IMPLEMENTATION.md` for async job queue architecture
+- See `SETUP_ASYNC_PDF_EXTRACTION.md` for setup instructions
+- See `PYODIDE_GRAPH_RENDERING.md` for Pyodide rendering details
+- See `supabase/migrations/add_pdf_extraction_async.sql` for database schema
 

@@ -1,9 +1,13 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Upload, FileText, Download, X, Loader2, CheckCircle2, AlertCircle, Image } from 'lucide-react'
+import { Upload, FileText, Download, X, Loader2, CheckCircle2, AlertCircle, Image, RefreshCw } from 'lucide-react'
 import { PDFExtractionService, type PDFExtractionResult, type ExtractionOptions } from '@/services/pdfExtractionService'
+import { PDFExtractionJobService } from '@/services/pdfExtractionJobService'
+import type { PDFExtractionJob, PDFExtractionResultRecord } from '@/types/pdf-extraction-job'
+import { NotificationService } from '@/services/notificationService'
 import { PaperAnalysisView } from './PaperAnalysisView'
+import { ExtractionHistory } from './ExtractionHistory'
 
 export function PDFExtraction() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
@@ -14,6 +18,12 @@ export function PDFExtraction() {
   const [isDragging, setIsDragging] = useState(false)
   const [showAnalysisView, setShowAnalysisView] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  
+  // New async job state
+  const [currentJob, setCurrentJob] = useState<PDFExtractionJob | null>(null)
+  const [jobProgress, setJobProgress] = useState(0)
+  const [jobStage, setJobStage] = useState<string>('')
+  const pollingIntervalRef = useRef<number | null>(null)
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -58,28 +68,229 @@ export function PDFExtraction() {
     }
   }
 
+  // Request notification permission on mount
+  useEffect(() => {
+    NotificationService.requestPermission()
+  }, [])
+
+  // Clean up polling on unmount
+  useEffect(() => {
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current)
+      }
+    }
+  }, [])
+
   const handleExtractContent = async () => {
     if (!selectedFile) return
 
     setIsProcessing(true)
     setExtractionResult(null)
+    setJobProgress(0)
+    setJobStage('Submitting job...')
 
     try {
-      const options: ExtractionOptions = {
+      // Submit job
+      const response = await PDFExtractionJobService.submitJob(selectedFile, {
         enableGraphify,
         forceOCR: false,
         maxGraphifyImages: maxImages
+      })
+
+      if (!response.success || !response.job) {
+        throw new Error(response.error || 'Failed to submit job')
       }
 
-      const result = await PDFExtractionService.extractContent(selectedFile, options)
-      setExtractionResult(result)
+      const job = response.job
+      setCurrentJob(job)
+      setJobProgress(job.progress)
+      setJobStage(job.current_stage || 'Processing...')
+
+      console.log('Job submitted:', job.id)
+
+      // Start polling for updates
+      const pollJob = async () => {
+        const statusResponse = await PDFExtractionJobService.getJob(job.id)
+
+        if (!statusResponse.success || !statusResponse.job) {
+          console.error('Failed to get job status:', statusResponse.error)
+          return
+        }
+
+        const updatedJob = statusResponse.job
+        setCurrentJob(updatedJob)
+        setJobProgress(updatedJob.progress)
+        setJobStage(updatedJob.current_stage || 'Processing...')
+
+        // Check if completed or failed
+        if (updatedJob.status === 'completed' && statusResponse.result) {
+          // Convert result to legacy format for compatibility with PaperAnalysisView
+          const result = statusResponse.result
+          const blobs = PDFExtractionJobService.convertResultToBlobs(result)
+
+          setExtractionResult({
+            success: true,
+            jobId: updatedJob.id,
+            markdownContent: result.markdown_content || undefined,
+            markdownBlob: blobs.markdownBlob,
+            responseJson: result.response_json || undefined,
+            responseJsonBlob: blobs.responseJsonBlob,
+            originalImagesBlob: blobs.originalImagesBlob,
+            graphifyResults: result.graphify_results ? {
+              summary: result.graphify_results as any[],
+              graphifyJsonBlob: blobs.graphifyJsonBlob
+            } : undefined,
+            stats: {
+              imagesFound: result.images_found,
+              graphsDetected: result.graphs_detected,
+              processingTimeMs: result.processing_time_ms || 0,
+              tablesFound: result.tables_found
+            },
+            message: `Successfully extracted content from PDF${result.graphs_detected > 0 ? ` with ${result.graphs_detected} graph(s) detected` : ''}`
+          })
+
+          setIsProcessing(false)
+          if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current)
+            pollingIntervalRef.current = null
+          }
+
+          // Show notification
+          NotificationService.notifyJobComplete(selectedFile?.name || 'PDF', {
+            imagesFound: result.images_found,
+            graphsDetected: result.graphs_detected
+          })
+        } else if (updatedJob.status === 'failed') {
+          setExtractionResult({
+            success: false,
+            message: updatedJob.error_message || 'Extraction failed'
+          })
+          setIsProcessing(false)
+          if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current)
+            pollingIntervalRef.current = null
+          }
+
+          // Show notification
+          NotificationService.notifyJobFailed(
+            selectedFile?.name || 'PDF',
+            updatedJob.error_message || undefined
+          )
+        }
+      }
+
+      // Poll immediately
+      await pollJob()
+
+      // Set up polling interval (2 seconds)
+      pollingIntervalRef.current = window.setInterval(pollJob, 2000)
+
     } catch (error) {
       console.error('Error extracting content:', error)
       setExtractionResult({
         success: false,
         message: error instanceof Error ? error.message : 'Failed to extract PDF content. Please try again.'
       })
-    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  const handleRetryJob = async () => {
+    if (!currentJob || currentJob.status !== 'failed') return
+
+    setIsProcessing(true)
+    setExtractionResult(null)
+    setJobProgress(0)
+    setJobStage('Retrying...')
+
+    try {
+      const response = await PDFExtractionJobService.retryJob(currentJob.id)
+
+      if (!response.success || !response.job) {
+        throw new Error(response.error || 'Failed to retry job')
+      }
+
+      const job = response.job
+      setCurrentJob(job)
+
+      // Start polling again
+      const pollJob = async () => {
+        const statusResponse = await PDFExtractionJobService.getJob(job.id)
+
+        if (!statusResponse.success || !statusResponse.job) {
+          return
+        }
+
+        const updatedJob = statusResponse.job
+        setCurrentJob(updatedJob)
+        setJobProgress(updatedJob.progress)
+        setJobStage(updatedJob.current_stage || 'Processing...')
+
+        if (updatedJob.status === 'completed' && statusResponse.result) {
+          const result = statusResponse.result
+          const blobs = PDFExtractionJobService.convertResultToBlobs(result)
+
+          setExtractionResult({
+            success: true,
+            jobId: updatedJob.id,
+            markdownContent: result.markdown_content || undefined,
+            markdownBlob: blobs.markdownBlob,
+            responseJson: result.response_json || undefined,
+            responseJsonBlob: blobs.responseJsonBlob,
+            originalImagesBlob: blobs.originalImagesBlob,
+            graphifyResults: result.graphify_results ? {
+              summary: result.graphify_results as any[],
+              graphifyJsonBlob: blobs.graphifyJsonBlob
+            } : undefined,
+            stats: {
+              imagesFound: result.images_found,
+              graphsDetected: result.graphs_detected,
+              processingTimeMs: result.processing_time_ms || 0,
+              tablesFound: result.tables_found
+            },
+            message: `Successfully extracted content from PDF${result.graphs_detected > 0 ? ` with ${result.graphs_detected} graph(s) detected` : ''}`
+          })
+
+          setIsProcessing(false)
+          if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current)
+            pollingIntervalRef.current = null
+          }
+
+          // Show notification
+          NotificationService.notifyJobComplete(selectedFile?.name || 'PDF', {
+            imagesFound: result.images_found,
+            graphsDetected: result.graphs_detected
+          })
+        } else if (updatedJob.status === 'failed') {
+          setExtractionResult({
+            success: false,
+            message: updatedJob.error_message || 'Extraction failed'
+          })
+          setIsProcessing(false)
+          if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current)
+            pollingIntervalRef.current = null
+          }
+
+          // Show notification
+          NotificationService.notifyJobFailed(
+            selectedFile?.name || 'PDF',
+            updatedJob.error_message || undefined
+          )
+        }
+      }
+
+      await pollJob()
+      pollingIntervalRef.current = window.setInterval(pollJob, 2000)
+
+    } catch (error) {
+      console.error('Error retrying job:', error)
+      setExtractionResult({
+        success: false,
+        message: error instanceof Error ? error.message : 'Failed to retry job'
+      })
       setIsProcessing(false)
     }
   }
@@ -127,8 +338,9 @@ export function PDFExtraction() {
 
   return (
     <div className="min-h-screen w-full overflow-y-auto bg-gray-50">
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-6 py-10">
-        <Card className="w-full">
+      <div className="mx-auto flex w-full flex-col gap-6 px-6 py-10">
+        <div className="max-w-3xl w-full mx-auto">
+          <Card className="w-full">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <FileText className="h-6 w-6" />
@@ -266,13 +478,35 @@ export function PDFExtraction() {
             )}
           </Button>
 
-          {/* Loading State */}
+          {/* Loading State with Progress */}
           {isProcessing && (
-            <div className="flex items-center justify-center p-6 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="p-6 bg-blue-50 border border-blue-200 rounded-lg space-y-4">
               <div className="text-center">
-                <Loader2 className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-2" />
+                <Loader2 className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-3" />
                 <p className="text-sm font-medium text-gray-900">Processing PDF...</p>
-                <p className="text-xs text-gray-600 mt-1">Extracting tables from your document</p>
+                <p className="text-xs text-gray-600 mt-1">{jobStage || 'Initializing...'}</p>
+              </div>
+              
+              {/* Progress Bar */}
+              <div className="space-y-2">
+                <div className="flex justify-between text-xs text-gray-600">
+                  <span>Progress</span>
+                  <span>{jobProgress}%</span>
+                </div>
+                <div className="w-full bg-blue-100 rounded-full h-2 overflow-hidden">
+                  <div 
+                    className="bg-blue-600 h-full transition-all duration-300 ease-out"
+                    style={{ width: `${jobProgress}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* Stage Info */}
+              <div className="text-xs text-gray-500 text-center">
+                {jobProgress < 20 && '⏳ Uploading to processing server...'}
+                {jobProgress >= 20 && jobProgress < 80 && '📄 Extracting content from PDF...'}
+                {jobProgress >= 80 && jobProgress < 95 && '🔍 Analyzing images and graphs...'}
+                {jobProgress >= 95 && '✨ Finalizing results...'}
               </div>
             </div>
           )}
@@ -422,14 +656,33 @@ export function PDFExtraction() {
 
           {/* Error Result */}
           {extractionResult && !extractionResult.success && !isProcessing && (
-            <div className="flex items-start gap-3 p-4 bg-red-50 border border-red-200 rounded-lg">
-              <AlertCircle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <p className="text-sm font-medium text-red-900">Extraction Failed</p>
-                <p className="text-sm text-red-700 mt-1">
-                  {extractionResult.message || 'An error occurred while processing the PDF'}
-                </p>
+            <div className="space-y-3">
+              <div className="flex items-start gap-3 p-4 bg-red-50 border border-red-200 rounded-lg">
+                <AlertCircle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-red-900">Extraction Failed</p>
+                  <p className="text-sm text-red-700 mt-1">
+                    {extractionResult.message || 'An error occurred while processing the PDF'}
+                  </p>
+                  {currentJob && currentJob.retry_count < currentJob.max_retries && (
+                    <p className="text-xs text-red-600 mt-2">
+                      Retry attempt {currentJob.retry_count} of {currentJob.max_retries}
+                    </p>
+                  )}
+                </div>
               </div>
+
+              {/* Retry Button */}
+              {currentJob && currentJob.status === 'failed' && currentJob.retry_count < currentJob.max_retries && (
+                <Button
+                  onClick={handleRetryJob}
+                  variant="outline"
+                  className="w-full border-orange-300 text-orange-700 hover:bg-orange-50"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  Retry Extraction
+                </Button>
+              )}
             </div>
           )}
 
@@ -446,6 +699,12 @@ export function PDFExtraction() {
           )}
           </CardContent>
         </Card>
+        </div>
+
+        {/* Extraction History - Full width */}
+        <div className="w-full">
+          <ExtractionHistory />
+        </div>
       </div>
     </div>
   )

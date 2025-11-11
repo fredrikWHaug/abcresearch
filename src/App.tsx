@@ -4,6 +4,8 @@ import { AuthForm } from '@/components/auth/AuthForm'
 import { Dashboard } from '@/components/Dashboard'
 import { EntryChoice } from '@/components/EntryChoice'
 import { CreateProjectModal } from '@/components/CreateProjectModal'
+import { createProject } from '@/services/projectService'
+import '@/utils/runMigration' // Makes window.runMigration() available in console
 
 function AppContent() {
   const { user, loading, isGuest } = useAuth()
@@ -11,6 +13,8 @@ function AppContent() {
   const [showSavedMaps, setShowSavedMaps] = useState(false)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [projectName, setProjectName] = useState('')
+  const [projectId, setProjectId] = useState<number | null>(null)
+  const [creatingProject, setCreatingProject] = useState(false)
 
   // Reset entry choice when user logs out
   React.useEffect(() => {
@@ -57,19 +61,54 @@ function AppContent() {
         <CreateProjectModal
           isOpen={showCreateModal}
           onClose={() => setShowCreateModal(false)}
-          onConfirm={(name) => {
-            setProjectName(name)
-            setShowCreateModal(false)
-            setShowSavedMaps(false)
-            setHasChosenEntry(true)
+          onConfirm={async (name) => {
+            console.log('🟢 [App] CreateProjectModal onConfirm called with name:', name)
+            console.log('🟢 [App] Current user state:', { user: !!user, isGuest })
+            
+            // Block guest users from creating projects
+            if (isGuest) {
+              console.warn('⚠️ [App] Guest users cannot create projects')
+              alert('Guest users cannot create projects. Please sign up or sign in to create projects.')
+              return
+            }
+            
+            try {
+              setCreatingProject(true)
+              console.log('🟢 [App] Calling createProject service...')
+              
+              // Save project to database
+              const project = await createProject(name)
+              
+              console.log('✅ [App] Project created successfully:', project)
+              
+              // Set project state
+              setProjectName(project.name)
+              setProjectId(project.id)
+              setShowCreateModal(false)
+              setShowSavedMaps(false)
+              setHasChosenEntry(true)
+            } catch (error) {
+              console.error('❌ [App] Error creating project:', error)
+              
+              const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+              alert(`Failed to create project: ${errorMessage}\n\nPlease check the browser console for more details.`)
+            } finally {
+              setCreatingProject(false)
+            }
           }}
         />
       </>
     )
   }
 
-  // Show dashboard with saved maps preference
-  return <Dashboard initialShowSavedMaps={showSavedMaps} projectName={projectName} />
+  // Show dashboard with saved maps preference and project ID
+  return (
+    <Dashboard 
+      initialShowSavedMaps={showSavedMaps} 
+      projectName={projectName}
+      projectId={projectId}
+    />
+  )
 }
 
 function App() {

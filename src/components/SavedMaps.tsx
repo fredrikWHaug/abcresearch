@@ -8,9 +8,10 @@ import { Loader2, Trash2, Calendar, Search, FileText } from 'lucide-react';
 interface SavedMapsProps {
   onLoadMap: (map: SavedMarketMap) => void;
   onDeleteMap: (id: number) => void;
+  currentProjectId?: number | null;
 }
 
-export function SavedMaps({ onLoadMap, onDeleteMap }: SavedMapsProps) {
+export function SavedMaps({ onLoadMap, onDeleteMap, currentProjectId }: SavedMapsProps) {
   const [savedMaps, setSavedMaps] = useState<SavedMarketMap[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -18,13 +19,13 @@ export function SavedMaps({ onLoadMap, onDeleteMap }: SavedMapsProps) {
 
   useEffect(() => {
     loadSavedMaps();
-  }, []);
+  }, [currentProjectId]);
 
   const loadSavedMaps = async () => {
     try {
       setLoading(true);
       setError(null);
-      const maps = await MarketMapService.getUserMarketMaps();
+      const maps = await MarketMapService.getUserMarketMaps(currentProjectId);
       setSavedMaps(maps);
     } catch (err) {
       console.error('Error loading saved maps:', err);
@@ -88,7 +89,11 @@ export function SavedMaps({ onLoadMap, onDeleteMap }: SavedMapsProps) {
     return (
       <div className="w-full h-full flex items-center justify-center min-h-0">
         <div className="text-center text-gray-500">
-          <p>Generate and save your first market map to see it here.</p>
+          <p>
+            {currentProjectId 
+              ? 'No saved maps in this project yet. Generate and save a market map to see it here.'
+              : 'Generate and save your first market map to see it here.'}
+          </p>
         </div>
       </div>
     );

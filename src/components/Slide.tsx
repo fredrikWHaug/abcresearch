@@ -36,6 +36,7 @@ interface SlideProps {
   trials?: ClinicalTrial[];
   chatHistory?: Array<{type: 'user' | 'system', message: string, searchSuggestions?: Array<{id: string, label: string, query: string, description?: string}>}>;
   papers?: any[];
+  currentProjectId?: number | null;
   onSaveSuccess?: () => void;
 }
 
@@ -190,7 +191,7 @@ const generatePrintHTML = (slideData: SlideData, query: string) => {
   `;
 };
 
-export function Slide({ slideData, onClose, query, trials = [], chatHistory = [], papers = [], onSaveSuccess }: SlideProps) {
+export function Slide({ slideData, onClose, query, trials = [], chatHistory = [], papers = [], currentProjectId = null, onSaveSuccess }: SlideProps) {
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [saveName, setSaveName] = useState('');
   const [saving, setSaving] = useState(false);
@@ -251,7 +252,7 @@ export function Slide({ slideData, onClose, query, trials = [], chatHistory = []
         slide_data: slideData,
         chat_history: chatHistory,
         papers_data: papers,
-      });
+      }, currentProjectId);
       
       setShowSaveDialog(false);
       setSaveName('');
