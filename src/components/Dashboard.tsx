@@ -356,6 +356,7 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '' }: Da
         normalizedName: drugName.toLowerCase(),
         papers: sortedPapers,
         trials: sortedTrials,
+        pressReleases: [],
         totalResults: sortedPapers.length + sortedTrials.length
       };
       
