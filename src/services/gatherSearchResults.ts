@@ -3,10 +3,9 @@
 // Contains business logic for searching across multiple data sources
 
 import type { ClinicalTrial, SearchParams } from '@/types/trials';
-import type { PubMedArticle } from '@/types/papers';
+import type { PubMedArticle, PubMedSearchParams } from '@/types/papers';
 import type { PressRelease } from '@/types/press-releases';
 import type { IRDeck } from '@/types/ir-decks';
-import { pubmedAPI } from './pubmedAPI';
 import { TrialRankingService } from './trialRankingService';
 
 interface SearchStrategy {
@@ -323,6 +322,31 @@ export class GatherSearchResultsService {
   }
 
   /**
+   * Search PubMed for papers using API endpoint
+   */
+  private static async searchPapers(params: PubMedSearchParams): Promise<PubMedArticle[]> {
+    try {
+      const response = await fetch(buildApiUrl('/api/search-papers'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(params)
+      });
+
+      if (!response.ok) {
+        throw new Error(`API request failed: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      return data.papers || [];
+    } catch (error) {
+      console.error('PubMed search error:', error);
+      throw new Error('Failed to search PubMed');
+    }
+  }
+
+  /**
    * Search for research papers using phrase-based discovery strategies
    * Uses all 5 LLM-generated queries to maximize paper discovery
    */
@@ -337,7 +361,7 @@ export class GatherSearchResultsService {
       const paperSearches = await Promise.all(
         strategies.map(async (strategy) => {
           try {
-            const papers = await pubmedAPI.searchPapers({
+            const papers = await this.searchPapers({
               query: `${strategy.query} AND ("Clinical Trial"[Publication Type] OR "Randomized Controlled Trial"[Publication Type])`,
               maxResults: 30
             });
@@ -497,7 +521,7 @@ export class GatherSearchResultsService {
       // Search trials, papers, press releases, and IR decks in parallel
       const [trialsResult, papers, pressReleases, irDecks] = await Promise.all([
         this.searchTrials(params),
-        pubmedAPI.searchPapers({
+        this.searchPapers({
           query: `${userQuery} AND ("Clinical Trial"[Publication Type] OR "Randomized Controlled Trial"[Publication Type])`,
           maxResults: 30
         }),
