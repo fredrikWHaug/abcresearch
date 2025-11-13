@@ -3,12 +3,16 @@
 
 import type { PubMedArticle } from '@/types/papers';
 import type { ClinicalTrial } from '@/types/trials';
+import type { PressRelease } from '@/types/press-releases';
+import type { IRDeck } from '@/types/ir-decks';
 
 export interface DrugGroup {
   drugName: string;
   normalizedName: string;
   papers: PubMedArticle[];
   trials: ClinicalTrial[];
+  pressReleases: PressRelease[];
+  irDecks: IRDeck[];
   totalResults: number;
 }
 
@@ -55,6 +59,8 @@ export class DrugGroupingService {
             normalizedName: normalized.toLowerCase(),
             papers: [],
             trials: [],
+            pressReleases: [],
+            irDecks: [],
             totalResults: 0,
           });
         }
@@ -82,6 +88,8 @@ export class DrugGroupingService {
             normalizedName: normalized.toLowerCase(),
             papers: [],
             trials: [],
+            pressReleases: [],
+            irDecks: [],
             totalResults: 0,
           });
         }
