@@ -1,9 +1,34 @@
 // Paper Linking Service
 // Links academic papers to clinical trials based on various criteria
 
-import { pubmedAPI } from './pubmedAPI';
-import type { PubMedArticle } from '@/types/papers';
+import type { PubMedArticle, PubMedSearchParams } from '@/types/papers';
 import type { ClinicalTrial } from '@/types/trials';
+
+/**
+ * Get API base URL - handles both browser and test environments
+ */
+function getApiBaseUrl(): string {
+  // In test environment, use TEST_SERVER_URL if provided
+  if (typeof process !== 'undefined' && process.env?.TEST_SERVER_URL) {
+    return process.env.TEST_SERVER_URL;
+  }
+  
+  // In browser, relative URLs work fine
+  if (typeof window !== 'undefined') {
+    return '';
+  }
+  
+  // In Node.js without TEST_SERVER_URL, use localhost (fallback)
+  return 'http://localhost:5173';
+}
+
+/**
+ * Build full API URL for fetch calls
+ */
+function buildApiUrl(path: string): string {
+  const baseUrl = getApiBaseUrl();
+  return `${baseUrl}${path}`;
+}
 
 export interface PaperTrialLink {
   trial: ClinicalTrial;
@@ -14,6 +39,51 @@ export interface PaperTrialLink {
 
 export class PaperLinkingService {
   /**
+   * Search PubMed for papers using API endpoint
+   */
+  private static async searchPapers(params: PubMedSearchParams): Promise<PubMedArticle[]> {
+    try {
+      const response = await fetch(buildApiUrl('/api/search-papers'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(params)
+      });
+
+      if (!response.ok) {
+        throw new Error(`API request failed: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      return data.papers || [];
+    } catch (error) {
+      console.error('PubMed search error:', error);
+      throw new Error('Failed to search PubMed');
+    }
+  }
+
+  /**
+   * Find papers for a specific clinical trial
+   */
+  private static async findPapersForTrialByNCT(nctId: string): Promise<PubMedArticle[]> {
+    const query = `${nctId}[Title/Abstract] OR ${nctId}[Secondary Source ID]`;
+    return this.searchPapers({ query, maxResults: 10 });
+  }
+
+  /**
+   * Search for papers by drug and condition
+   */
+  private static async searchByDrugCondition(drug: string, condition: string): Promise<PubMedArticle[]> {
+    const query = `"${drug}" AND "${condition}" AND ("Clinical Trial"[Publication Type] OR "Randomized Controlled Trial"[Publication Type])`;
+    return this.searchPapers({ 
+      query, 
+      maxResults: 20,
+      startDate: '2020/01/01'
+    });
+  }
+
+  /**
    * Find papers for a single clinical trial
    */
   static async findPapersForTrial(trial: ClinicalTrial): Promise<PaperTrialLink> {
@@ -22,7 +92,7 @@ export class PaperLinkingService {
 
     try {
       // 1. Direct NCT ID search
-      const nctPapers = await pubmedAPI.findPapersForTrial(trial.nctId);
+      const nctPapers = await this.findPapersForTrialByNCT(trial.nctId);
       if (nctPapers.length > 0) {
         papers.push(...nctPapers);
         linkReasons.push(`Direct NCT ID match: ${nctPapers.length} papers`);
@@ -32,7 +102,7 @@ export class PaperLinkingService {
       if (trial.interventions && trial.conditions) {
         for (const drug of trial.interventions.slice(0, 2)) { // Limit to first 2 drugs
           for (const condition of trial.conditions.slice(0, 2)) { // Limit to first 2 conditions
-            const drugConditionPapers = await pubmedAPI.searchByDrugCondition(drug, condition);
+            const drugConditionPapers = await this.searchByDrugCondition(drug, condition);
             papers.push(...drugConditionPapers);
           }
         }
@@ -42,7 +112,7 @@ export class PaperLinkingService {
       // 3. Search by sponsor if available
       if (trial.sponsors?.lead) {
         const sponsorQuery = `"${trial.sponsors.lead}"[Author] AND ("Clinical Trial"[Publication Type] OR "Randomized Controlled Trial"[Publication Type])`;
-        const sponsorPapers = await pubmedAPI.searchPapers({ 
+        const sponsorPapers = await this.searchPapers({ 
           query: sponsorQuery, 
           maxResults: 10 
         });
@@ -103,7 +173,7 @@ export class PaperLinkingService {
   }> {
     try {
       // Search for papers related to the overall query
-      const queryPapers = await pubmedAPI.searchPapers({
+      const queryPapers = await this.searchPapers({
         query: `${query} AND ("Clinical Trial"[Publication Type] OR "Randomized Controlled Trial"[Publication Type])`,
         maxResults: 50
       });
