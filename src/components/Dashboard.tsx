@@ -1,12 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import React, { useState, useEffect } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
-import { LogOut, Send, Menu, ArrowUp } from 'lucide-react'
+import { LogOut, Menu, ArrowUp } from 'lucide-react'
 import { MarketMap } from '@/components/MarketMap'
-import { TrialsList } from '@/components/TrialsList'
 import { SavedMaps } from '@/components/SavedMaps'
-import { PapersDiscovery } from '@/components/PapersDiscovery'
 import { DrugsList } from '@/components/DrugsList'
 import { DrugDetail } from '@/components/DrugDetail'
 import { DrugDetailModal } from '@/components/DrugDetailModal'
@@ -15,11 +11,9 @@ import { PDFExtraction } from '@/components/PDFExtraction'
 import { RealtimeFeed } from '@/components/RealtimeFeed'
 import { GatherSearchResultsService } from '@/services/gatherSearchResults'
 import type { PubMedArticle } from '@/types/papers'
-import { MarketMapService, type SavedMarketMap } from '@/services/marketMapService'
-import { DrugGroupingService, type DrugGroup } from '@/services/drugGroupingService'
+import type { SavedMarketMap } from '@/services/marketMapService'
+import type { DrugGroup } from '@/services/drugGroupingService'
 import { ExtractDrugNamesService } from '@/services/extractDrugNames'
-import { pubmedAPI } from '@/services/pubmedAPI'
-import { supabase } from '@/lib/supabase'
 import type { ClinicalTrial } from '@/types/trials'
 import type { SlideData } from '@/services/slideAPI'
 import type { PressRelease } from '@/types/press-releases'
@@ -204,11 +198,10 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
   }>>([])
   const [hasSearched, setHasSearched] = useState(false)
   const [papers, setPapers] = useState<PubMedArticle[]>([])
-  const [pressReleases, setPressReleases] = useState<PressRelease[]>([])
-  const [irDecks, setIRDecks] = useState<IRDeck[]>([])
-  const [papersLoading, setPapersLoading] = useState(false)
+  const [, setPressReleases] = useState<PressRelease[]>([])
+  const [, setIRDecks] = useState<IRDeck[]>([])
+  const [, setPapersLoading] = useState(false)
   const [viewMode, setViewMode] = useState<'research' | 'marketmap' | 'savedmaps' | 'pipeline' | 'dataextraction' | 'realtimefeed'>(initialShowSavedMaps ? 'savedmaps' : 'research')
-  const [researchTab, setResearchTab] = useState<'trials' | 'papers'>('papers')
   const [slideData, setSlideData] = useState<SlideData | null>(null)
   const [generatingSlide, setGeneratingSlide] = useState(false)
   const [slideError, setSlideError] = useState<string | null>(null)
@@ -384,7 +377,7 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
       // Clear search results when switching projects
       setTrials([])
       setPapers([])
-      setPreprints([])
+      setPressReleases([])
       setLastQuery('')
       setMessage('')
       setDrugGroups([])
@@ -403,7 +396,7 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
   const [showDrugModal, setShowDrugModal] = useState(false)
   
   // Two-stage search state
-  const [extractingDrugs, setExtractingDrugs] = useState(false)
+  const [, setExtractingDrugs] = useState(false)
   const [searchProgress, setSearchProgress] = useState({ current: 0, total: 0 })
   const [initialSearchQueries, setInitialSearchQueries] = useState<{
     originalQuery: string;
@@ -734,10 +727,6 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
       setPapers(initialResult.papers);
       setPressReleases(initialResult.pressReleases);
       setIRDecks(initialResult.irDecks || []);
-
-      // Calculate total stats
-      const totalTrials = filteredDrugGroups.reduce((sum, g) => sum + g.trials.length, 0);
-      const totalPapers = filteredDrugGroups.reduce((sum, g) => sum + g.papers.length, 0);
 
       // Add final message to chat
       setChatHistory(prev => [...prev, {
