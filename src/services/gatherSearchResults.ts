@@ -4,10 +4,10 @@
 
 import type { ClinicalTrial, SearchParams } from '@/types/trials';
 import type { PubMedArticle } from '@/types/papers';
-import type { BioRxivPreprint } from '@/types/preprints';
+import type { PressRelease } from '@/types/press-releases';
+import type { IRDeck } from '@/types/ir-decks';
 import { pubmedAPI } from './pubmedAPI';
 import { TrialRankingService } from './trialRankingService';
-import { searchBioRxivWithDefaults } from './biorxivService';
 
 interface SearchStrategy {
   query: string;
@@ -35,7 +35,8 @@ export interface StrategyResult {
 export interface GatherSearchResultsResponse {
   trials: ClinicalTrial[];
   papers: PubMedArticle[];
-  preprints: BioRxivPreprint[];
+  pressReleases: PressRelease[];
+  irDecks: IRDeck[];
   totalCount: number;
   searchStrategies: StrategyResult[];
   strategiesUsed: number;
@@ -370,21 +371,73 @@ export class GatherSearchResultsService {
   }
 
   /**
-   * Search for preprints from bioRxiv/medRxiv
-   * Searches both servers for recent preprints (last 6 months by default)
+   * Search for press releases from news sources
+   * Searches recent press releases (last 30 days by default)
    */
-  private static async searchPreprints(userQuery: string): Promise<BioRxivPreprint[]> {
+  private static async searchPressReleases(userQuery: string): Promise<PressRelease[]> {
     try {
-      console.log(`📋 Searching bioRxiv/medRxiv preprints...`);
+      console.log(`📰 Searching press releases...`);
 
-      const preprints = await searchBioRxivWithDefaults(userQuery);
+      const response = await fetch(buildApiUrl('/api/search-press-releases'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          query: userQuery,
+          maxResults: 30
+        })
+      });
 
-      console.log(`  ✓ Found ${preprints.length} preprints`);
+      if (!response.ok) {
+        throw new Error(`Press releases API error: ${response.statusText}`);
+      }
 
-      return preprints;
+      const data = await response.json();
+      const pressReleases = data.pressReleases || [];
+
+      console.log(`  ✓ Found ${pressReleases.length} press releases`);
+
+      return pressReleases;
     } catch (error) {
-      console.error('Error searching preprints:', error);
-      // Don't throw - just return empty array if preprints fail
+      console.error('Error searching press releases:', error);
+      // Don't throw - just return empty array if press releases fail
+      return [];
+    }
+  }
+
+  /**
+   * Search for IR decks from SEC EDGAR
+   * Searches company SEC filings (investor relations materials)
+   */
+  private static async searchIRDecks(userQuery: string): Promise<IRDeck[]> {
+    try {
+      console.log(`📊 Searching IR decks...`);
+
+      const response = await fetch(buildApiUrl('/api/search-ir-decks'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          query: userQuery,
+          maxResults: 20
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`IR decks API error: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      const irDecks = data.irDecks || [];
+
+      console.log(`  ✓ Found ${irDecks.length} IR decks`);
+
+      return irDecks;
+    } catch (error) {
+      console.error('Error searching IR decks:', error);
+      // Don't throw - just return empty array if IR decks fail
       return [];
     }
   }
@@ -400,26 +453,29 @@ export class GatherSearchResultsService {
       console.log(`   Strategy: Phrase-based discovery (NOT drug-specific)`);
       console.log('=' .repeat(80));
       
-      // Search clinical trials, research papers, and preprints in parallel
+      // Search clinical trials, research papers, press releases, and IR decks in parallel
       // Trials and papers each use 5 LLM-generated phrase-based queries
-      const [trialsResult, papers, preprints] = await Promise.all([
+      const [trialsResult, papers, pressReleases, irDecks] = await Promise.all([
         this.searchClinicalTrials(userQuery),
         this.searchResearchPapers(userQuery),
-        this.searchPreprints(userQuery)
+        this.searchPressReleases(userQuery),
+        this.searchIRDecks(userQuery)
       ]);
 
       console.log(`\n✅ Discovery search complete!`);
       console.log(`   Unique trials: ${trialsResult.trials.length}`);
       console.log(`   Unique papers: ${papers.length}`);
-      console.log(`   Unique preprints: ${preprints.length}`);
+      console.log(`   Press releases: ${pressReleases.length}`);
+      console.log(`   IR decks: ${irDecks.length}`);
       console.log(`   Discovery strategies: ${trialsResult.searchStrategies.length}`);
-      console.log(`   → Now extract drug names from these ${trialsResult.trials.length + papers.length + preprints.length} results`);
+      console.log(`   → Now extract drug names from these ${trialsResult.trials.length + papers.length + pressReleases.length + irDecks.length} results`);
       console.log('=' .repeat(80) + '\n');
 
       return {
         trials: trialsResult.trials,
         papers: papers,
-        preprints: preprints,
+        pressReleases: pressReleases,
+        irDecks: irDecks,
         totalCount: trialsResult.trials.length,
         searchStrategies: trialsResult.searchStrategies,
         strategiesUsed: trialsResult.searchStrategies.length
@@ -438,14 +494,15 @@ export class GatherSearchResultsService {
       // Parse query and search directly
       const params = this.parseQuery(userQuery);
 
-      // Search trials, papers, and preprints in parallel
-      const [trialsResult, papers, preprints] = await Promise.all([
+      // Search trials, papers, press releases, and IR decks in parallel
+      const [trialsResult, papers, pressReleases, irDecks] = await Promise.all([
         this.searchTrials(params),
         pubmedAPI.searchPapers({
           query: `${userQuery} AND ("Clinical Trial"[Publication Type] OR "Randomized Controlled Trial"[Publication Type])`,
           maxResults: 30
         }),
-        this.searchPreprints(userQuery)
+        this.searchPressReleases(userQuery),
+        this.searchIRDecks(userQuery)
       ]);
 
       // Apply ranking
@@ -454,7 +511,8 @@ export class GatherSearchResultsService {
       return {
         trials: rankedTrials,
         papers: papers,
-        preprints: preprints,
+        pressReleases: pressReleases,
+        irDecks: irDecks,
         totalCount: rankedTrials.length,
         searchStrategies: [{
           strategy: {
