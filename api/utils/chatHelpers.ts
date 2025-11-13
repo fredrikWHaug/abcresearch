@@ -24,6 +24,18 @@ export interface ContextPaper {
   authors: string[];
 }
 
+export interface ContextPressRelease {
+  id: string;
+  title: string;
+  company: string;
+  releaseDate: string;
+  summary: string;
+  fullText?: string;
+  source: string;
+  url?: string;
+  keyAnnouncements?: string[];
+}
+
 /**
  * Build conversation context from chat history
  * Takes last 6 messages and formats them for the AI prompt
@@ -125,11 +137,11 @@ export function generateSearchSuggestions(
 }
 
 /**
- * Build system prompt with context papers (ABC-39)
- * Papers persist in system prompt across the conversation
+ * Build system prompt with context papers and press releases (ABC-39, HW9)
+ * Papers and press releases persist in system prompt across the conversation
  */
-export function buildSystemPrompt(contextPapers?: ContextPaper[]): string {
-  if (!contextPapers || contextPapers.length === 0) {
+export function buildSystemPrompt(contextPapers?: ContextPaper[], contextPressReleases?: ContextPressRelease[]): string {
+  if ((!contextPapers || contextPapers.length === 0) && (!contextPressReleases || contextPressReleases.length === 0)) {
     return `You are a thoughtful medical research consultant having a natural conversation with a user. Your goal is to LISTEN and respond naturally to what they're actually saying.
 
 CRITICAL RULES:
@@ -185,15 +197,18 @@ Hey! How can I help you today?
 The metadata helps the system understand if you think the user wants research results.`;
   }
 
-  // Build context papers with citation numbers
-  let papersContext = `You are a thoughtful medical research consultant with access to the following research papers. The user has selected these papers as relevant context for the conversation.
-
-REFERENCE PAPERS:
+  // Build context with papers and press releases
+  let contextPrompt = `You are a thoughtful medical research consultant with access to selected reference materials. The user has chosen these as relevant context for the conversation.
 `;
 
-  contextPapers.forEach((paper, index) => {
-    const citationNum = index + 1;
-    papersContext += `
+  // Add papers if available
+  if (contextPapers && contextPapers.length > 0) {
+    contextPrompt += `
+REFERENCE PAPERS:
+`;
+    contextPapers.forEach((paper, index) => {
+      const citationNum = index + 1;
+      contextPrompt += `
 [${citationNum}] ${paper.title}
 Authors: ${paper.authors.slice(0, 3).join(', ')}${paper.authors.length > 3 ? ' et al.' : ''}
 Journal: ${paper.journal} (${paper.publicationDate})
@@ -201,27 +216,49 @@ PMID: ${paper.pmid}
 Abstract: ${paper.abstract}
 
 `;
-  });
+    });
+  }
 
-  papersContext += `
-INSTRUCTIONS FOR USING PAPERS:
+  // Add press releases if available
+  if (contextPressReleases && contextPressReleases.length > 0) {
+    contextPrompt += `
+PRESS RELEASES:
+`;
+    contextPressReleases.forEach((pr, index) => {
+      const citationNum = index + 1;
+      contextPrompt += `
+[PR${citationNum}] ${pr.title}
+Company: ${pr.company}
+Date: ${pr.releaseDate}
+Source: ${pr.source}
+Summary: ${pr.summary}
+${pr.fullText ? `Full Text: ${pr.fullText.substring(0, 500)}...` : ''}
+${pr.keyAnnouncements && pr.keyAnnouncements.length > 0 ? `Key Announcements: ${pr.keyAnnouncements.join(', ')}` : ''}
+
+`;
+    });
+  }
+
+  contextPrompt += `
+INSTRUCTIONS FOR USING REFERENCES:
 - When referencing a paper, cite it using its number: [1], [2], etc.
-- If the user asks about findings, mechanisms, or results, reference the relevant paper(s)
-- You can compare papers if the user asks (e.g., "how does [1] compare to [2]?")
-- If asked about "the first paper" or "Paper 2", understand they mean [1] and [2] respectively
-- Only cite papers when relevant to the user's question
+- When referencing a press release, cite it using [PR1], [PR2], etc.
+- If the user asks about findings, mechanisms, or results, reference the relevant source(s)
+- You can compare sources if the user asks (e.g., "how does [1] compare to [PR1]?")
+- Press releases may contain company announcements, clinical trial results, or business updates
+- Only cite sources when relevant to the user's question
 - Be natural and conversational, not robotic
 
 CONVERSATIONAL RULES:
 1. ACTUALLY READ what the user just said - respond to their ACTUAL message
-2. If they ask a question, ANSWER IT directly using the papers if relevant
+2. If they ask a question, ANSWER IT directly using the references if relevant
 3. Be conversational and human-like, not a scripted chatbot
-4. Cite papers naturally in your response: "According to [1], the primary finding was..."
+4. Cite sources naturally: "According to [1], the primary finding was..." or "The press release [PR1] announced..."
 5. Write ONLY actual dialogue - NO stage directions like "*smiles*" or actions in asterisks
 
-Tone: Natural, conversational, genuinely helpful. Like a smart colleague discussing research papers.`;
+Tone: Natural, conversational, genuinely helpful. Like a smart colleague discussing research materials.`;
 
-  return papersContext;
+  return contextPrompt;
 }
 
 /**

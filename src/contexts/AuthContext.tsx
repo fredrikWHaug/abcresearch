@@ -93,10 +93,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signInWithOAuth = async (provider: 'google' | 'github') => {
+    // Use localhost for development, window.location.origin for production
+    const isDevelopment = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    const redirectUrl = isDevelopment
+      ? `http://localhost:${window.location.port || '5173'}`
+      : window.location.origin
+
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
-        redirectTo: window.location.origin,
+        redirectTo: redirectUrl,
       },
     })
     return { data, error }

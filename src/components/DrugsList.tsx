@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ChevronRight, Pill, FileText, FlaskConical, Search, X, Target, Loader2 } from 'lucide-react';
+import { ChevronRight, Pill, FileText, FlaskConical, Search, X, Target, Loader2, Newspaper, FolderOpen } from 'lucide-react';
 import type { DrugGroup } from '@/services/drugGroupingService';
 import type { StrategyResult } from '@/services/gatherSearchResults';
 
@@ -154,6 +154,24 @@ export function DrugsList({ drugGroups, loading, query, onDrugClick, onDrugSpeci
                                 {drugGroup.trials.length}
                               </span>{' '}
                               trial{drugGroup.trials.length !== 1 ? 's' : ''}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <Newspaper className="h-4 w-4 text-gray-500" />
+                            <span className="text-sm text-gray-600">
+                              <span className="font-semibold text-gray-900">
+                                {drugGroup.pressReleases.length}
+                              </span>{' '}
+                              press release{drugGroup.pressReleases.length !== 1 ? 's' : ''}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <FolderOpen className="h-4 w-4 text-gray-500" />
+                            <span className="text-sm text-gray-600">
+                              <span className="font-semibold text-gray-900">
+                                {drugGroup.irDecks.length}
+                              </span>{' '}
+                              IR deck{drugGroup.irDecks.length !== 1 ? 's' : ''}
                             </span>
                           </div>
                         </div>

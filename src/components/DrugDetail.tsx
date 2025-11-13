@@ -3,8 +3,11 @@ import { Button } from '@/components/ui/button';
 import { ArrowLeft, Maximize2 } from 'lucide-react';
 import type { DrugGroup } from '@/services/drugGroupingService';
 import type { PubMedArticle } from '@/types/papers';
+import type { PressRelease } from '@/types/press-releases';
 import { PapersDiscovery } from './PapersDiscovery';
 import { TrialsList } from './TrialsList';
+import { PressReleasesDiscovery } from './PressReleasesDiscovery';
+import { IRDecksDiscovery } from './IRDecksDiscovery';
 
 interface DrugDetailProps {
   drugGroup: DrugGroup;
@@ -13,17 +16,21 @@ interface DrugDetailProps {
   onExpandFullscreen: () => void;
   onAddPaperToContext?: (paper: PubMedArticle) => void;
   isPaperInContext?: (pmid: string) => boolean;
+  onAddPressReleaseToContext?: (pressRelease: PressRelease) => void;
+  isPressReleaseInContext?: (id: string) => boolean;
 }
 
-export function DrugDetail({ 
-  drugGroup, 
-  query, 
-  onBack, 
+export function DrugDetail({
+  drugGroup,
+  query,
+  onBack,
   onExpandFullscreen,
   onAddPaperToContext,
-  isPaperInContext
+  isPaperInContext,
+  onAddPressReleaseToContext,
+  isPressReleaseInContext
 }: DrugDetailProps) {
-  const [activeTab, setActiveTab] = useState<'papers' | 'trials'>('papers');
+  const [activeTab, setActiveTab] = useState<'papers' | 'trials' | 'pressReleases' | 'irDecks'>('papers');
 
   return (
     <div className="w-full h-full flex flex-col">
@@ -56,7 +63,7 @@ export function DrugDetail({
 
         {/* Tab Toggle */}
         <div className="flex items-center justify-center mt-4">
-          <div className="flex rounded-lg bg-gray-100 p-1 w-[20rem]">
+          <div className="flex rounded-lg bg-gray-100 p-1 w-[40rem]">
             <button
               onClick={() => setActiveTab('papers')}
               className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
@@ -77,6 +84,26 @@ export function DrugDetail({
             >
               Trials ({drugGroup.trials.length})
             </button>
+            <button
+              onClick={() => setActiveTab('pressReleases')}
+              className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
+                activeTab === 'pressReleases'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Press Releases ({drugGroup.pressReleases.length})
+            </button>
+            <button
+              onClick={() => setActiveTab('irDecks')}
+              className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
+                activeTab === 'irDecks'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              IR Decks ({drugGroup.irDecks.length})
+            </button>
           </div>
         </div>
       </div>
@@ -92,11 +119,25 @@ export function DrugDetail({
             onAddPaperToContext={onAddPaperToContext}
             isPaperInContext={isPaperInContext}
           />
-        ) : (
+        ) : activeTab === 'trials' ? (
           <TrialsList
             trials={drugGroup.trials}
             loading={false}
             query={query}
+          />
+        ) : activeTab === 'pressReleases' ? (
+          <PressReleasesDiscovery
+            pressReleases={drugGroup.pressReleases}
+            query={query}
+            loading={false}
+            onAddPressReleaseToContext={onAddPressReleaseToContext}
+            isPressReleaseInContext={isPressReleaseInContext}
+          />
+        ) : (
+          <IRDecksDiscovery
+            irDecks={drugGroup.irDecks}
+            query={query}
+            loading={false}
           />
         )}
       </div>
