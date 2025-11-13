@@ -6,7 +6,8 @@ interface EntryChoiceProps {
   onOpenExisting: () => void;
   onStartNew: () => void;
 }
-
+//TODO: Add profile after login on the top right with enterprise settings to allow adding teammates
+//Show all the projects a user has as well as create new project
 export function EntryChoice({ onOpenExisting, onStartNew }: EntryChoiceProps) {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-6">
