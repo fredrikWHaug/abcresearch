@@ -105,7 +105,7 @@ export const PapersDiscovery: React.FC<PapersDiscoveryProps> = ({
                         <Badge variant="default">{paper.nctNumber}</Badge>
                       )}
                       {/* Drug keywords extracted by Gemini from this paper */}
-                      {paper.extractedDrugs && paper.extractedDrugs.slice(0, 3).map((drug, idx) => (
+                      {paper.extractedDrugs && paper.extractedDrugs.slice(0, 3).map((drug: string, idx: number) => (
                         <Badge 
                           key={idx}
                           className="text-xs bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-200"

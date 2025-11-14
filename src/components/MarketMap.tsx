@@ -318,7 +318,7 @@ export function MarketMap({
                         </span>
                       )}
                       {/* Drug keywords extracted by Gemini from this trial */}
-                      {trial.extractedDrugs && trial.extractedDrugs.slice(0, 3).map((drug, idx) => (
+                      {trial.extractedDrugs && trial.extractedDrugs.slice(0, 3).map((drug: string, idx: number) => (
                         <Badge 
                           key={idx}
                           className="text-xs bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-200"
