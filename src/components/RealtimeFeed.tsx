@@ -32,7 +32,7 @@ export function RealtimeFeed() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
 
-      const response = await fetch('/api/rss-feed-watch', {
+      const response = await fetch('/api/rss-feeds?action=watch', {
         headers: {
           Authorization: `Bearer ${session.access_token}`,
         },
@@ -55,8 +55,8 @@ export function RealtimeFeed() {
       // When viewing a specific feed, load ALL updates (no date filter)
       // When viewing all feeds, show last 30 days
       const url = feedId 
-        ? `/api/rss-feed-updates?feedId=${feedId}&days=9999`
-        : '/api/rss-feed-updates?days=30';
+        ? `/api/rss-feeds?action=updates&feedId=${feedId}&days=9999`
+        : '/api/rss-feeds?action=updates&days=30';
 
       const response = await fetch(url, {
         headers: {
@@ -128,7 +128,7 @@ export function RealtimeFeed() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
 
-      const response = await fetch('/api/rss-feed-watch', {
+      const response = await fetch('/api/rss-feeds?action=watch', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -177,7 +177,7 @@ export function RealtimeFeed() {
       // Build new RSS URL
       const newFeedUrl = `https://clinicaltrials.gov/api/rss?intr=${encodeURIComponent(editSearchTerm.trim())}&locStr=USA&country=US&dateField=LastUpdatePostDate`;
 
-      const response = await fetch('/api/rss-feed-watch', {
+      const response = await fetch('/api/rss-feeds?action=watch', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -216,7 +216,7 @@ export function RealtimeFeed() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
 
-      const response = await fetch('/api/rss-feed-watch', {
+      const response = await fetch('/api/rss-feeds?action=watch', {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
@@ -245,7 +245,7 @@ export function RealtimeFeed() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
 
-      const response = await fetch('/api/rss-feed-refresh', {
+      const response = await fetch('/api/rss-feeds?action=refresh', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
