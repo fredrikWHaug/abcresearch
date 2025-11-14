@@ -43,7 +43,7 @@ export class PaperLinkingService {
    */
   private static async searchPapers(params: PubMedSearchParams): Promise<PubMedArticle[]> {
     try {
-      const response = await fetch(buildApiUrl('/api/search-papers'), {
+      const response = await fetch(buildApiUrl('/api/search?type=papers'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -25,7 +25,7 @@ export class PDFExtractionJobService {
       await new Promise(resolve => setTimeout(resolve, 500))
       
       // Get job details to find file key
-      const jobResponse = await fetch(`/api/get-pdf-job?jobId=${jobId}`, {
+      const jobResponse = await fetch(`/api/pdf-jobs?jobId=${jobId}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -158,7 +158,7 @@ export class PDFExtractionJobService {
         }
       }
 
-      const response = await fetch(`/api/get-pdf-job?jobId=${jobId}`, {
+      const response = await fetch(`/api/pdf-jobs?jobId=${jobId}`, {
         headers: {
           'Authorization': `Bearer ${session.access_token}`
         }
@@ -205,7 +205,7 @@ export class PDFExtractionJobService {
       if (filters?.projectId) params.append('projectId', String(filters.projectId))
       if (filters?.limit) params.append('limit', String(filters.limit))
 
-      const response = await fetch(`/api/list-pdf-jobs?${params.toString()}`, {
+      const response = await fetch(`/api/pdf-jobs?action=list&${params.toString()}`, {
         headers: {
           'Authorization': `Bearer ${session.access_token}`
         }
@@ -242,7 +242,7 @@ export class PDFExtractionJobService {
         }
       }
 
-      const response = await fetch('/api/retry-pdf-job', {
+      const response = await fetch('/api/pdf-jobs?action=retry', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,

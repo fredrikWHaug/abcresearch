@@ -78,7 +78,7 @@ export class GatherSearchResultsService {
     totalCount: number;
   }> {
     try {
-      const response = await fetch(buildApiUrl('/api/search-clinical-trials'), {
+      const response = await fetch(buildApiUrl('/api/search?type=trials'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -237,7 +237,7 @@ export class GatherSearchResultsService {
    */
   private static async searchPapers(params: PubMedSearchParams): Promise<PubMedArticle[]> {
     try {
-      const response = await fetch(buildApiUrl('/api/search-papers'), {
+      const response = await fetch(buildApiUrl('/api/search?type=papers'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -315,7 +315,7 @@ export class GatherSearchResultsService {
     try {
       console.log(`📰 Searching press releases...`);
 
-      const response = await fetch(buildApiUrl('/api/search-press-releases'), {
+      const response = await fetch(buildApiUrl('/api/search?type=press-releases'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -351,7 +351,7 @@ export class GatherSearchResultsService {
     try {
       console.log(`📊 Searching IR decks...`);
 
-      const response = await fetch(buildApiUrl('/api/search-ir-decks'), {
+      const response = await fetch(buildApiUrl('/api/search?type=ir-decks'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
