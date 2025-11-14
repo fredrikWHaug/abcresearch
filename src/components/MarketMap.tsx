@@ -309,6 +309,25 @@ export function MarketMap({
                         ))}
                       </div>
                     )}
+                    
+                    {/* Trial metadata and drug badges */}
+                    <div className="flex items-center gap-2 flex-wrap mt-2">
+                      {trial.nctId && (
+                        <span className="text-xs text-gray-500 font-mono">
+                          {trial.nctId}
+                        </span>
+                      )}
+                      {/* Drug keywords extracted by Gemini from this trial */}
+                      {trial.extractedDrugs && trial.extractedDrugs.slice(0, 3).map((drug, idx) => (
+                        <Badge 
+                          key={idx}
+                          className="text-xs bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-200"
+                          variant="outline"
+                        >
+                          {drug}
+                        </Badge>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </CardContent>

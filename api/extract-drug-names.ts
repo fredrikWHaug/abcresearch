@@ -1,5 +1,5 @@
 // Vercel API Route for extracting drug names using Gemini
-// Proxy to Google Gemini API for drug name extraction
+// Thin proxy to Google Gemini API - just handles LLM calls and JSON parsing
 
 interface ExtractDrugNamesRequest {
   text: string;
@@ -16,33 +16,6 @@ interface DrugInfo {
 interface ExtractDrugNamesResponse {
   success: boolean;
   drugs: DrugInfo[];
-}
-
-// Deduplication helper function
-function deduplicateDrugs(drugs: DrugInfo[]): DrugInfo[] {
-  const seen = new Map<string, DrugInfo>();
-  
-  for (const drug of drugs) {
-    // Normalize the drug name for comparison (lowercase, trim, remove extra spaces)
-    const normalizedName = drug.name.toLowerCase().trim().replace(/\s+/g, ' ');
-    
-    if (!seen.has(normalizedName)) {
-      // First occurrence - keep it
-      seen.set(normalizedName, drug);
-    } else {
-      // Duplicate found - keep the one with higher confidence
-      const existing = seen.get(normalizedName)!;
-      const confidenceRank = { high: 3, medium: 2, low: 1 };
-      
-      if (confidenceRank[drug.confidence] > confidenceRank[existing.confidence]) {
-        // Replace with higher confidence version
-        seen.set(normalizedName, drug);
-      }
-      // If same confidence, keep the first one (already in map)
-    }
-  }
-  
-  return Array.from(seen.values());
 }
 
 export default async function handler(req: any, res: any) {
@@ -73,8 +46,8 @@ export default async function handler(req: any, res: any) {
     }
 
     const contextInstructions = {
-      clinical_trial: 'Focus on interventions, drug names, and therapies mentioned in clinical trial data.',
-      research_paper: 'Extract drug names, compounds, and therapeutic agents mentioned in research papers.',
+      clinical_trial: 'Focus on drug names, compounds and therapies that are the primary intervention in clinical trial data.',
+      research_paper: 'Extract drug names, compounds, and therapeutic agents that are the focus of the research paper.',
       general: 'Extract all drug names, medications, and therapeutic interventions that are relevant to the user query.'
     };
 
@@ -101,8 +74,9 @@ Return ONLY a valid JSON object with this exact structure (no markdown, no expla
 }
 
 Rules:
-- Extract brand names and generic names of actual pharmaceutical drugs
-- Include biological therapies, vaccines, and medical interventions
+- Extract brand names and generic names of pharmaceutical drugs that are the primary intervention(s) in the clinical trial or research paper.
+- If it is a combination treatment (Blinatumomab Combined With Auto-HSCT Sandwich Strategy), extract the entire combination.
+- Include biological therapies, small molecule drugs, vaccines, and medical interventions
 - Set confidence to "high" for standard drug names, "medium" for less common, "low" for uncertain
 - For type: "drug" for pharmaceuticals, "intervention" for procedures, "therapy" for treatment approaches
 - Return empty array if no drugs found
@@ -110,14 +84,18 @@ Rules:
 
 EXCLUSIONS - DO NOT extract:
 - Placebo or placebo-controlled mentions
-- Diagnostic tests or procedures
-- Behavioral interventions or therapy
+- Diagnostic tests or procedures (e.g., blood tests, imaging)
+- Behavioral interventions or therapy (e.g., counseling, lifestyle modifications)
 - "No intervention" or control groups
 - Supplements (vitamins, minerals) unless specifically part of the user's query
 - Medical devices unless specifically part of the user's query
-- Sham treatments
+- Sham treatments or sham procedures
 - Standard of care references
 - Control group comparators
+- Generic drug class names alone (e.g., "GLP-1", "SGLT2", "DPP-4", "ACE inhibitor", "beta blocker", "statin", CAR-T, etc.)
+- Very generic terms (e.g., "insulin", "metformin", "aspirin", "chemotherapy", "radiation", "surgery")
+- Generic descriptors (e.g., "combination", "monotherapy", "therapy", "treatment", "intervention", "drug", "medication", "agent")
+- Terms that are too short (3 characters or less) or likely acronyms without clear drug identity
 
 Only return the JSON object, nothing else.`;
 
@@ -143,16 +121,15 @@ Only return the JSON object, nothing else.`;
       const errorText = await response.text();
       console.error('Gemini API error:', errorText);
       
-      // Fallback to empty response if Gemini fails
-      return res.status(200).json({
-        success: true,
-        drugs: []
+      return res.status(500).json({
+        success: false,
+        error: 'Drug extraction failed',
+        details: errorText
       });
     }
 
     const data = await response.json();
     const content = data.candidates[0].content.parts[0].text;
-    console.log('Gemini raw response:', content);
 
     // Parse the JSON response from Gemini
     let result: { drugs: DrugInfo[] };
@@ -178,36 +155,17 @@ Only return the JSON object, nothing else.`;
       console.error('Failed to parse Gemini response:', content);
       console.error('Parse error:', parseError);
       
-      // Fallback: return empty array
-      result = { drugs: [] };
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to parse drug extraction response',
+        details: parseError instanceof Error ? parseError.message : 'Unknown parsing error'
+      });
     }
 
-    // Deduplicate the drugs to ensure a clean final list
-    const deduplicatedDrugs = deduplicateDrugs(result.drugs || []);
-
-    // Filter out excluded terms unless they're in the user query
-    const excludedTerms = ['placebo', 'diagnostic', 'behavioral', 'no intervention', 'supplement', 'device', 'control', 'sham', 'standard of care'];
-    const userQueryLower = (userQuery || '').toLowerCase();
-    
-    const filteredDrugs = deduplicatedDrugs.filter((drug: DrugInfo) => {
-      const nameLower = drug.name.toLowerCase().trim();
-      
-      // Check if this drug name contains any excluded term
-      const containsExcludedTerm = excludedTerms.some(term => 
-        nameLower === term || nameLower.includes(term)
-      );
-      
-      if (!containsExcludedTerm) {
-        return true; // Not an excluded term, keep it
-      }
-      
-      // If it contains an excluded term, only keep it if the term is in the user query
-      return excludedTerms.some(term => userQueryLower.includes(term) && nameLower.includes(term));
-    });
-
+    // Return raw results - let the service handle deduplication and filtering
     return res.status(200).json({
       success: true,
-      drugs: filteredDrugs
+      drugs: result.drugs || []
     });
 
   } catch (error) {

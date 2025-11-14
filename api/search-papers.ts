@@ -1,15 +1,103 @@
-// Vercel API Route for PubMed paper search
+// Vercel API Route for PubMed paper search with LLM-based query enhancement
 
 interface PubMedSearchRequest {
   query: string;
   maxResults?: number;
   startDate?: string;
   endDate?: string;
+  enhanceQuery?: boolean;  // Whether to use LLM to enhance the query
 }
 
 // Rate limiting: PubMed allows 3 requests/second without API key, 10 with API key
 const RATE_LIMIT_DELAY = 350; // 350ms between requests (safe for 3 req/sec)
 let lastRequestTime = 0;
+
+/**
+ * Enhance PubMed query using Gemini LLM to construct better search terms
+ * TODO: We are only making ONE PubMed query - we should be using 5 strategies. 
+ * Enhance queries should be coming up with 5 clinical trials queries and 5 paper queries
+ */
+async function enhancePubMedQuery(userQuery: string): Promise<string> {
+  const geminiApiKey = process.env.GOOGLE_GEMINI_API_KEY;
+  if (!geminiApiKey) {
+    console.warn('No Gemini API key - using query as-is');
+    return userQuery;
+  }
+
+  const prompt = `You are an expert at constructing PubMed search queries using E-Utilities API syntax.
+
+USER QUERY: "${userQuery}"
+
+Your task is to construct an optimized PubMed search query that will find the most relevant clinical trial papers and research articles.
+
+PUBMED SEARCH SYNTAX:
+- Use AND, OR, NOT for boolean operators
+- Use [Field] tags for field-specific searches:
+  - [Title/Abstract] - search in title and abstract
+  - [Publication Type] - filter by publication type
+  - [MeSH Terms] - Medical Subject Headings
+  - [All Fields] - search everywhere
+- Use quotes for exact phrases: "GLP-1 receptor agonist"
+- Common publication types for trials: "Clinical Trial", "Randomized Controlled Trial", "Clinical Trial, Phase II", "Clinical Trial, Phase III"
+
+GUIDELINES:
+- Extract the main medical condition or disease
+- Extract any specific drug names mentioned
+- Extract phase information if specified
+- Include relevant MeSH terms and synonyms
+- Always filter by clinical trial publication types unless user specifically asks for all articles
+- Use proper boolean operators to combine terms
+
+EXAMPLES:
+
+Query: "Phase 3 semaglutide obesity trials"
+Enhanced: semaglutide[Title/Abstract] AND obesity[Title/Abstract] AND ("Clinical Trial, Phase III"[Publication Type] OR "Clinical Trial"[Publication Type])
+
+Query: "GLP-1 receptor agonist diabetes"
+Enhanced: ("GLP-1 receptor agonist"[Title/Abstract] OR "glucagon-like peptide-1"[Title/Abstract]) AND diabetes[Title/Abstract] AND ("Clinical Trial"[Publication Type] OR "Randomized Controlled Trial"[Publication Type])
+
+Query: "Alzheimer's immunotherapy trials"
+Enhanced: ("Alzheimer"[Title/Abstract] OR "Alzheimer's disease"[MeSH Terms]) AND (immunotherapy[Title/Abstract] OR "antibody therapy"[Title/Abstract]) AND ("Clinical Trial"[Publication Type] OR "Randomized Controlled Trial"[Publication Type])
+
+Return ONLY the enhanced query string (no JSON, no markdown, just the query).`;
+
+  try {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${geminiApiKey}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{
+            text: prompt
+          }]
+        }],
+        generationConfig: {
+          temperature: 0.2,
+          maxOutputTokens: 300,
+        }
+      })
+    });
+
+    if (!response.ok) {
+      console.warn('Gemini API error - using query as-is');
+      return userQuery;
+    }
+
+    const data = await response.json();
+    const enhancedQuery = data.candidates[0].content.parts[0].text.trim();
+    
+    console.log(`✅ LLM enhanced PubMed query:`);
+    console.log(`   Original: ${userQuery}`);
+    console.log(`   Enhanced: ${enhancedQuery}`);
+    
+    return enhancedQuery;
+  } catch (error) {
+    console.error('Error enhancing PubMed query with LLM:', error);
+    return userQuery;
+  }
+}
 
 export default async function handler(
   req: any,
@@ -30,10 +118,16 @@ export default async function handler(
   }
 
   try {
-    const { query, maxResults, startDate, endDate }: PubMedSearchRequest = req.body;
+    const { query, maxResults, startDate, endDate, enhanceQuery = false }: PubMedSearchRequest = req.body;
     
     if (!query || query.trim().length === 0) {
       return res.status(400).json({ error: 'Query is required' });
+    }
+
+    // Optionally enhance the query using LLM
+    let searchQuery = query;
+    if (enhanceQuery) {
+      searchQuery = await enhancePubMedQuery(query);
     }
 
     // Rate limiting: Ensure we don't exceed PubMed's rate limits
@@ -59,7 +153,7 @@ export default async function handler(
     // Step 1: Search for PMIDs
     const searchParams = new URLSearchParams({
       db: 'pubmed',
-      term: query,
+      term: searchQuery,
       retmode: 'json',
       retmax: (maxResults || 20).toString(),
       sort: 'relevance'
@@ -68,7 +162,7 @@ export default async function handler(
     if (API_KEY) searchParams.append('api_key', API_KEY);
     if (EMAIL) searchParams.append('email', EMAIL);
 
-    console.log(`Searching PubMed for: ${query}`);
+    console.log(`Searching PubMed for: ${searchQuery}`);
     const searchResponse = await fetch(`${BASE_URL}/esearch.fcgi?${searchParams.toString()}`);
     
     if (!searchResponse.ok) {

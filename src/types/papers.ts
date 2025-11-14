@@ -15,6 +15,7 @@ export interface PubMedArticle {
     doi?: string;
     pmc?: string;
   };
+  extractedDrugs?: string[]; // Drug names extracted by Gemini from this paper
 }
 
 export interface PubMedSearchParams {

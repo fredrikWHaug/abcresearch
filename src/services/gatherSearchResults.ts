@@ -3,10 +3,9 @@
 // Contains business logic for searching across multiple data sources
 
 import type { ClinicalTrial, SearchParams } from '@/types/trials';
-import type { PubMedArticle } from '@/types/papers';
+import type { PubMedArticle, PubMedSearchParams } from '@/types/papers';
 import type { PressRelease } from '@/types/press-releases';
 import type { IRDeck } from '@/types/ir-decks';
-import { pubmedAPI } from './pubmedAPI';
 import { TrialRankingService } from './trialRankingService';
 
 interface SearchStrategy {
@@ -43,10 +42,10 @@ export interface GatherSearchResultsResponse {
 }
 
 /**
- * Get API base URL - handles both browser and test environments
+ * Get server API base URL - handles both browser (vercel deployment) and test environments (localhost)
  */
 function getApiBaseUrl(): string {
-  // In test environment, use TEST_SERVER_URL if provided
+  // In test environment, use TEST_SERVER_URL if provided - this is provided in run-integration-tests.sh and nowhere else
   if (typeof process !== 'undefined' && process.env?.TEST_SERVER_URL) {
     return process.env.TEST_SERVER_URL;
   }
@@ -61,7 +60,7 @@ function getApiBaseUrl(): string {
 }
 
 /**
- * Build full API URL for fetch calls
+ * Build full server API URL for fetch calls
  */
 function buildApiUrl(path: string): string {
   const baseUrl = getApiBaseUrl();
@@ -105,73 +104,6 @@ export class GatherSearchResultsService {
     }
   }
 
-  /**
-   * Parse natural language query into search parameters
-   */
-  private static parseQuery(naturalLanguageQuery: string): SearchParams {
-    const query = naturalLanguageQuery.toLowerCase();
-    const params: SearchParams = {};
-    
-    // Extract phase
-    if (query.includes('phase 3') || query.includes('phase iii')) {
-      params.phase = 'PHASE3';
-    } else if (query.includes('phase 2') || query.includes('phase ii')) {
-      params.phase = 'PHASE2';
-    } else if (query.includes('phase 1') || query.includes('phase i')) {
-      params.phase = 'PHASE1';
-    }
-    
-    // Extract common conditions
-    const conditions = [
-      { keywords: ['cancer', 'oncology', 'tumor', 'carcinoma'], value: 'cancer' },
-      { keywords: ['diabetes', 'diabetic'], value: 'diabetes' },
-      { keywords: ['alzheimer', 'dementia'], value: 'alzheimer' },
-      { keywords: ['covid', 'coronavirus', 'sars-cov-2'], value: 'COVID-19' },
-      { keywords: ['heart', 'cardiac', 'cardiovascular'], value: 'cardiovascular' },
-    ];
-    
-    for (const condition of conditions) {
-      if (condition.keywords.some(keyword => query.includes(keyword))) {
-        params.condition = condition.value;
-        break;
-      }
-    }
-    
-    // Extract common sponsors
-    const sponsors = [
-      { keywords: ['pfizer'], value: 'Pfizer' },
-      { keywords: ['moderna'], value: 'Moderna' },
-      { keywords: ['j&j', 'johnson', 'janssen'], value: 'Johnson' },
-      { keywords: ['merck'], value: 'Merck' },
-      { keywords: ['novartis'], value: 'Novartis' },
-      { keywords: ['roche'], value: 'Roche' },
-      { keywords: ['lilly', 'eli lilly'], value: 'Eli Lilly' },
-      { keywords: ['astrazeneca', 'astra zeneca'], value: 'AstraZeneca' },
-    ];
-    
-    for (const sponsor of sponsors) {
-      if (sponsor.keywords.some(keyword => query.includes(keyword))) {
-        params.sponsor = sponsor.value;
-        break;
-      }
-    }
-    
-    // Extract status
-    if (query.includes('recruiting')) {
-      params.status = 'RECRUITING';
-    } else if (query.includes('completed')) {
-      params.status = 'COMPLETED';
-    } else if (query.includes('active')) {
-      params.status = 'ACTIVE_NOT_RECRUITING';
-    }
-    
-    // If no specific parameters were extracted, use the whole query
-    if (Object.keys(params).length === 0) {
-      params.query = naturalLanguageQuery;
-    }
-    
-    return params;
-  }
 
   /**
    * Enhance a user query using AI and return phrase-based discovery strategies
@@ -213,36 +145,12 @@ export class GatherSearchResultsService {
       return strategies;
     } catch (error) {
       console.error('Error enhancing search query:', error);
-      // Fallback to basic search if enhancement fails
-      return [{
-        query: userQuery,
-        description: 'Original query (fallback)',
-        priority: 'high',
-        searchType: 'broad'
-      }];
+      // Re-throw the error to be handled by the caller
+      throw new Error(`Search enhancement failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
-  /**
-   * Clean up enhanced queries to ensure they're valid
-   */
-  private static cleanQuery(params: SearchParams, originalQuery: string): SearchParams {
-    const cleaned: SearchParams = {};
-    
-    // Only add non-null values
-    if (params.condition && params.condition !== 'null') cleaned.condition = params.condition;
-    if (params.sponsor && params.sponsor !== 'null') cleaned.sponsor = params.sponsor;
-    if (params.phase && params.phase !== 'null') cleaned.phase = params.phase;
-    if (params.status && params.status !== 'null') cleaned.status = params.status;
-    if (params.query && params.query !== 'null') cleaned.query = params.query;
-    
-    // If no parameters were set, use the original user query
-    if (Object.keys(cleaned).length === 0) {
-      cleaned.query = originalQuery;
-    }
-    
-    return cleaned;
-  }
+
 
   /**
    * Search for clinical trials using phrase-based discovery strategies
@@ -266,6 +174,7 @@ export class GatherSearchResultsService {
             console.log(`  ✓ "${strategy.query}": ${result.trials.length} trials`);
             
             // Capture formatted queries for display
+            //TODO: doesn't have to be RCT for phase 4+
             const formattedQueries = {
               clinicalTrials: strategy.query, // This becomes query.term parameter
               pubmed: `${strategy.query} AND ("Clinical Trial"[Publication Type] OR "Randomized Controlled Trial"[Publication Type])`
@@ -310,6 +219,7 @@ export class GatherSearchResultsService {
       console.log(`   Removed ${allTrials.length - uniqueTrials.length} duplicates (${Math.round((allTrials.length - uniqueTrials.length) / allTrials.length * 100)}%)`);
       
       // Apply ranking to prioritize most relevant
+      // TODO: How long does this process take? Should add logging on latency of each step OR showing progress on screen
       const rankedTrials = TrialRankingService.rankTrials(uniqueTrials, userQuery);
 
       return {
@@ -323,12 +233,39 @@ export class GatherSearchResultsService {
   }
 
   /**
+   * Search PubMed for papers using API endpoint
+   */
+  private static async searchPapers(params: PubMedSearchParams): Promise<PubMedArticle[]> {
+    try {
+      const response = await fetch(buildApiUrl('/api/search-papers'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(params)
+      });
+
+      if (!response.ok) {
+        throw new Error(`API request failed: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      return data.papers || [];
+    } catch (error) {
+      console.error('PubMed search error:', error);
+      throw new Error('Failed to search PubMed');
+    }
+  }
+
+  /**
    * Search for research papers using phrase-based discovery strategies
    * Uses all 5 LLM-generated queries to maximize paper discovery
    */
   private static async searchResearchPapers(userQuery: string): Promise<PubMedArticle[]> {
     try {
       // Get 5 phrase-based discovery strategies from AI (same as trials)
+      //TODO check if enhance query API has a different set of instructions for PubMed.
+      //maybe you can merge the query enhancement with the searching
       const strategies = await this.enhanceQuery(userQuery);
       
       console.log(`📄 Searching papers with ${strategies.length} discovery strategies...`);
@@ -337,7 +274,7 @@ export class GatherSearchResultsService {
       const paperSearches = await Promise.all(
         strategies.map(async (strategy) => {
           try {
-            const papers = await pubmedAPI.searchPapers({
+            const papers = await this.searchPapers({
               query: `${strategy.query} AND ("Clinical Trial"[Publication Type] OR "Randomized Controlled Trial"[Publication Type])`,
               maxResults: 30
             });
@@ -488,16 +425,22 @@ export class GatherSearchResultsService {
 
   /**
    * Simple search without AI enhancement (fallback)
+   * Uses LLM-based query parsing in the API layer
+   * TODO: Should remove this so that we always use the enhancement (which is currently broken)
    */
+
+  /**
   static async simpleSearch(userQuery: string): Promise<GatherSearchResultsResponse> {
     try {
       // Parse query and search directly
-      const params = this.parseQuery(userQuery);
-
-      // Search trials, papers, press releases, and IR decks in parallel
+      //const params = this.parseQuery(userQuery);
+      // LLM-based parsing happens in searchTrials API
+      const params: SearchParams = { query: userQuery };
+      
+      // Search trials and papers in parallel
       const [trialsResult, papers, pressReleases, irDecks] = await Promise.all([
         this.searchTrials(params),
-        pubmedAPI.searchPapers({
+        this.searchPapers({
           query: `${userQuery} AND ("Clinical Trial"[Publication Type] OR "Randomized Controlled Trial"[Publication Type])`,
           maxResults: 30
         }),
@@ -517,7 +460,7 @@ export class GatherSearchResultsService {
         searchStrategies: [{
           strategy: {
             query: userQuery,
-            description: 'Direct search (no AI enhancement)',
+            description: 'Direct search with LLM-based query parsing',
             priority: 'high',
             searchType: 'targeted'
           },
@@ -530,6 +473,6 @@ export class GatherSearchResultsService {
       console.error('Error in simple search:', error);
       throw error;
     }
-  }
+  } */
 }
-
+ 
