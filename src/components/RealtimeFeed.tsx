@@ -21,11 +21,107 @@ export function RealtimeFeed() {
   const [editingFeed, setEditingFeed] = useState<WatchedFeed | null>(null);
   const [editSearchTerm, setEditSearchTerm] = useState('');
   const [editLabel, setEditLabel] = useState('');
+  const [enableEmailUpdates, setEnableEmailUpdates] = useState(false);
+  const [emailAddress, setEmailAddress] = useState('');
+  const [refreshProgress, setRefreshProgress] = useState<Record<number, { total: number; processed: number }>>({});
 
   useEffect(() => {
     loadFeeds();
     loadUpdates();
   }, []);
+
+  useEffect(() => {
+    // Set up Supabase real-time subscriptions
+    let feedsChannel: ReturnType<typeof supabase.channel> | null = null;
+    let updatesChannel: ReturnType<typeof supabase.channel> | null = null;
+
+    const setupSubscriptions = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      // Subscribe to watched_feeds changes for refresh_status updates
+      feedsChannel = supabase
+        .channel(`watched_feeds_changes_${session.user.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'watched_feeds',
+            filter: `user_id=eq.${session.user.id}`,
+          },
+          (payload) => {
+            console.log('Feed update received:', payload);
+            const updatedFeed = payload.new as WatchedFeed;
+            
+            // Update refresh progress if refresh_status changed
+            if (updatedFeed.refresh_status) {
+              setRefreshProgress(prev => ({
+                ...prev,
+                [updatedFeed.id]: {
+                  total: updatedFeed.refresh_status.total || 0,
+                  processed: updatedFeed.refresh_status.processed || 0,
+                },
+              }));
+
+              // If refresh completed, reload feeds and updates
+              if (!updatedFeed.refresh_status.in_progress) {
+                setRefreshingFeedId(prev => prev === updatedFeed.id ? null : prev);
+                loadFeeds();
+                loadUpdates(selectedFeed || undefined);
+              } else {
+                // Refresh is in progress, mark it
+                setRefreshingFeedId(updatedFeed.id);
+              }
+            }
+          }
+        )
+        .subscribe();
+
+      // Subscribe to trial_updates for new updates
+      // Only listen to updates for feeds owned by this user
+      updatesChannel = supabase
+        .channel(`trial_updates_changes_${session.user.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'trial_updates',
+          },
+          async (payload) => {
+            console.log('New trial update received:', payload);
+            const newUpdate = payload.new as TrialUpdate;
+            
+            // Verify this update belongs to a feed owned by the user
+            const { data: feed } = await supabase
+              .from('watched_feeds')
+              .select('id')
+              .eq('id', newUpdate.feed_id)
+              .eq('user_id', session.user.id)
+              .single();
+            
+            if (feed) {
+              // Reload updates to show new items
+              loadUpdates(selectedFeed || undefined);
+            }
+          }
+        )
+        .subscribe();
+    };
+
+    setupSubscriptions();
+
+    // Cleanup subscriptions on unmount or when selectedFeed changes
+    return () => {
+      if (feedsChannel) {
+        feedsChannel.unsubscribe();
+      }
+      if (updatesChannel) {
+        updatesChannel.unsubscribe();
+      }
+    };
+  }, [selectedFeed]);
 
   const loadFeeds = async () => {
     try {
@@ -41,6 +137,20 @@ export function RealtimeFeed() {
       if (response.ok) {
         const data = await response.json();
         setFeeds(data.feeds);
+        
+        // Update refresh progress for feeds with in-progress refresh
+        data.feeds.forEach((feed: WatchedFeed) => {
+          if (feed.refresh_status?.in_progress) {
+            setRefreshProgress(prev => ({
+              ...prev,
+              [feed.id]: {
+                total: feed.refresh_status.total || 0,
+                processed: feed.refresh_status.processed || 0,
+              },
+            }));
+            setRefreshingFeedId(feed.id);
+          }
+        });
       }
     } catch (error) {
       console.error('Failed to load feeds:', error);
@@ -144,11 +254,19 @@ export function RealtimeFeed() {
       });
 
       if (response.ok) {
+        const data = await response.json();
         setNewSearchTerm('');
         setNewFeedLabel('');
         setValidationError('');
+        setEnableEmailUpdates(false);
+        setEmailAddress('');
         setShowAddModal(false);
         await loadFeeds();
+        
+        // Real-time subscription will handle progress updates automatically
+        if (data.feed?.id) {
+          setRefreshingFeedId(data.feed.id);
+        }
       }
     } catch (error) {
       console.error('Failed to add feed:', error);
@@ -237,10 +355,12 @@ export function RealtimeFeed() {
     }
   };
 
+  // Polling functions removed - using Supabase real-time subscriptions instead
+
   const handleRefreshFeed = async (feedId: number) => {
     try {
       setRefreshingFeedId(feedId);
-      setRefreshMessage('Checking for updates...');
+      setRefreshMessage('Starting refresh...');
 
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
@@ -256,15 +376,10 @@ export function RealtimeFeed() {
 
       if (response.ok) {
         const data = await response.json();
-        setRefreshMessage(data.message);
+        setRefreshMessage('Refresh started in background');
         
-        // Reload updates to show new ones
-        await loadUpdates(selectedFeed === feedId ? feedId : undefined);
-        
-        // Clear message after 3 seconds
-        setTimeout(() => {
-          setRefreshMessage('');
-        }, 3000);
+        // Real-time subscription will handle progress updates automatically
+        setRefreshingFeedId(feedId);
       } else {
         setRefreshMessage('Failed to refresh feed');
         setTimeout(() => {
@@ -278,7 +393,7 @@ export function RealtimeFeed() {
         setRefreshMessage('');
       }, 3000);
     } finally {
-      setRefreshingFeedId(null);
+      // Don't clear refreshingFeedId immediately - let progress polling handle it
     }
   };
 
@@ -388,11 +503,28 @@ export function RealtimeFeed() {
                               Last checked: {new Date(feed.last_checked_at).toLocaleString()}
                             </div>
                           )}
+                          {/* Progress indicator */}
+                          {refreshProgress[feed.id] && refreshProgress[feed.id].total > 0 && (
+                            <div className="mt-2">
+                              <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
+                                <span>Processing studies...</span>
+                                <span>{refreshProgress[feed.id].processed} / {refreshProgress[feed.id].total}</span>
+                              </div>
+                              <div className="w-full bg-gray-200 rounded-full h-1.5">
+                                <div
+                                  className="bg-blue-600 h-1.5 rounded-full transition-all duration-300"
+                                  style={{
+                                    width: `${(refreshProgress[feed.id].processed / refreshProgress[feed.id].total) * 100}%`,
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          )}
                         </button>
                         <div className="flex items-center gap-1 mt-2 flex-wrap">
                           <button
                             onClick={() => handleRefreshFeed(feed.id)}
-                            disabled={refreshingFeedId === feed.id}
+                            disabled={refreshingFeedId === feed.id || (refreshProgress[feed.id] && refreshProgress[feed.id].processed < refreshProgress[feed.id].total)}
                             className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1 disabled:opacity-50"
                           >
                             <RefreshCw className={`w-3 h-3 ${refreshingFeedId === feed.id ? 'animate-spin' : ''}`} />
@@ -637,6 +769,50 @@ export function RealtimeFeed() {
                   placeholder={`${newSearchTerm || 'Search term'} trials`}
                 />
               </div>
+              
+              {/* Email Updates Toggle */}
+              <div className="border-t pt-4">
+                <div className="flex items-center justify-between mb-3">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Send daily email updates
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setEnableEmailUpdates(!enableEmailUpdates)}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                      enableEmailUpdates ? 'bg-blue-600' : 'bg-gray-300'
+                    }`}
+                    role="switch"
+                    aria-checked={enableEmailUpdates}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        enableEmailUpdates ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+                
+                {enableEmailUpdates && (
+                  <div className="mt-3">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Email Address
+                    </label>
+                    <Input
+                      type="email"
+                      value={emailAddress}
+                      onChange={(e) => setEmailAddress(e.target.value)}
+                      placeholder="your.email@example.com"
+                      disabled={true}
+                      className="bg-gray-50"
+                    />
+                    <p className="text-xs text-gray-500 mt-1 italic">
+                      Coming Soon
+                    </p>
+                  </div>
+                )}
+              </div>
+              
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                 <p className="text-xs text-blue-800">
                   <strong>What we'll monitor:</strong>
@@ -665,6 +841,8 @@ export function RealtimeFeed() {
                     setNewSearchTerm('');
                     setNewFeedLabel('');
                     setValidationError('');
+                    setEnableEmailUpdates(false);
+                    setEmailAddress('');
                   }}
                   variant="outline"
                   disabled={validatingFeed}
