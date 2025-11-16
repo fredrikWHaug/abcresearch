@@ -488,7 +488,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
       };
 
-      const companyName = params.company || params.query;
+      const companyName = params.company || params.query || '';
       const cik = getCIKFromCompany(companyName);
 
       if (!cik) {
