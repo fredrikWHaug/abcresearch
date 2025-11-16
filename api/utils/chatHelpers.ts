@@ -137,12 +137,25 @@ export function generateSearchSuggestions(
   }];
 }
 
+export interface ContextExtraction {
+  jobId: string;
+  fileName: string;
+  markdownContent: string;
+  hasTables: boolean;
+}
+
 /**
- * Build system prompt with context papers and press releases (ABC-39, HW9)
- * Papers and press releases persist in system prompt across the conversation
+ * Build system prompt with context papers, press releases, and PDF extractions (ABC-39, HW9)
+ * Papers, press releases, and extractions persist in system prompt across the conversation
  */
-export function buildSystemPrompt(contextPapers?: ContextPaper[], contextPressReleases?: ContextPressRelease[]): string {
-  if ((!contextPapers || contextPapers.length === 0) && (!contextPressReleases || contextPressReleases.length === 0)) {
+export function buildSystemPrompt(
+  contextPapers?: ContextPaper[], 
+  contextPressReleases?: ContextPressRelease[],
+  contextExtractions?: ContextExtraction[]
+): string {
+  if ((!contextPapers || contextPapers.length === 0) && 
+      (!contextPressReleases || contextPressReleases.length === 0) && 
+      (!contextExtractions || contextExtractions.length === 0)) {
     return `You are a thoughtful medical research consultant having a natural conversation with a user. Your goal is to LISTEN and respond naturally to what they're actually saying.
 
 Assume that the user is a sophisticated biopharma researcher and use a nerdy and educated tone like a PhD candidate.
@@ -241,24 +254,66 @@ ${pr.keyAnnouncements && pr.keyAnnouncements.length > 0 ? `Key Announcements: ${
     });
   }
 
+  // Add PDF extractions if available
+  if (contextExtractions && contextExtractions.length > 0) {
+    contextPrompt += `
+PDF EXTRACTIONS:
+`;
+    contextExtractions.forEach((extraction, index) => {
+      const extractionNum = index + 1;
+      // Limit markdown content to first 3000 characters to avoid token limits
+      const truncatedContent = extraction.markdownContent.length > 3000 
+        ? extraction.markdownContent.substring(0, 3000) + '\n\n[Content truncated...]'
+        : extraction.markdownContent;
+      
+      contextPrompt += `
+[EXT${extractionNum}] ${extraction.fileName}
+${truncatedContent}
+
+`;
+    });
+  }
+
   contextPrompt += `
 INSTRUCTIONS FOR USING REFERENCES:
 - When referencing a paper, cite it using its number: [1], [2], etc.
 - When referencing a press release, cite it using [PR1], [PR2], etc.
+- When referencing a PDF extraction, cite it using [EXT1], [EXT2], etc.
 - If the user asks about findings, mechanisms, or results, reference the relevant source(s)
 - You can compare sources if the user asks (e.g., "how does [1] compare to [PR1]?")
 - Press releases may contain company announcements, clinical trial results, or business updates
+- PDF extractions may contain tables, figures, and detailed technical content
 - Only cite sources when relevant to the user's question
 - Be natural and conversational, not robotic
+
+GRAPH GENERATION:
+If the user asks you to generate a graph comparing endpoints, drugs, or efficacy from tables:
+1. Examine ALL of the table data in the PDF extractions ([EXT1], [EXT2], etc.) and specifically focus on the table with all of the endpoints - commonly called Primary end points and components and Key secondary endpoints
+2. Extract the relevant data points: endpoints (X-axis), drugs/dosages (series), efficacy values (Y-axis)
+3. Generate Python code using matplotlib to create a comparison bar chart
+5. Then include your Python code wrapped in triple backticks with 'python' as the language identifier
+6. IMPORTANT: Make sure your code block is complete and ends with closing triple backticks
+7. Only generate the code. Do not include any other text. Example format:
+
+TRIPLE_BACKTICKS_python
+import matplotlib.pyplot as plt
+import numpy as np
+[your actual data extraction and plotting code here]
+TRIPLE_BACKTICKS
+
+Replace TRIPLE_BACKTICKS with three backtick characters.
+8. Adapt your code based on the actual table data you find in the PDF extractions
 
 CONVERSATIONAL RULES:
 1. ACTUALLY READ what the user just said - respond to their ACTUAL message
 2. If they ask a question, ANSWER IT directly using the references if relevant
 3. Be conversational and human-like, not a scripted chatbot
 4. Cite sources naturally: "According to [1], the primary finding was..." or "The press release [PR1] announced..."
-5. Write ONLY actual dialogue - NO stage directions like "*smiles*" or actions in asterisks
+5. When generating graphs, provide clear Python code that can be executed
+6. Write ONLY actual dialogue - NO stage directions like "*smiles*" or actions in asterisks
 
-Tone: Natural, conversational, genuinely helpful. Like a smart colleague discussing research materials.`;
+Tone: Natural, conversational, genuinely helpful. Like a smart colleague discussing research materials.
+`;
 
   return contextPrompt;
 }

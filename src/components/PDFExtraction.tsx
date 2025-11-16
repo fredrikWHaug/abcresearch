@@ -13,9 +13,17 @@ import { ExtractionHistory } from './ExtractionHistory'
 interface PDFExtractionProps {
   isVisible?: boolean;
   currentProjectId: number | null;
+  onAddToChat?: (extraction: {
+    jobId: string
+    fileName: string
+    markdownContent: string
+    hasTables: boolean
+  }) => void
+  onRemoveFromChat?: (jobId: string) => void
+  isExtractionInContext?: (jobId: string) => boolean
 }
 
-export function PDFExtraction({ isVisible = true, currentProjectId }: PDFExtractionProps) {
+export function PDFExtraction({ isVisible = true, currentProjectId, onAddToChat, onRemoveFromChat, isExtractionInContext }: PDFExtractionProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [extractionResult, setExtractionResult] = useState<PDFExtractionResult | null>(null)
@@ -820,6 +828,9 @@ export function PDFExtraction({ isVisible = true, currentProjectId }: PDFExtract
             currentProjectId={currentProjectId}
             isVisible={isVisible}
             refreshTrigger={historyRefreshTrigger}
+            onAddToChat={onAddToChat}
+            onRemoveFromChat={onRemoveFromChat}
+            isInContext={isExtractionInContext}
           />
         </div>
       </div>

@@ -21,7 +21,8 @@ import {
   CheckCircle2, 
   XCircle, 
   Loader2,
-  Trash2
+  Trash2,
+  Plus
 } from 'lucide-react'
 import { PDFExtractionJobService } from '@/services/pdfExtractionJobService'
 import type { PDFExtractionJob } from '@/types/pdf-extraction-job'
@@ -33,9 +34,17 @@ const CACHE_TIMESTAMP_KEY_BASE = 'extraction_history_cache_ts'
 const CACHE_MAX_AGE_MS = 5 * 60 * 1000 // 5 minutes
 
 interface ExtractionHistoryProps {
-  currentProjectId: number | null;
+  currentProjectId?: number | null;
   isVisible?: boolean;
   refreshTrigger?: number; // Increment this to trigger a refresh (e.g., when a new job completes)
+  onAddToChat?: (extraction: {
+    jobId: string
+    fileName: string
+    markdownContent: string
+    hasTables: boolean
+  }) => void
+  onRemoveFromChat?: (jobId: string) => void
+  isInContext?: (jobId: string) => boolean
 }
 
 // Skeleton loading component for better perceived performance
@@ -65,7 +74,7 @@ function JobSkeleton() {
   )
 }
 
-export function ExtractionHistory({ currentProjectId, isVisible = true, refreshTrigger = 0 }: ExtractionHistoryProps) {
+export function ExtractionHistory({ currentProjectId = null, isVisible = true, refreshTrigger = 0, onAddToChat, onRemoveFromChat, isInContext }: ExtractionHistoryProps = {}) {
   const [jobs, setJobs] = useState<PDFExtractionJob[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false) // For background refresh indicator
@@ -432,6 +441,48 @@ export function ExtractionHistory({ currentProjectId, isVisible = true, refreshT
                             >
                               View Analysis
                             </Button>
+                            {onAddToChat && onRemoveFromChat && isInContext && (
+                              <Button
+                                onClick={async () => {
+                                  const inContext = isInContext(job.id)
+                                  if (inContext && onRemoveFromChat) {
+                                    onRemoveFromChat(job.id)
+                                  } else {
+                                    const response = await PDFExtractionJobService.getJob(job.id)
+                                    if (response.success && response.result?.markdown_content) {
+                                      // Check if markdown contains tables
+                                      const hasTables = response.result.markdown_content.includes('|') && 
+                                                      response.result.markdown_content.split('\n').some(line => line.trim().startsWith('|'))
+                                      
+                                      onAddToChat({
+                                        jobId: job.id,
+                                        fileName: job.file_name,
+                                        markdownContent: response.result.markdown_content,
+                                        hasTables
+                                      })
+                                    }
+                                  }
+                                }}
+                                size="sm"
+                                variant={isInContext(job.id) ? "default" : "outline"}
+                                className={`h-8 cursor-pointer text-xs ${isInContext(job.id) ? 'bg-green-600 hover:bg-green-700 text-white' : ''}`}
+                                title={isInContext(job.id) ? "Remove from Chat" : "Add to Chat for Analysis"}
+                              >
+                                {isInContext(job.id) ? (
+                                  <>
+                                    <svg className="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                    </svg>
+                                    In Chat
+                                  </>
+                                ) : (
+                                  <>
+                                    <Plus className="h-4 w-4 mr-1" />
+                                    Add to Chat
+                                  </>
+                                )}
+                              </Button>
+                            )}
                             <Button
                               onClick={() => handleDownloadResult(job)}
                               size="sm"

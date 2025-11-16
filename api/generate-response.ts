@@ -36,6 +36,12 @@ interface GenerateResponseRequest {
     url?: string;
     keyAnnouncements?: string[];
   }>;
+  contextExtractions?: Array<{
+    jobId: string;
+    fileName: string;
+    markdownContent: string;
+    hasTables: boolean;
+  }>;
   searchResults?: {
     trials: any[];
     papers: any[];
@@ -59,6 +65,7 @@ interface GenerateResponseResponse {
     query: string;
     description?: string;
   }>;
+  graphCode?: string;
   intent: 'greeting' | 'search_request' | 'follow_up' | 'clarification' | 'general_question';
 }
 
@@ -71,12 +78,13 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    const { userQuery, chatHistory, searchResults, contextPapers, contextPressReleases }: GenerateResponseRequest = req.body;
+    const { userQuery, chatHistory, searchResults, contextPapers, contextPressReleases, contextExtractions }: GenerateResponseRequest = req.body;
     console.log('Parsed userQuery:', userQuery);
     console.log('Parsed chatHistory:', chatHistory?.length || 0, 'messages');
     console.log('Parsed searchResults:', searchResults);
     console.log('Context papers count:', contextPapers?.length || 0);
     console.log('Context press releases count:', contextPressReleases?.length || 0);
+    console.log('Context extractions count:', contextExtractions?.length || 0);
 
     if (!userQuery) {
       console.log('No userQuery provided');
@@ -101,8 +109,8 @@ export default async function handler(req: any, res: any) {
       });
     }
 
-    // ABC-39, HW9: Build system prompt with context papers and press releases (persistent)
-    const systemPrompt = buildSystemPrompt(contextPapers, contextPressReleases);
+    // ABC-39, HW9: Build system prompt with context papers, press releases, and PDF extractions (persistent)
+    const systemPrompt = buildSystemPrompt(contextPapers, contextPressReleases, contextExtractions);
 
     // ABC-39: Build messages array from chat history and current query
     const messages = buildMessagesFromHistory(chatHistory || [], userQuery);
@@ -195,6 +203,16 @@ Keep the response concise (2-3 sentences) and natural. Don't use bullet points o
 
     // ABC-39: Use proper Anthropic API structure with system prompt and messages array
     // HW8 ABC-57: Reduce max_tokens to encourage brevity (Claude tends to be verbose)
+    // Detect if user is asking for graph generation - if so, need more tokens for Python code
+    const isGraphRequest = userQuery.toLowerCase().includes('graph') || 
+                          userQuery.toLowerCase().includes('chart') || 
+                          userQuery.toLowerCase().includes('comparison') ||
+                          userQuery.toLowerCase().includes('visualiz');
+    // HW11: Ensure minimum 1500 tokens to prevent mid-sentence truncation, but allow more for graphs
+    const maxTokens = isGraphRequest ? 2000 : 1500;  // Graph code needs ~500-1000 tokens, normal needs 1500 to prevent truncation
+    
+    console.log('Graph request detected:', isGraphRequest, 'Max tokens:', maxTokens);
+    
     const conversationalResponse = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -204,7 +222,7 @@ Keep the response concise (2-3 sentences) and natural. Don't use bullet points o
       },
       body: JSON.stringify({
         model: 'claude-3-haiku-20240307',
-        max_tokens: 1500,  // HW11: Increased to prevent mid-sentence truncation
+        max_tokens: maxTokens,  // HW11: Minimum 1500 to prevent truncation, 2000 for graphs
         temperature: 0.7,
         system: systemPrompt,  // Papers persist here (ABC-39)
         messages: messages     // Conversation flows here (ABC-39)
@@ -271,11 +289,24 @@ Keep the response concise (2-3 sentences) and natural. Don't use bullet points o
     console.log('HW8 ABC-57: Using Claude intent. shouldSearch:', shouldSearch);
     console.log('HW8 ABC-57: Search suggestions:', searchSuggestions);
 
+    // Extract Python code if present (for graph generation)
+    let graphCode: string | undefined;
+    
+    // Match ```python or ```Python with optional whitespace, then capture everything until closing ```
+    // If closing ``` is missing (due to token cutoff), take everything until end of text
+    const pythonCodeMatch = conversationalResult.match(/```[Pp]ython\s*\n([\s\S]+?)(?:```|$)/);
+    if (pythonCodeMatch && pythonCodeMatch[1]) {
+      const extractedCode = pythonCodeMatch[1].trim();
+      graphCode = extractedCode;
+      console.log('Graph code extracted! Length:', extractedCode.length);
+    }
+
     return res.status(200).json({
       success: true,
       response: conversationalResult,
       shouldSearch: shouldSearch,
       searchSuggestions: searchSuggestions,
+      graphCode: graphCode,
       intent: shouldSearch ? 'search_request' : 'general_question'
     });
 
