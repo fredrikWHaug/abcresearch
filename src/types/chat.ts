@@ -7,5 +7,12 @@ export interface ChatMessage {
   searchSuggestions?: Array<{ id: string; label: string; query: string; description?: string }>;
   contextPapers?: PubMedArticle[];
   contextPressReleases?: PressRelease[];
+  contextExtractions?: Array<{
+    jobId: string;
+    fileName: string;
+    markdownContent: string;
+    hasTables: boolean;
+  }>;
+  graphCode?: string;
 }
 

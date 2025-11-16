@@ -3,6 +3,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { LogOut, Menu } from 'lucide-react'
 import { CreateProjectModal } from '@/components/CreateProjectModal'
+import { GraphCodeExecutor } from '@/components/GraphCodeExecutor'
 import { GatherSearchResultsService } from '@/services/gatherSearchResults'
 import type { PubMedArticle } from '@/types/papers'
 import type { SavedMarketMap } from '@/services/marketMapService'
@@ -64,7 +65,9 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
   const handleClearContext = () => {
     setSelectedPapers([]);
     setSelectedPressReleases([]);
+    setSelectedExtractions([]);
     setShowContextPanel(false);
+    setShowGraphSuggestion(false);
   }
 
   const isPaperInContext = (pmid: string) => {
@@ -86,6 +89,47 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
 
     const isPressReleaseInContext = (id: string) => {
       return selectedPressReleases.some(pr => pr.id === id);
+    }
+
+    // PDF Extraction context handlers
+    const handleAddExtractionToContext = (extraction: {jobId: string, fileName: string, markdownContent: string, hasTables: boolean}) => {
+      // Check if extraction is already in context
+      if (selectedExtractions.some(e => e.jobId === extraction.jobId)) {
+        return; // Already added
+      }
+      setSelectedExtractions(prev => [...prev, extraction]);
+      
+      // Show graph suggestion if this extraction has tables
+      if (extraction.hasTables) {
+        setShowGraphSuggestion(true);
+      }
+      
+      // Switch to research view so user can see the chat
+      setViewMode('research');
+      setHasSearched(true);
+    }
+
+    const handleRemoveExtractionFromContext = (jobId: string) => {
+      setSelectedExtractions(prev => prev.filter(e => e.jobId !== jobId));
+      
+      // Hide graph suggestion if no more tables in context
+      const remainingExtractions = selectedExtractions.filter(e => e.jobId !== jobId);
+      if (!remainingExtractions.some(e => e.hasTables)) {
+        setShowGraphSuggestion(false);
+      }
+    }
+
+    const isExtractionInContext = (jobId: string) => {
+      return selectedExtractions.some(e => e.jobId === jobId);
+    }
+
+    // Handler for generating efficacy comparison graph
+    const handleGenerateEfficacyGraph = async () => {
+      setMessage('Generate an endpoint efficacy comparison graph from the tables in the extraction context.');
+      // Trigger the message send
+      setTimeout(() => {
+        handleSendMessage();
+      }, 100);
     }
 
     const handleLoadSavedMap = async (savedMap: SavedMarketMap) => {
@@ -176,6 +220,8 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
     setExtractingDrugs(false);
     setSearchProgress({ current: 0, total: 0 });
     setInitialSearchQueries(null);
+    setSelectedExtractions([]);
+    setShowGraphSuggestion(false);
   }
 
   const handleDeleteSavedMap = (_id: number) => {
@@ -475,7 +521,10 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
       setLastQuery('')
       setSelectedDrug(null)
       setSelectedPapers([])
+      setSelectedPressReleases([])
+      setSelectedExtractions([])
       setShowContextPanel(false)
+      setShowGraphSuggestion(false)
     }
     
     // Update previous project ref
@@ -510,7 +559,9 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
   // Paper context state (for AI conversation)
   const [selectedPapers, setSelectedPapers] = useState<PubMedArticle[]>([])
   const [selectedPressReleases, setSelectedPressReleases] = useState<PressRelease[]>([])
+  const [selectedExtractions, setSelectedExtractions] = useState<Array<{jobId: string, fileName: string, markdownContent: string, hasTables: boolean}>>([])
   const [showContextPanel, setShowContextPanel] = useState(false)
+  const [showGraphSuggestion, setShowGraphSuggestion] = useState(false)
 
   // Close menu, context panel, and projects dropdown when clicking outside
   useEffect(() => {
@@ -556,14 +607,17 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
     const userMessage = messageToSend.trim();
     const messageContextPapers = [...selectedPapers]; // Snapshot current context
     const messageContextPressReleases = [...selectedPressReleases]; // Snapshot press releases context
+    const messageContextExtractions = [...selectedExtractions]; // Snapshot PDF extractions context
+    setMessage('');
     setHasSearched(true); // Switch to wide screen chat interface after first message
 
-    // Add user message to chat history with context papers and press releases
+    // Add user message to chat history with context papers, press releases, and extractions
     setChatHistory(prev => [...prev, {
       type: 'user',
       message: userMessage,
       contextPapers: messageContextPapers.length > 0 ? messageContextPapers : undefined,
-      contextPressReleases: messageContextPressReleases.length > 0 ? messageContextPressReleases : undefined
+      contextPressReleases: messageContextPressReleases.length > 0 ? messageContextPressReleases : undefined,
+      contextExtractions: messageContextExtractions.length > 0 ? messageContextExtractions : undefined
     }]);
 
     try {
@@ -571,7 +625,7 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
 
       console.log('Sending request to generate-response API with query:', userMessage);
       console.log('Chat history being sent:', chatHistory.length, 'messages');
-      console.log('Context papers:', selectedPapers.length, 'press releases:', selectedPressReleases.length);
+      console.log('Context papers:', selectedPapers.length, 'press releases:', selectedPressReleases.length, 'extractions:', selectedExtractions.length);
 
       // First, get intent classification and response with conversation context
       const response = await fetch('/api/generate-response', {
@@ -583,7 +637,8 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
           userQuery: userMessage,
           chatHistory: chatHistory,
           contextPapers: selectedPapers.length > 0 ? selectedPapers : undefined,
-          contextPressReleases: selectedPressReleases.length > 0 ? selectedPressReleases : undefined
+          contextPressReleases: selectedPressReleases.length > 0 ? selectedPressReleases : undefined,
+          contextExtractions: selectedExtractions.length > 0 ? selectedExtractions : undefined
         })
       });
 
@@ -604,12 +659,14 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
       console.log('Search suggestions:', data.searchSuggestions);
       console.log('shouldSearch:', data.shouldSearch);
       console.log('searchQuery:', data.searchQuery);
+      console.log('Graph code:', data.graphCode ? 'Present' : 'None');
       
       setChatHistory(prev => {
         const newHistory = [...prev, { 
           type: 'system' as const, 
           message: data.response,
-          searchSuggestions: data.searchSuggestions || []
+          searchSuggestions: data.searchSuggestions || [],
+          graphCode: data.graphCode
         }];
         console.log('New chat history:', newHistory);
         return newHistory;
@@ -1385,10 +1442,10 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
           loading={loading}
           selectedDrug={selectedDrug}
           setSelectedDrug={setSelectedDrug}
-              drugGroups={drugGroups}
+          drugGroups={drugGroups}
           searchProgress={searchProgress}
           handleDrugSpecificSearch={handleDrugSpecificSearch}
-              initialSearchQueries={initialSearchQueries}
+          initialSearchQueries={initialSearchQueries}
           showDrugModal={showDrugModal}
           setShowDrugModal={setShowDrugModal}
           handleAddPaperToContext={handleAddPaperToContext}
@@ -1416,28 +1473,3 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
         onClearContext={handleClearContext}
         handleSearchSuggestion={handleSearchSuggestion}
         onSendMessage={handleSendMessage}
-        loading={loading}
-      />
-    </DashboardLayout>
-    )
-  }
-
-  // Fallback: if no specific view mode matches, default to initial research view
-  console.log('No matching view mode, defaulting to initial research view. viewMode:', viewMode);
-  return (
-    <DashboardLayout variant="initial" currentProjectId={currentProjectId}>
-      <InitialResearchView
-        selectedPapers={selectedPapers}
-        selectedPressReleases={selectedPressReleases}
-        showContextPanel={showContextPanel}
-        onToggleContextPanel={handleToggleContextPanel}
-        onRemovePaper={handleRemovePaperFromContext}
-        onRemovePressRelease={handleRemovePressReleaseFromContext}
-        onClearContext={handleClearContext}
-        onSendMessage={handleSendMessage}
-        loading={loading}
-        hasSearched={hasSearched}
-      />
-    </DashboardLayout>
-  )
-}
