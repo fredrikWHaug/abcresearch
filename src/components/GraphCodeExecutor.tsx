@@ -1,12 +1,12 @@
 /**
  * Graph Code Executor Component
  * 
- * Displays Python code for graphs and allows execution with Pyodide
+ * Auto-executes Python code and displays the graph, with collapsible code view
  */
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
-import { Play, Loader2, Image as ImageIcon } from 'lucide-react'
+import { Play, Loader2, Image as ImageIcon, Code, ChevronDown, ChevronUp } from 'lucide-react'
 import { pyodideRenderer } from '@/services/pyodideGraphRenderer'
 
 interface GraphCodeExecutorProps {
@@ -15,10 +15,11 @@ interface GraphCodeExecutorProps {
 }
 
 export function GraphCodeExecutor({ code, title = 'Efficacy Comparison Graph' }: GraphCodeExecutorProps) {
-  const [isExecuting, setIsExecuting] = useState(false)
+  const [isExecuting, setIsExecuting] = useState(true) // Start in executing state
   const [renderedImage, setRenderedImage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [executionTime, setExecutionTime] = useState<number | null>(null)
+  const [showCode, setShowCode] = useState(false) // Code collapsed by default
 
   const handleExecuteCode = async () => {
     setIsExecuting(true)
@@ -41,6 +42,11 @@ export function GraphCodeExecutor({ code, title = 'Efficacy Comparison Graph' }:
     }
   }
 
+  // Auto-execute on mount
+  useEffect(() => {
+    handleExecuteCode()
+  }, [code]) // Re-execute if code changes
+
   return (
     <div className="mt-4 border border-gray-200 rounded-lg overflow-hidden bg-white">
       {/* Header */}
@@ -54,41 +60,56 @@ export function GraphCodeExecutor({ code, title = 'Efficacy Comparison Graph' }:
             </div>
             <h3 className="font-semibold text-purple-900">{title}</h3>
           </div>
-          <Button
-            onClick={handleExecuteCode}
-            disabled={isExecuting}
-            size="sm"
-            className="bg-purple-600 hover:bg-purple-700"
-          >
-            {isExecuting ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                Rendering...
-              </>
-            ) : (
-              <>
-                <Play className="h-4 w-4 mr-2" />
-                Run Code
-              </>
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={() => setShowCode(!showCode)}
+              variant="outline"
+              size="sm"
+            >
+              <Code className="h-4 w-4 mr-2" />
+              {showCode ? 'Hide Code' : 'View Code'}
+              {showCode ? <ChevronUp className="h-4 w-4 ml-1" /> : <ChevronDown className="h-4 w-4 ml-1" />}
+            </Button>
+            {renderedImage && (
+              <Button
+                onClick={handleExecuteCode}
+                disabled={isExecuting}
+                size="sm"
+                variant="outline"
+              >
+                {isExecuting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    Re-rendering...
+                  </>
+                ) : (
+                  <>
+                    <Play className="h-4 w-4 mr-2" />
+                    Re-run
+                  </>
+                )}
+              </Button>
             )}
-          </Button>
+          </div>
         </div>
       </div>
 
-      {/* Python Code */}
-      <div className="bg-gray-900 p-4 overflow-x-auto">
-        <pre className="text-sm text-gray-100 font-mono">
-          <code>{code}</code>
-        </pre>
-      </div>
+      {/* Loading State */}
+      {isExecuting && !renderedImage && (
+        <div className="p-8 bg-gray-50 flex flex-col items-center justify-center">
+          <Loader2 className="h-12 w-12 animate-spin text-purple-600 mb-4" />
+          <p className="text-sm text-gray-600 mb-1">Rendering graph...</p>
+          <p className="text-xs text-gray-500">First run may take 10-15 seconds to load Python environment</p>
+        </div>
+      )}
 
-      {/* Rendered Graph */}
+      {/* Rendered Graph - Show First */}
       {renderedImage && renderedImage.length > 0 && (
         <div className="p-4 bg-gray-50">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2 text-sm text-gray-600">
               <ImageIcon className="h-4 w-4" />
-              <span>Rendered Graph</span>
+              <span>Graph Output</span>
               {executionTime && (
                 <span className="text-xs text-gray-500">
                   (rendered in {(executionTime / 1000).toFixed(2)}s)
@@ -117,26 +138,31 @@ export function GraphCodeExecutor({ code, title = 'Efficacy Comparison Graph' }:
             <div className="flex-1">
               <p className="text-sm font-medium text-red-900">Failed to render graph</p>
               <p className="text-xs text-red-700 mt-1">{error}</p>
+              <Button
+                onClick={handleExecuteCode}
+                disabled={isExecuting}
+                size="sm"
+                variant="outline"
+                className="mt-2"
+              >
+                <Play className="h-4 w-4 mr-2" />
+                Try Again
+              </Button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Initial State Help */}
-      {!renderedImage && !error && !isExecuting && (
-        <div className="p-4 bg-blue-50 border-t border-blue-200">
-          <div className="flex items-start gap-2">
-            <svg className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <div className="flex-1">
-              <p className="text-sm text-blue-900">
-                Click "Run Code" to execute this Python code and visualize the graph in your browser.
-              </p>
-              <p className="text-xs text-blue-700 mt-1">
-                First run may take 10-15 seconds to load the Python environment. Subsequent runs are instant.
-              </p>
+      {/* Python Code - Collapsible */}
+      {showCode && (
+        <div className="border-t border-gray-200">
+          <div className="bg-gray-900 p-4 overflow-x-auto">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs text-gray-400 font-mono">Python Code</span>
             </div>
+            <pre className="text-sm text-gray-100 font-mono">
+              <code>{code}</code>
+            </pre>
           </div>
         </div>
       )}
