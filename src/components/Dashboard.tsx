@@ -1,14 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
-import { LogOut, Menu, ArrowUp } from 'lucide-react'
-import { MarketMap } from '@/components/MarketMap'
-import { SavedMaps } from '@/components/SavedMaps'
-import { DrugsList } from '@/components/DrugsList'
-import { DrugDetail } from '@/components/DrugDetail'
-import { DrugDetailModal } from '@/components/DrugDetailModal'
-import { AssetDevelopmentPipeline } from '@/components/AssetDevelopmentPipeline'
-import { PDFExtraction } from '@/components/PDFExtraction'
-import { RealtimeFeed } from '@/components/RealtimeFeed'
+import { LogOut, Menu } from 'lucide-react'
 import { CreateProjectModal } from '@/components/CreateProjectModal'
 import { GatherSearchResultsService } from '@/services/gatherSearchResults'
 import type { PubMedArticle } from '@/types/papers'
@@ -19,6 +11,14 @@ import type { ClinicalTrial } from '@/types/trials'
 import type { SlideData } from '@/services/slideAPI'
 import type { PressRelease } from '@/types/press-releases'
 import type { IRDeck } from '@/types/ir-decks'
+import type { ChatMessage } from '@/types/chat'
+import { InitialResearchView } from '@/components/dashboard/views/InitialResearchView'
+import { MarketMapCombinedView } from '@/components/dashboard/views/MarketMapCombinedView'
+import { PipelineView } from '@/components/dashboard/views/PipelineView'
+import { DataExtractionView } from '@/components/dashboard/views/DataExtractionView'
+import { RealtimeFeedView } from '@/components/dashboard/views/RealtimeFeedView'
+import { ResearchSplitView } from '@/components/dashboard/views/ResearchSplitView'
+import { ResearchChatView } from '@/components/dashboard/views/ResearchChatView'
 
 interface DashboardProps {
   initialShowSavedMaps?: boolean;
@@ -185,22 +185,17 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
   const [trials, setTrials] = useState<ClinicalTrial[]>([])
   const [loading, setLoading] = useState(false)
   const [lastQuery, setLastQuery] = useState('')
-  const [chatHistory, setChatHistory] = useState<Array<{
-    type: 'user' | 'system',
-    message: string,
-    searchSuggestions?: Array<{id: string, label: string, query: string, description?: string}>,
-    contextPapers?: PubMedArticle[],
-    contextPressReleases?: PressRelease[]
-  }>>([])
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([])
   const [hasSearched, setHasSearched] = useState(false)
   const [papers, setPapers] = useState<PubMedArticle[]>([])
   const [, setPressReleases] = useState<PressRelease[]>([])
   const [, setIRDecks] = useState<IRDeck[]>([])
   const [, setPapersLoading] = useState(false)
-  const [viewMode, setViewMode] = useState<'research' | 'marketmap' | 'savedmaps' | 'pipeline' | 'dataextraction' | 'realtimefeed'>(initialShowSavedMaps ? 'savedmaps' : 'research')
+  const [viewMode, setViewMode] = useState<'research' | 'pipeline' | 'marketmap' | 'dataextraction' | 'realtimefeed'>(initialShowSavedMaps ? 'marketmap' : 'research')
   const [slideData, setSlideData] = useState<SlideData | null>(null)
   const [generatingSlide, setGeneratingSlide] = useState(false)
   const [slideError, setSlideError] = useState<string | null>(null)
+  const [pipelineCandidates, setPipelineCandidates] = useState<any[]>([])
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [currentProjectId, setCurrentProjectId] = useState<number | null>(projectId)
   const [currentProjectName, setCurrentProjectName] = useState<string>(projectName)
@@ -248,89 +243,7 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
   React.useEffect(() => {
     if (projectId) {
       setCurrentProjectId(projectId)
-      console.log('Project ID set:', projectId)
-      
-      // Load chat history for this project from database
-      import('@/services/projectService').then(async ({ loadChatHistory }) => {
-        try {
-          const dbChat = await loadChatHistory(projectId)
-          if (dbChat && dbChat.length > 0) {
-            console.log('[Dashboard] 📥 Loaded', dbChat.length, 'messages from database on mount')
-            setChatHistory([...dbChat])
-            projectChatHistoryRef.current.set(projectId, [...dbChat])
-            // Set hasSearched to true so the UI shows the research view with chat history
-            setHasSearched(true)
-            // Ensure we're in research view mode
-            setViewMode('research')
-          }
-        } catch (error) {
-          console.error('[Dashboard] Failed to load chat history on mount:', error)
-        }
-      })
-      
-      // Load trials, papers, and drug groups for the project
-      console.log('[Dashboard] 📥 Loading project data on mount for project', projectId)
-      Promise.all([
-        import('@/services/trialService').then(({ getProjectTrials }) => getProjectTrials(projectId)),
-        import('@/services/paperService').then(({ getProjectPapers }) => getProjectPapers(projectId)),
-        import('@/services/drugService').then(({ getProjectDrugs }) => getProjectDrugs(projectId))
-      ]).then(([projectTrials, projectPapers, projectDrugs]) => {
-        console.log('[Dashboard] ✅ Loaded project data on mount:', {
-          trials: projectTrials.length,
-          papers: projectPapers.length,
-          drugs: projectDrugs.length
-        })
-        
-        if (projectTrials.length > 0 || projectPapers.length > 0) {
-          setTrials(projectTrials)
-          setPapers(projectPapers)
-          
-          // Group trials and papers by drugs
-          if (projectDrugs.length > 0) {
-            const drugGroupsMap: Map<string, DrugGroup> = new Map()
-            
-            projectDrugs.forEach(drug => {
-              const normalizedName = drug.name.toLowerCase()
-              
-              // Find trials and papers mentioning this drug
-              const drugTrials = projectTrials.filter(trial => {
-                const trialText = [
-                  trial.briefTitle,
-                  trial.officialTitle,
-                  ...(trial.interventions || []),
-                  ...(trial.conditions || [])
-                ].join(' ').toLowerCase()
-                return trialText.includes(normalizedName)
-              })
-              
-              const drugPapers = projectPapers.filter(paper => {
-                const paperText = [paper.title, paper.abstract].join(' ').toLowerCase()
-                return paperText.includes(normalizedName)
-              })
-              
-              if (drugTrials.length > 0 || drugPapers.length > 0) {
-                drugGroupsMap.set(drug.name, {
-                  drugName: drug.name,
-                  normalizedName: normalizedName,
-                  papers: drugPapers,
-                  trials: drugTrials,
-                  pressReleases: [],
-                  irDecks: [],
-                  totalResults: drugTrials.length + drugPapers.length
-                })
-              }
-            })
-            
-            const drugGroupsArray = Array.from(drugGroupsMap.values())
-              .sort((a, b) => b.totalResults - a.totalResults)
-            
-            setDrugGroups(drugGroupsArray)
-            console.log('[Dashboard] ✅ Created', drugGroupsArray.length, 'drug groups on mount')
-          }
-        }
-      }).catch(error => {
-        console.error('[Dashboard] Failed to load project data on mount:', error)
-      })
+      console.log('[Dashboard] Project ID prop received:', projectId, '- will trigger project load effect')
     }
     if (projectName) {
       setCurrentProjectName(projectName)
@@ -395,11 +308,13 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
     console.log('[Dashboard] Saved chats in cache:', Array.from(projectChatHistoryRef.current.keys()))
     
     const isProjectSwitch = currentProjectId !== null && currentProjectId !== previousProjectIdRef.current && previousProjectIdRef.current !== null
+    const isInitialLoad = currentProjectId !== null && previousProjectIdRef.current === null
     
+    if (isProjectSwitch || isInitialLoad) {
     if (isProjectSwitch) {
       console.log('[Dashboard] ✅ Project switched from', previousProjectIdRef.current, 'to', currentProjectId)
       
-      // FIRST: Save current chat to PREVIOUS project database immediately
+        // FIRST: Save current chat to PREVIOUS project database immediately (only on switch, not initial load)
       if (chatHistoryRef.current.length > 0 && previousProjectIdRef.current !== null) {
         console.log('[Dashboard] 💾 Saving', chatHistoryRef.current.length, 'messages to PREVIOUS project DB', previousProjectIdRef.current)
         projectChatHistoryRef.current.set(previousProjectIdRef.current, [...chatHistoryRef.current])
@@ -410,16 +325,31 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
             console.error('[Dashboard] Failed to save chat on switch:', error)
           })
         })
+        }
+      } else {
+        console.log('[Dashboard] ✅ Initial project load:', currentProjectId)
       }
       
       // THEN: Load chat history and data for new project from database
       console.log('[Dashboard] 📥 Loading chat history for project', currentProjectId, 'from database...')
       
-      // Load chat history
-      import('@/services/projectService').then(async ({ loadChatHistory }) => {
+      // Load chat history and search queries
+      import('@/services/projectService').then(async ({ loadChatHistory, loadSearchQueries }) => {
         try {
-          const dbChat = await loadChatHistory(currentProjectId)
+          const [dbChat, searchQueries] = await Promise.all([
+            loadChatHistory(currentProjectId),
+            loadSearchQueries(currentProjectId)
+          ])
           
+          // Load search queries
+          if (searchQueries) {
+            console.log('[Dashboard] ✅ Loaded search queries for project', currentProjectId)
+            setInitialSearchQueries(searchQueries)
+          } else {
+            setInitialSearchQueries(null)
+          }
+          
+          // Load chat history
           if (dbChat && dbChat.length > 0) {
             console.log('[Dashboard] ✅ Loaded', dbChat.length, 'messages from database for project', currentProjectId)
             setChatHistory([...dbChat])
@@ -449,72 +379,58 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
           console.error('[Dashboard] Failed to load chat history:', error)
           setChatHistory([])
           setHasSearched(false)
+          setInitialSearchQueries(null)
         }
       })
       
       // Load trials, papers, and drug groups for the new project
-      console.log('[Dashboard] 📥 Loading project data (trials, papers, drugs) for project', currentProjectId)
+      console.log('[Dashboard] 📥 Loading project data (trials, papers, drug groups) for project', currentProjectId)
       Promise.all([
         import('@/services/trialService').then(({ getProjectTrials }) => getProjectTrials(currentProjectId)),
         import('@/services/paperService').then(({ getProjectPapers }) => getProjectPapers(currentProjectId)),
-        import('@/services/drugService').then(({ getProjectDrugs }) => getProjectDrugs(currentProjectId))
-      ]).then(([projectTrials, projectPapers, projectDrugs]) => {
+        import('@/services/drugAssociationService').then(({ loadDrugGroups }) => loadDrugGroups(currentProjectId))
+      ]).then(([projectTrials, projectPapers, drugGroups]) => {
         console.log('[Dashboard] ✅ Loaded project data:', {
           trials: projectTrials.length,
           papers: projectPapers.length,
-          drugs: projectDrugs.length
+          drugGroups: drugGroups.length
         })
         
         setTrials(projectTrials)
         setPapers(projectPapers)
+        setDrugGroups(drugGroups)
         
-        // Group trials and papers by drugs
-        if (projectDrugs.length > 0) {
-          const drugGroupsMap: Map<string, DrugGroup> = new Map()
-          
-          projectDrugs.forEach(drug => {
-            const normalizedName = drug.name.toLowerCase()
-            
-            // Find trials and papers mentioning this drug
-            const drugTrials = projectTrials.filter(trial => {
-              const trialText = [
-                trial.briefTitle,
-                trial.officialTitle,
-                ...(trial.interventions || []),
-                ...(trial.conditions || [])
-              ].join(' ').toLowerCase()
-              return trialText.includes(normalizedName)
-            })
-            
-            const drugPapers = projectPapers.filter(paper => {
-              const paperText = [paper.title, paper.abstract].join(' ').toLowerCase()
-              return paperText.includes(normalizedName)
-            })
-            
-            if (drugTrials.length > 0 || drugPapers.length > 0) {
-              drugGroupsMap.set(drug.name, {
-                drugName: drug.name,
-                normalizedName: normalizedName,
-                papers: drugPapers,
-                trials: drugTrials,
-                pressReleases: [],
-                irDecks: [],
-                totalResults: drugTrials.length + drugPapers.length
-              })
-            }
-          })
-          
-          const drugGroupsArray = Array.from(drugGroupsMap.values())
-            .sort((a, b) => b.totalResults - a.totalResults)
-          
-          setDrugGroups(drugGroupsArray)
-          console.log('[Dashboard] ✅ Created', drugGroupsArray.length, 'drug groups')
-        }
+        // Extract press releases and IR decks from drug groups
+        const allPressReleases: PressRelease[] = []
+        const allIRDecks: IRDeck[] = []
+        
+        drugGroups.forEach(drugGroup => {
+          allPressReleases.push(...drugGroup.pressReleases)
+          allIRDecks.push(...drugGroup.irDecks)
+        })
+        
+        setPressReleases(allPressReleases)
+        setIRDecks(allIRDecks)
+        
+        const totalTrials = drugGroups.reduce((sum, dg) => sum + dg.trials.length, 0)
+        const totalPapers = drugGroups.reduce((sum, dg) => sum + dg.papers.length, 0)
+        console.log('[Dashboard] ✅ Set drugGroups state:', {
+          count: drugGroups.length,
+          totalTrials,
+          totalPapers,
+          sample: drugGroups.slice(0, 3).map(dg => ({
+            name: dg.drugName,
+            trials: dg.trials.length,
+            papers: dg.papers.length
+          }))
+        })
       }).catch(error => {
         console.error('[Dashboard] Failed to load project data:', error)
-        setTrials([])
-        setPapers([])
+      setTrials([])
+      setPapers([])
         setDrugGroups([])
+        setPressReleases([])
+        setIRDecks([])
       })
       
       // Clear other state when switching projects
@@ -586,10 +502,11 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
     }
   }, [viewMode, chatHistory, papers]);
 
-  const handleSendMessage = async () => {
-    if (!message.trim()) return;
+  const handleSendMessage = async (overrideMessage?: string) => {
+    const rawMessage = overrideMessage ?? message;
+    if (!rawMessage.trim()) return;
 
-    const userMessage = message.trim();
+    const userMessage = rawMessage.trim();
     const messageContextPapers = [...selectedPapers]; // Snapshot current context
     const messageContextPressReleases = [...selectedPressReleases]; // Snapshot press releases context
     setMessage('');
@@ -799,10 +716,20 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
       const initialResult = await GatherSearchResultsService.gatherSearchResults(suggestion.query, onProgress);
       
       // Save the initial search queries and strategies for display
-      setInitialSearchQueries({
+      const searchQueries = {
         originalQuery: suggestion.query,
         strategies: initialResult.searchStrategies
-      });
+      };
+      setInitialSearchQueries(searchQueries);
+      
+      // Save search queries to database (background task)
+      if (currentProjectId) {
+        import('@/services/projectService').then(({ saveSearchQueries }) => {
+          saveSearchQueries(currentProjectId, searchQueries).catch(error => {
+            console.error('[Dashboard] Failed to save search queries:', error);
+          });
+        });
+      }
       
       // Extract unique drug names from the results
       const drugExtractionResult = await ExtractDrugNamesService.extractFromSearchResults(
@@ -911,6 +838,16 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
       setPressReleases(initialResult.pressReleases);
       setIRDecks(initialResult.irDecks || []);
 
+      // Save drug groups with their associations to the database (background task)
+      if (currentProjectId && filteredDrugGroups.length > 0) {
+        console.log('[Dashboard] Saving drug groups to database...');
+        import('@/services/drugAssociationService').then(({ saveDrugGroups }) => {
+          saveDrugGroups(currentProjectId, filteredDrugGroups).catch(error => {
+            console.error('[Dashboard] Failed to save drug groups:', error);
+          });
+        });
+      }
+
       // Add deduplication warning if present (not common, but good to show)
       const warning = drugExtractionResult.deduplicationWarning;
       if (warning && warning.trim().length > 0) {
@@ -981,7 +918,7 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
       </div>
       
       {/* Toggle Buttons - Absolutely positioned center with equal widths */}
-      {(currentProjectId || hasSearched || viewMode === 'savedmaps' || viewMode === 'pipeline' || viewMode === 'dataextraction' || viewMode === 'realtimefeed') && (
+      {(currentProjectId || hasSearched || viewMode === 'pipeline' || viewMode === 'marketmap' || viewMode === 'dataextraction' || viewMode === 'realtimefeed') && (
         <div 
           className="absolute z-20"
           style={{ left: '50%', transform: 'translateX(-50%)' }}
@@ -1094,16 +1031,6 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
               Research
             </button>
             <button
-              onClick={() => setViewMode('marketmap')}
-              className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
-                viewMode === 'marketmap'
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              Market Map
-            </button>
-            <button
               onClick={() => setViewMode('pipeline')}
               className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
                 viewMode === 'pipeline'
@@ -1114,14 +1041,14 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
               Asset Pipeline
             </button>
             <button
-              onClick={() => setViewMode('savedmaps')}
+              onClick={() => setViewMode('marketmap')}
               className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
-                viewMode === 'savedmaps'
+                viewMode === 'marketmap'
                   ? 'bg-white text-gray-900 shadow-sm'
                   : 'text-gray-600 hover:text-gray-900'
               }`}
             >
-              Saved Maps
+              Market Map
             </button>
             <button
               onClick={() => setViewMode('dataextraction')}
@@ -1252,220 +1179,70 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
     />
   );
 
-  if (!hasSearched && viewMode !== 'savedmaps' && viewMode !== 'pipeline' && viewMode !== 'realtimefeed') {
-    // Initial centered search bar layout (skip if showing saved maps)
+  type ViewVariant = 'initial' | 'default';
+
+  const DashboardLayout = ({
+    variant = 'default',
+    currentProjectId,
+    children
+  }: {
+    variant?: ViewVariant;
+    currentProjectId: number | null;
+    children: React.ReactNode;
+  }) => {
+    if (variant === 'initial') {
+    return (
+        <div className="h-screen flex flex-col bg-background">
+          <div className="flex-1 overflow-auto flex items-center justify-center">
+            {children}
+          </div>
+        <div className="fixed top-0 left-0 right-0 z-50">
+            <Header currentProjectId={currentProjectId} />
+        </div>
+          <ProjectModal />
+      </div>
+      )
+  }
+
+    return (
+      <div className="h-screen flex flex-col">
+        <Header currentProjectId={currentProjectId} />
+        <div className="flex-1 min-h-0">
+          {children}
+        </div>
+        <ProjectModal />
+      </div>
+    )
+  }
+
+  if (!hasSearched && viewMode !== 'pipeline' && viewMode !== 'marketmap' && viewMode !== 'realtimefeed') {
     console.log('Rendering initial centered search. hasSearched:', hasSearched, 'viewMode:', viewMode);
     return (
-      <div className="h-screen flex items-center justify-center bg-background">
-        <div className="w-full max-w-2xl px-6">
-          <div className="text-center mb-8">
-            <h1 className="text-3xl font-semibold text-gray-800 mb-2">Welcome back</h1>
-          </div>
-          
-          {/* Context Display (Papers + Press Releases) */}
-          {(selectedPapers.length > 0 || selectedPressReleases.length > 0) && (
-            <div className="mb-3 flex justify-center">
-              {(selectedPapers.length + selectedPressReleases.length) <= 2 ? (
-                // Show individual pills for 1-2 papers
-                <div className="flex flex-wrap gap-2 justify-center">
-                  {selectedPapers.map((paper) => (
-                    <div
-                      key={paper.pmid}
-                      className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-md text-sm"
-                    >
-                      <svg className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                      <span className="text-blue-900 font-medium line-clamp-1 max-w-[200px]" title={paper.title}>
-                        {paper.title}
-                      </span>
-                      <button
-                        onClick={() => handleRemovePaperFromContext(paper.pmid)}
-                        className="flex-shrink-0 text-blue-400 hover:text-blue-600 transition-colors"
-                        title="Remove from context"
-                      >
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
-                    </div>
-                  ))}
-                  {selectedPressReleases.map((pr) => (
-                    <div
-                      key={pr.id}
-                      className="inline-flex items-center gap-2 px-3 py-1.5 bg-purple-50 border border-purple-200 rounded-md text-sm"
-                    >
-                      <svg className="w-3.5 h-3.5 text-purple-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
-                      </svg>
-                      <span className="text-purple-900 font-medium line-clamp-1 max-w-[200px]" title={pr.title}>
-                        {pr.title}
-                      </span>
-                      <button
-                        onClick={() => handleRemovePressReleaseFromContext(pr.id)}
-                        className="flex-shrink-0 text-purple-400 hover:text-purple-600 transition-colors"
-                        title="Remove from context"
-                      >
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                // Show compact button for 3+ items
-                <div className="relative context-panel-container">
-                  <button
-                    onClick={() => setShowContextPanel(!showContextPanel)}
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
-                  >
-                    <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    <span className="text-sm font-medium text-blue-900">
-                      Context ({selectedPapers.length + selectedPressReleases.length})
-                    </span>
-                    <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                    </svg>
-                  </button>
-                  
-                  {/* Context Panel Dropup */}
-                  {showContextPanel && (
-                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-white rounded-lg shadow-xl border border-gray-200 py-2 w-96 max-h-96 overflow-y-auto z-50">
-                      <div className="px-4 py-2 border-b border-gray-200 flex items-center justify-between">
-                        <h3 className="font-semibold text-gray-900">AI Context</h3>
-                        <button
-                          onClick={handleClearContext}
-                          className="text-xs text-red-600 hover:text-red-700 font-medium"
-                        >
-                          Clear All
-                        </button>
-                      </div>
-                      <div className="py-2">
-                        {selectedPapers.map((paper) => (
-                          <div
-                            key={paper.pmid}
-                            className="px-4 py-3 hover:bg-gray-50 border-b border-gray-100 last:border-b-0"
-                          >
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium text-gray-900 line-clamp-2">
-                                  {paper.title}
-                                </p>
-                                <p className="text-xs text-gray-500 mt-1">
-                                  {paper.journal} • {paper.publicationDate}
-                                </p>
-                              </div>
-                              <button
-                                onClick={() => handleRemovePaperFromContext(paper.pmid)}
-                                className="flex-shrink-0 text-gray-400 hover:text-red-600 transition-colors"
-                                title="Remove from context"
-                              >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                        {selectedPressReleases.map((pr) => (
-                          <div
-                            key={pr.id}
-                            className="px-4 py-3 hover:bg-gray-50 border-b border-gray-100 last:border-b-0 bg-purple-50/30"
-                          >
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium text-gray-900 line-clamp-2">
-                                  {pr.title}
-                                </p>
-                                <p className="text-xs text-purple-600 mt-1">
-                                  Press Release • {pr.releaseDate}
-                                </p>
-                              </div>
-                              <button
-                                onClick={() => handleRemovePressReleaseFromContext(pr.id)}
-                                className="flex-shrink-0 text-gray-400 hover:text-red-600 transition-colors"
-                                title="Remove from context"
-                              >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-          
-          <div className="relative">
-            <input
-              type="text"
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
+      <DashboardLayout variant="initial" currentProjectId={currentProjectId}>
+        <InitialResearchView
+          selectedPapers={selectedPapers}
+          selectedPressReleases={selectedPressReleases}
+          showContextPanel={showContextPanel}
+          onToggleContextPanel={() => setShowContextPanel(prev => !prev)}
+          onRemovePaper={handleRemovePaperFromContext}
+          onRemovePressRelease={handleRemovePressReleaseFromContext}
+          onClearContext={handleClearContext}
+          message={message}
+          onMessageChange={(value) => setMessage(value)}
+          onSendMessage={handleSendMessage}
               onKeyPress={handleKeyPress}
-              placeholder={hasSearched ? "Respond to ABCresearch's agent..." : "How can I help you today?"}
-              className="flex h-[60px] w-full rounded-md border border-gray-300 bg-white pl-4 pr-16 py-2 text-lg ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={loading}
-              autoFocus
-            />
-            <button
-              onClick={handleSendMessage}
-              disabled={!message.trim() || loading}
-              className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-gray-800 hover:bg-gray-900 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
-            >
-              <ArrowUp className="h-4 w-4 text-white" />
-            </button>
-          </div>
-        </div>
-
-        {/* Header with centered buttons */}
-        <div className="fixed top-0 left-0 right-0 z-50">
-          <Header currentProjectId={currentProjectId} />
-        </div>
-        
-        {/* Create Project Modal */}
-        <ProjectModal />
-      </div>
+          loading={loading}
+          hasSearched={hasSearched}
+        />
+      </DashboardLayout>
     );
   }
 
-
-  // Show saved maps view
-  if (viewMode === 'savedmaps') {
-    return (
-      <div className="h-screen flex flex-col overflow-hidden">
-        <Header currentProjectId={currentProjectId} />
-        <div className="flex-1 overflow-y-auto bg-gray-50">
-          <SavedMaps 
-            onLoadMap={handleLoadSavedMap}
-            onDeleteMap={handleDeleteSavedMap}
-            currentProjectId={currentProjectId}
-          />
-        </div>
-        
-        {/* Create Project Modal */}
-        <ProjectModal />
-      </div>
-    );
-  }
-
-  // After search - conditional layout based on view mode
+  // Show combined market map view (includes saved maps)
   if (viewMode === 'marketmap') {
-    // Full screen market map view
     return (
-      <div className="h-screen flex flex-col overflow-hidden">
-        <Header currentProjectId={currentProjectId} />
-        
-        {/* Full Screen Market Map */}
-        <div className="flex-1 overflow-hidden bg-gray-50">
-          <MarketMap 
+      <DashboardLayout currentProjectId={currentProjectId}>
+        <MarketMapCombinedView
             trials={trials} 
             loading={loading} 
             query={lastQuery}
@@ -1478,18 +1255,11 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
             chatHistory={chatHistory}
             papers={papers}
             currentProjectId={currentProjectId}
-            onSaveSuccess={() => {
-              console.log('Market map saved successfully!');
-              // If we're viewing saved maps, we could refresh the list here
-              // For now, just show a success message
-            }}
             onNavigateToResearch={() => setViewMode('research')}
+            onLoadMap={handleLoadSavedMap}
+            onDeleteMap={handleDeleteSavedMap}
           />
-        </div>
-        
-        {/* Create Project Modal */}
-        <ProjectModal />
-      </div>
+      </DashboardLayout>
     );
   }
 
@@ -1497,40 +1267,26 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
   // Asset Development Pipeline mode
   if (viewMode === 'pipeline') {
     return (
-      <div className="h-screen flex flex-col overflow-hidden">
-        <Header currentProjectId={currentProjectId} />
-        
-        {/* Asset Development Pipeline Content */}
-        <div className="flex-1 overflow-hidden">
-          <AssetDevelopmentPipeline 
+      <DashboardLayout currentProjectId={currentProjectId}>
+        <PipelineView
             trials={trials} 
             drugGroups={drugGroups}
             query={lastQuery}
             onAddPaperToContext={handleAddPaperToContext}
             isPaperInContext={isPaperInContext}
+            pipelineCandidates={pipelineCandidates}
+            setPipelineCandidates={setPipelineCandidates}
           />
-        </div>
-        
-        {/* Create Project Modal */}
-        <ProjectModal />
-      </div>
+      </DashboardLayout>
     );
   }
 
   // Data Extraction mode
   if (viewMode === 'dataextraction') {
     return (
-      <div className="h-screen flex flex-col bg-gray-50">
-        <Header currentProjectId={currentProjectId} />
-        
-        {/* PDF Data Extraction Content */}
-        <div className="flex-1 overflow-y-auto">
-          <PDFExtraction />
-        </div>
-        
-        {/* Create Project Modal */}
-        <ProjectModal />
-      </div>
+      <DashboardLayout currentProjectId={currentProjectId}>
+        <DataExtractionView />
+      </DashboardLayout>
     );
   }
 
@@ -1538,17 +1294,9 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
   // Realtime Feed mode
   if (viewMode === 'realtimefeed') {
     return (
-      <div className="h-screen flex flex-col overflow-hidden">
-        <Header currentProjectId={currentProjectId} />
-        
-        {/* Realtime Feed Content */}
-        <div className="flex-1 overflow-y-auto">
-          <RealtimeFeed />
-        </div>
-        
-        {/* Create Project Modal */}
-        <ProjectModal />
-      </div>
+      <DashboardLayout currentProjectId={currentProjectId}>
+        <RealtimeFeedView />
+      </DashboardLayout>
     );
   }
 
@@ -1557,684 +1305,59 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
   if (hasSearched && (drugGroups.length > 0 || searchProgress.total > 0)) {
     console.log('Rendering split screen');
     return (
-    <div className="h-screen flex flex-col relative">
-      <Header currentProjectId={currentProjectId} />
-      
-      {/* Vertical separator line - spans from header to bottom with precise centering */}
-      <div 
-        className="absolute w-px h-full bg-gray-200 z-10 top-0 pointer-events-none"
-        style={{ left: '50%', transform: 'translateX(-0.5px)' }}
-      ></div>
-
-      {/* Split View Content */}
-      <div className="flex-1 flex overflow-hidden">
-        
-        {/* Left Half - Chat Interface */}
-        <div className="w-1/2 bg-background flex flex-col">
-          {/* Chat Messages Area */}
-          <div className="flex-1 p-6 overflow-y-auto min-h-0 max-h-full">
-            <div className="max-w-2xl mx-auto space-y-4">
-              {chatHistory.map((item, index) => (
-                <div
-                  key={index}
-                  className={`flex ${item.type === 'user' ? 'justify-end' : 'justify-start'}`}
-                >
-                  <div
-                    className={`max-w-[80%] p-4 rounded-lg border ${
-                      item.type === 'user' 
-                        ? 'bg-gray-800 text-white border-gray-700' 
-                        : 'bg-gray-50 text-gray-700 border-gray-200'
-                    }`}
-                  >
-                    {/* Special handling for progress messages */}
-                    {item.message.startsWith('progress:') ? (
-                      <div className="flex items-center gap-3">
-                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
-                        <div className="text-sm">
-                          <div className="font-medium text-gray-900">{item.message.replace('progress:', '')}</div>
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="text-sm leading-relaxed">
-                          {item.message}
-                        </div>
-                        
-                        {/* Context Indicators */}
-                        {((item.contextPapers && item.contextPapers.length > 0) || (item.contextPressReleases && item.contextPressReleases.length > 0)) && (
-                          <div className="mt-2 space-y-2">
-                            {/* Context Papers */}
-                            {item.contextPapers && item.contextPapers.length > 0 && (
-                              <details className="cursor-pointer">
-                                <summary className={`text-xs font-medium inline-flex items-center gap-1 px-2 py-1 rounded ${
-                                  item.type === 'user'
-                                    ? 'bg-blue-700 text-blue-100 hover:bg-blue-600'
-                                    : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-                                }`}>
-                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                  </svg>
-                                  Papers ({item.contextPapers.length})
-                                </summary>
-                                <div className="mt-2 space-y-1">
-                                  {item.contextPapers.map((paper) => (
-                                    <div
-                                      key={paper.pmid}
-                                      className={`text-xs p-2 rounded ${
-                                        item.type === 'user'
-                                          ? 'bg-gray-700 text-gray-300'
-                                          : 'bg-white border border-gray-200'
-                                      }`}
-                                    >
-                                      <div className="font-medium line-clamp-2">{paper.title}</div>
-                                      <div className={`text-xs mt-1 ${
-                                        item.type === 'user' ? 'text-gray-400' : 'text-gray-500'
-                                      }`}>
-                                        {paper.journal} • {paper.publicationDate}
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </details>
-                            )}
-
-                            {/* Context Press Releases */}
-                            {item.contextPressReleases && item.contextPressReleases.length > 0 && (
-                              <details className="cursor-pointer">
-                                <summary className={`text-xs font-medium inline-flex items-center gap-1 px-2 py-1 rounded ${
-                                  item.type === 'user'
-                                    ? 'bg-purple-700 text-purple-100 hover:bg-purple-600'
-                                    : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
-                                }`}>
-                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
-                                  </svg>
-                                  Press Releases ({item.contextPressReleases.length})
-                                </summary>
-                                <div className="mt-2 space-y-1">
-                                  {item.contextPressReleases.map((pr) => (
-                                    <div
-                                      key={pr.id}
-                                      className={`text-xs p-2 rounded ${
-                                        item.type === 'user'
-                                          ? 'bg-gray-700 text-gray-300'
-                                          : 'bg-white border border-purple-200'
-                                      }`}
-                                    >
-                                      <div className="font-medium line-clamp-2">{pr.title}</div>
-                                      <div className={`text-xs mt-1 ${
-                                        item.type === 'user' ? 'text-gray-400' : 'text-purple-600'
-                                      }`}>
-                                        {pr.company} • {pr.releaseDate}
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </details>
-                            )}
-                          </div>
-                        )}
-                      </>
-                    )}
-                    
-                    {/* Search Suggestions */}
-                    {item.searchSuggestions && item.searchSuggestions.length > 0 && (
-                      <div className="mt-3 space-y-2">
-                        {item.searchSuggestions.map((suggestion) => (
-                          <button
-                            key={suggestion.id}
-                            onClick={() => handleSearchSuggestion(suggestion)}
-                            className="w-full text-left p-3 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors"
-                          >
-                            <div className="flex items-center gap-2">
-                              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                              <span className="font-medium text-blue-900">{suggestion.label}</span>
-                            </div>
-                            {suggestion.description && (
-                              <div className="text-xs text-blue-700 mt-1 ml-4">
-                                {suggestion.description}
-                              </div>
-                            )}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-              
-              {/* Stage 2 Progress Indicator */}
-              {searchProgress.total > 0 && searchProgress.current < searchProgress.total && (
-                <div className="flex justify-start">
-                  <div className="max-w-[80%] p-4 rounded-lg border bg-blue-50 border-blue-200">
-                    <div className="text-sm text-blue-900 mb-2">
-                      Stage 2: Searching for drug {searchProgress.current + 1} of {searchProgress.total}...
-                    </div>
-                    <div className="w-full bg-blue-200 rounded-full h-2">
-                      <div 
-                        className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                        style={{ width: `${(searchProgress.current / searchProgress.total) * 100}%` }}
-                      ></div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Input Area - Fixed at bottom */}
-          <div className="p-6 border-t bg-background flex-shrink-0">
-            <div className="max-w-2xl mx-auto">
-              {/* Context Display (Papers + Press Releases) */}
-              {(selectedPapers.length > 0 || selectedPressReleases.length > 0) && (
-                <div className="mb-3">
-                  {(selectedPapers.length + selectedPressReleases.length) <= 2 ? (
-                    // Show individual pills for 1-2 items
-                    <div className="flex flex-wrap gap-2">
-                      {selectedPapers.map((paper) => (
-                        <div
-                          key={paper.pmid}
-                          className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-md text-sm"
-                        >
-                          <svg className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                          </svg>
-                          <span className="text-blue-900 font-medium line-clamp-1 max-w-[200px]" title={paper.title}>
-                            {paper.title}
-                          </span>
-                          <button
-                            onClick={() => handleRemovePaperFromContext(paper.pmid)}
-                            className="flex-shrink-0 text-blue-400 hover:text-blue-600 transition-colors"
-                            title="Remove from context"
-                          >
-                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                          </button>
-                        </div>
-                      ))}
-                      {selectedPressReleases.map((pr) => (
-                        <div
-                          key={pr.id}
-                          className="inline-flex items-center gap-2 px-3 py-1.5 bg-purple-50 border border-purple-200 rounded-md text-sm"
-                        >
-                          <svg className="w-3.5 h-3.5 text-purple-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
-                          </svg>
-                          <span className="text-purple-900 font-medium line-clamp-1 max-w-[200px]" title={pr.title}>
-                            {pr.title}
-                          </span>
-                          <button
-                            onClick={() => handleRemovePressReleaseFromContext(pr.id)}
-                            className="flex-shrink-0 text-purple-400 hover:text-purple-600 transition-colors"
-                            title="Remove from context"
-                          >
-                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    // Show compact button for 3+ items
-                    <div className="relative">
-                      <button
-                        onClick={() => setShowContextPanel(!showContextPanel)}
-                        className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
-                      >
-                        <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                        <span className="text-sm font-medium text-blue-900">
-                          Context ({selectedPapers.length + selectedPressReleases.length})
-                        </span>
-                        <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                        </svg>
-                      </button>
-
-                      {/* Context Panel Dropup */}
-                      {showContextPanel && (
-                        <div className="absolute bottom-full left-0 mb-2 bg-white rounded-lg shadow-xl border border-gray-200 py-2 w-96 max-h-96 overflow-y-auto z-50">
-                          <div className="px-4 py-2 border-b border-gray-200 flex items-center justify-between">
-                            <h3 className="font-semibold text-gray-900">AI Context</h3>
-                            <button
-                              onClick={handleClearContext}
-                              className="text-xs text-red-600 hover:text-red-700 font-medium"
-                            >
-                              Clear All
-                            </button>
-                          </div>
-                          <div className="py-2">
-                            {selectedPapers.map((paper) => (
-                              <div
-                                key={paper.pmid}
-                                className="px-4 py-3 hover:bg-gray-50 border-b border-gray-100 last:border-b-0"
-                              >
-                                <div className="flex items-start justify-between gap-2">
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-medium text-gray-900 line-clamp-2">
-                                      {paper.title}
-                                    </p>
-                                    <p className="text-xs text-gray-500 mt-1">
-                                      {paper.journal} • {paper.publicationDate}
-                                    </p>
-                                  </div>
-                                  <button
-                                    onClick={() => handleRemovePaperFromContext(paper.pmid)}
-                                    className="flex-shrink-0 text-gray-400 hover:text-red-600 transition-colors"
-                                    title="Remove from context"
-                                  >
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                    </svg>
-                                  </button>
-                                </div>
-                              </div>
-                            ))}
-                            {selectedPressReleases.map((pr) => (
-                              <div
-                                key={pr.id}
-                                className="px-4 py-3 hover:bg-gray-50 border-b border-gray-100 last:border-b-0 bg-purple-50/30"
-                              >
-                                <div className="flex items-start justify-between gap-2">
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-medium text-gray-900 line-clamp-2">
-                                      {pr.title}
-                                    </p>
-                                    <p className="text-xs text-purple-600 mt-1">
-                                      {pr.company} • {pr.releaseDate}
-                                    </p>
-                                  </div>
-                                  <button
-                                    onClick={() => handleRemovePressReleaseFromContext(pr.id)}
-                                    className="flex-shrink-0 text-gray-400 hover:text-red-600 transition-colors"
-                                    title="Remove from context"
-                                  >
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                    </svg>
-                                  </button>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-              
-              <div className="relative">
-                <input
-                  type="text"
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
+      <DashboardLayout currentProjectId={currentProjectId}>
+        <ResearchSplitView
+          chatHistory={chatHistory}
+          selectedPapers={selectedPapers}
+          selectedPressReleases={selectedPressReleases}
+          showContextPanel={showContextPanel}
+          onToggleContextPanel={() => setShowContextPanel(prev => !prev)}
+          onRemovePaper={handleRemovePaperFromContext}
+          onRemovePressRelease={handleRemovePressReleaseFromContext}
+          onClearContext={handleClearContext}
+          onMessageChange={(value) => setMessage(value)}
+          onSendMessage={handleSendMessage}
                   onKeyPress={handleKeyPress}
-                  placeholder={hasSearched ? "Respond to ABCresearch's agent..." : "How can I help you today?"}
-                  className="flex h-[50px] w-full rounded-md border border-gray-300 bg-white pl-4 pr-12 py-2 ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50"
-                  disabled={loading}
-                />
-                <button
-                  onClick={handleSendMessage}
-                  disabled={!message.trim() || loading}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 rounded-full bg-gray-800 hover:bg-gray-900 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
-                >
-                  <ArrowUp className="h-3 w-3 text-white" />
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Right Half - Drug-Centric View */}
-        <div className="w-1/2 bg-gray-50 overflow-hidden">
-          {selectedDrug ? (
-            <DrugDetail
-              drugGroup={selectedDrug}
-              query={lastQuery}
-              onBack={() => setSelectedDrug(null)}
-              onExpandFullscreen={() => setShowDrugModal(true)}
-              onAddPaperToContext={handleAddPaperToContext}
-              isPaperInContext={isPaperInContext}
-              onAddPressReleaseToContext={handleAddPressReleaseToContext}
-              isPressReleaseInContext={isPressReleaseInContext}
-            />
-          ) : (
-            <DrugsList
+          handleSearchSuggestion={handleSearchSuggestion}
+          message={message}
+          loading={loading}
+          selectedDrug={selectedDrug}
+          setSelectedDrug={setSelectedDrug}
               drugGroups={drugGroups}
-              loading={searchProgress.total > 0 && searchProgress.current < searchProgress.total}
-              query={lastQuery}
-              onDrugClick={(drugGroup) => setSelectedDrug(drugGroup)}
-              onDrugSpecificSearch={handleDrugSpecificSearch}
+          searchProgress={searchProgress}
+          handleDrugSpecificSearch={handleDrugSpecificSearch}
               initialSearchQueries={initialSearchQueries}
-            />
-          )}
-        </div>
-      </div>
-
-      {/* Fullscreen Drug Modal */}
-      {showDrugModal && selectedDrug && (
-        <DrugDetailModal
-          drugGroup={selectedDrug}
-          query={lastQuery}
-          onClose={() => {
-            setShowDrugModal(false);
-          }}
-          onAddPaperToContext={handleAddPaperToContext}
+          showDrugModal={showDrugModal}
+          setShowDrugModal={setShowDrugModal}
+          handleAddPaperToContext={handleAddPaperToContext}
           isPaperInContext={isPaperInContext}
-          onAddPressReleaseToContext={handleAddPressReleaseToContext}
+          handleAddPressReleaseToContext={handleAddPressReleaseToContext}
           isPressReleaseInContext={isPressReleaseInContext}
         />
-      )}
-      
-      {/* Create Project Modal */}
-      <ProjectModal />
-    </div>
-  )
+      </DashboardLayout>
+    );
   }
 
   // Wide screen chat interface - when hasSearched is true but no search results yet
   console.log('Rendering wide screen chat interface. hasSearched:', hasSearched, 'trials:', trials.length, 'papers:', papers.length);
   return (
-    <div className="h-screen flex flex-col">
-      <Header />
-      
-      {/* Wide Screen Chat Interface */}
-      <div className="flex-1 flex flex-col max-w-4xl mx-auto w-full px-6 py-8">
-        {/* Chat Messages Area */}
-        <div className="flex-1 overflow-y-auto mb-6">
-          {chatHistory.map((item, index) => (
-            <div key={index} className={`mb-4 p-4 rounded-lg border ${
-              item.type === 'user' 
-                ? 'bg-gray-800 text-white border-gray-700' 
-                : 'bg-gray-50 text-gray-700 border-gray-200'
-            }`}>
-              {/* Special handling for progress messages */}
-              {item.message.startsWith('progress:') ? (
-                <div className="flex items-center gap-3">
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
-                  <div className="text-sm">
-                    <div className="font-medium text-gray-900">{item.message.replace('progress:', '')}</div>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <div className="text-sm leading-relaxed">
-                    {item.message}
-                  </div>
-                  
-                  {/* Context Indicators */}
-                  {((item.contextPapers && item.contextPapers.length > 0) || (item.contextPressReleases && item.contextPressReleases.length > 0)) && (
-                    <div className="mt-2 space-y-2">
-                      {/* Context Papers */}
-                      {item.contextPapers && item.contextPapers.length > 0 && (
-                        <details className="cursor-pointer">
-                          <summary className={`text-xs font-medium inline-flex items-center gap-1 px-2 py-1 rounded ${
-                            item.type === 'user'
-                              ? 'bg-blue-700 text-blue-100 hover:bg-blue-600'
-                              : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-                          }`}>
-                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                            </svg>
-                            Papers ({item.contextPapers.length})
-                          </summary>
-                          <div className="mt-2 space-y-1">
-                            {item.contextPapers.map((paper) => (
-                              <div
-                                key={paper.pmid}
-                                className={`text-xs p-2 rounded ${
-                                  item.type === 'user'
-                                    ? 'bg-gray-700 text-gray-300'
-                                    : 'bg-white border border-gray-200'
-                                }`}
-                              >
-                                <div className="font-medium line-clamp-2">{paper.title}</div>
-                                <div className={`text-xs mt-1 ${
-                                  item.type === 'user' ? 'text-gray-400' : 'text-gray-500'
-                                }`}>
-                                  {paper.journal} • {paper.publicationDate}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </details>
-                      )}
-
-                      {/* Context Press Releases */}
-                      {item.contextPressReleases && item.contextPressReleases.length > 0 && (
-                        <details className="cursor-pointer">
-                          <summary className={`text-xs font-medium inline-flex items-center gap-1 px-2 py-1 rounded ${
-                            item.type === 'user'
-                              ? 'bg-purple-700 text-purple-100 hover:bg-purple-600'
-                              : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
-                          }`}>
-                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
-                            </svg>
-                            Press Releases ({item.contextPressReleases.length})
-                          </summary>
-                          <div className="mt-2 space-y-1">
-                            {item.contextPressReleases.map((pr) => (
-                              <div
-                                key={pr.id}
-                                className={`text-xs p-2 rounded ${
-                                  item.type === 'user'
-                                    ? 'bg-gray-700 text-gray-300'
-                                    : 'bg-white border border-purple-200'
-                                }`}
-                              >
-                                <div className="font-medium line-clamp-2">{pr.title}</div>
-                                <div className={`text-xs mt-1 ${
-                                  item.type === 'user' ? 'text-gray-400' : 'text-purple-600'
-                                }`}>
-                                  {pr.company} • {pr.releaseDate}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </details>
-                      )}
-                    </div>
-                  )}
-                  
-                  {/* Search Suggestions */}
-                  {item.searchSuggestions && item.searchSuggestions.length > 0 && (
-                    <div className="mt-3 space-y-2">
-                      {item.searchSuggestions.map((suggestion) => (
-                        <button
-                          key={suggestion.id}
-                          onClick={() => handleSearchSuggestion(suggestion)}
-                          className="w-full text-left p-3 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors"
-                        >
-                          <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                            <span className="font-medium text-blue-900">{suggestion.label}</span>
-                          </div>
-                          {suggestion.description && (
-                            <p className="text-sm text-blue-700 mt-1">{suggestion.description}</p>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          ))}
-        </div>
-
-        {/* Message Input */}
-        <div>
-          {/* Context Display (Papers + Press Releases) */}
-          {(selectedPapers.length > 0 || selectedPressReleases.length > 0) && (
-            <div className="mb-3">
-              {(selectedPapers.length + selectedPressReleases.length) <= 2 ? (
-                // Show individual pills for 1-2 items
-                <div className="flex flex-wrap gap-2">
-                  {selectedPapers.map((paper) => (
-                    <div
-                      key={paper.pmid}
-                      className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-md text-sm"
-                    >
-                      <svg className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                      <span className="text-blue-900 font-medium line-clamp-1 max-w-[200px]" title={paper.title}>
-                        {paper.title}
-                      </span>
-                      <button
-                        onClick={() => handleRemovePaperFromContext(paper.pmid)}
-                        className="flex-shrink-0 text-blue-400 hover:text-blue-600 transition-colors"
-                        title="Remove from context"
-                      >
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
-                    </div>
-                  ))}
-                  {selectedPressReleases.map((pr) => (
-                    <div
-                      key={pr.id}
-                      className="inline-flex items-center gap-2 px-3 py-1.5 bg-purple-50 border border-purple-200 rounded-md text-sm"
-                    >
-                      <svg className="w-3.5 h-3.5 text-purple-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
-                      </svg>
-                      <span className="text-purple-900 font-medium line-clamp-1 max-w-[200px]" title={pr.title}>
-                        {pr.title}
-                      </span>
-                      <button
-                        onClick={() => handleRemovePressReleaseFromContext(pr.id)}
-                        className="flex-shrink-0 text-purple-400 hover:text-purple-600 transition-colors"
-                        title="Remove from context"
-                      >
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                // Show compact button for 3+ items
-                <div className="relative context-panel-container">
-                  <button
-                    onClick={() => setShowContextPanel(!showContextPanel)}
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
-                  >
-                    <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    <span className="text-sm font-medium text-blue-900">
-                      Context ({selectedPapers.length + selectedPressReleases.length})
-                    </span>
-                    <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                    </svg>
-                  </button>
-                  
-                  {/* Context Panel Dropup */}
-                  {showContextPanel && (
-                    <div className="absolute bottom-full left-0 mb-2 bg-white rounded-lg shadow-xl border border-gray-200 py-2 w-96 max-h-96 overflow-y-auto z-50">
-                      <div className="px-4 py-2 border-b border-gray-200 flex items-center justify-between">
-                        <h3 className="font-semibold text-gray-900">AI Context</h3>
-                        <button
-                          onClick={handleClearContext}
-                          className="text-xs text-red-600 hover:text-red-700 font-medium"
-                        >
-                          Clear All
-                        </button>
-                      </div>
-                      <div className="py-2">
-                        {selectedPapers.map((paper) => (
-                          <div
-                            key={paper.pmid}
-                            className="px-4 py-3 hover:bg-gray-50 border-b border-gray-100 last:border-b-0"
-                          >
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium text-gray-900 line-clamp-2">
-                                  {paper.title}
-                                </p>
-                                <p className="text-xs text-gray-500 mt-1">
-                                  {paper.journal} • {paper.publicationDate}
-                                </p>
-                              </div>
-                              <button
-                                onClick={() => handleRemovePaperFromContext(paper.pmid)}
-                                className="flex-shrink-0 text-gray-400 hover:text-red-600 transition-colors"
-                                title="Remove from context"
-                              >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                        {selectedPressReleases.map((pr) => (
-                          <div
-                            key={pr.id}
-                            className="px-4 py-3 hover:bg-gray-50 border-b border-gray-100 last:border-b-0 bg-purple-50/30"
-                          >
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium text-gray-900 line-clamp-2">
-                                  {pr.title}
-                                </p>
-                                <p className="text-xs text-purple-600 mt-1">
-                                  Press Release • {pr.releaseDate}
-                                </p>
-                              </div>
-                              <button
-                                onClick={() => handleRemovePressReleaseFromContext(pr.id)}
-                                className="flex-shrink-0 text-gray-400 hover:text-red-600 transition-colors"
-                                title="Remove from context"
-                              >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-          
-          <div className="relative">
-            <input
-              type="text"
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
+    <DashboardLayout currentProjectId={currentProjectId}>
+      <ResearchChatView
+        chatHistory={chatHistory}
+        selectedPapers={selectedPapers}
+        selectedPressReleases={selectedPressReleases}
+        showContextPanel={showContextPanel}
+        onToggleContextPanel={() => setShowContextPanel(prev => !prev)}
+        onRemovePaper={handleRemovePaperFromContext}
+        onRemovePressRelease={handleRemovePressReleaseFromContext}
+        onClearContext={handleClearContext}
+        handleSearchSuggestion={handleSearchSuggestion}
+        message={message}
+        onMessageChange={(value) => setMessage(value)}
+        onSendMessage={handleSendMessage}
               onKeyPress={handleKeyPress}
-              placeholder="Respond to ABCresearch's agent..."
-              className="flex h-[60px] w-full rounded-md border border-gray-300 bg-white pl-4 pr-16 py-2 text-lg ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={loading}
-              autoFocus
-            />
-            <button
-              onClick={handleSendMessage}
-              disabled={!message.trim() || loading}
-              className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-gray-800 hover:bg-gray-900 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
-            >
-              <ArrowUp className="h-4 w-4 text-white" />
-            </button>
-          </div>
-        </div>
-      </div>
-      
-      {/* Create Project Modal */}
-      <ProjectModal />
-    </div>
+        loading={loading}
+      />
+    </DashboardLayout>
   )
 }
