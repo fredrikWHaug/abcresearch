@@ -1,4 +1,4 @@
-LATEST UPDATE: 11/08/25
+LATEST UPDATE: 11/23/25
 
 # ABCresearch - Backend Documentation
 
@@ -49,9 +49,9 @@ All endpoints located in `api/` directory.
 
 ### 1. Clinical Trials Search
 
-**File**: `api/search-clinical-trials.ts`
+**File**: `api/search.ts` (Consolidated search API)
 
-**Endpoint**: `POST /api/search-clinical-trials`
+**Endpoint**: `POST /api/search?type=trials`
 
 **Purpose**: Proxy to ClinicalTrials.gov API v2
 
@@ -77,19 +77,40 @@ interface SearchParams {
 }
 ```
 
-**Query Building**:
+**Query Building with LLM Parsing**:
+
+The API uses LLM-powered query parsing to intelligently construct structured ClinicalTrials.gov API v2 parameters:
+
 ```typescript
-// Constructs ClinicalTrials.gov API query
-const queryParts: string[] = []
-if (params.condition) queryParts.push(`AREA[Condition]${params.condition}`)
-if (params.sponsor) queryParts.push(`AREA[Sponsor]${params.sponsor}`)
-if (params.phase) queryParts.push(`AREA[Phase]${params.phase}`)
-if (params.query) queryParts.push(params.query)
+// LLM parses natural language into structured parameters
+// Input: "Phase 3 semaglutide obesity trials that are recruiting"
+// Output:
+{
+  "query.cond": "obesity",
+  "query.intr": "semaglutide", 
+  "query.term": "AREA[Phase](Phase 3)",
+  "filter.overallStatus": "RECRUITING,ACTIVE_NOT_RECRUITING"
+}
 ```
+
+**Supported API v2 Parameters**:
+- `query.cond` - Medical condition (e.g., "obesity", "diabetes")
+- `query.intr` - Intervention/drug name (e.g., "semaglutide")
+- `query.term` - General search terms with AREA syntax for phase
+- `query.locn` - Geographic location
+- `filter.overallStatus` - Trial status (RECRUITING, ACTIVE_NOT_RECRUITING, etc.)
+- `query.patient` - Patient population (adult, child, etc.)
+
+**Example Well-Formed Query**:
+```
+https://clinicaltrials.gov/api/v2/studies?query.cond=obesity&query.intr=semaglutide&query.term=AREA[Phase](Phase%203)&filter.overallStatus=RECRUITING&pageSize=20
+```
+
+**Fallback**: If LLM parsing fails, falls back to direct query string matching.
 
 **External API Call**:
 ```
-GET https://clinicaltrials.gov/api/v2/studies?query.term=...&fields=...
+GET https://clinicaltrials.gov/api/v2/studies?[structured-parameters]&fields=...
 ```
 
 **Fields Requested**:
@@ -118,19 +139,20 @@ const trials = (data.studies || []).map((study: any) => ({
 
 ### 2. Research Papers Search
 
-**File**: `api/search-papers.ts`
+**File**: `api/search.ts` (Consolidated search API)
 
-**Endpoint**: `POST /api/search-papers`
+**Endpoint**: `POST /api/search?type=papers`
 
 **Purpose**: Proxy to PubMed E-utilities API
 
 **Request Body**:
 ```typescript
 interface PubMedSearchRequest {
-  query: string         // PubMed search query
+  query: string         // PubMed search query  
   maxResults?: number   // Max papers to return (default: 20)
   startDate?: string    // Filter by publication date
   endDate?: string      // Filter by publication date
+  enhanceQuery?: boolean // Use LLM to optimize query (default: false)
 }
 ```
 
@@ -140,6 +162,31 @@ interface PubMedSearchRequest {
   papers: PubMedArticle[]  // Array of formatted paper objects
 }
 ```
+
+**LLM Query Enhancement** (optional):
+
+When `enhanceQuery: true`, the API uses Gemini to construct optimized PubMed E-Utilities syntax:
+
+**Example Transformations**:
+```
+Input:  "Phase 3 semaglutide obesity trials"
+Output: semaglutide[Title/Abstract] AND obesity[Title/Abstract] AND 
+        ("Clinical Trial, Phase III"[Publication Type] OR "Clinical Trial"[Publication Type])
+
+Input:  "GLP-1 receptor agonist diabetes"
+Output: ("GLP-1 receptor agonist"[Title/Abstract] OR "glucagon-like peptide-1"[Title/Abstract]) AND 
+        diabetes[Title/Abstract] AND 
+        ("Clinical Trial"[Publication Type] OR "Randomized Controlled Trial"[Publication Type])
+```
+
+**Query Enhancement Features**:
+- Field tags: `[Title/Abstract]`, `[Publication Type]`, `[MeSH Terms]`
+- Boolean operators: `AND`, `OR`, `NOT`
+- Phrase matching with quotes
+- Clinical trial publication type filters
+- Synonym expansion (e.g., "GLP-1" → "glucagon-like peptide-1")
+
+**Fallback**: If LLM unavailable or enhancement fails, uses original query string.
 
 **Two-Step Process**:
 
@@ -234,13 +281,15 @@ function calculateRelevanceScore(xml: string): number {
 
 ---
 
-### 3. AI Query Enhancement
+### 3. AI Query Enhancement & Parsing
 
 **File**: `api/enhance-search.ts`
 
 **Endpoint**: `POST /api/enhance-search`
 
 **Purpose**: Generate phrase-based discovery strategies using Google Gemini API
+
+**Implementation Note**: The system uses LLM-powered query parsing to intelligently construct well-formed API calls to external services. This replaced manual code-based query parsing.
 
 **Request Body**:
 ```typescript
@@ -412,7 +461,194 @@ Rules:
 
 ---
 
-### 5. AI Conversational Response (HW8 ABC-57)
+### 4a. Drug Deduplication (Nov 23, 2025)
+
+**File**: `api/deduplicate-drugs.ts`
+
+**Endpoint**: `POST /api/deduplicate-drugs`
+
+**Purpose**: Server-side drug deduplication using Gemini LLM to identify duplicate drugs with different names (e.g., "Ozempic" and "Semaglutide")
+
+**Background - The Problem**: 
+
+Users were intermittently seeing this error:
+```
+Gemini API key not configured for drug deduplication
+⚠️ Deduplication failed, using basic deduplication
+```
+
+Root cause was in `src/services/extractDrugNames.ts` attempting to access Gemini API key directly in the browser:
+```typescript
+const geminiApiKey = import.meta.env.VITE_GOOGLE_GEMINI_API_KEY; // ❌ Browser-side access
+```
+
+**Three critical issues:**
+1. **Security**: Gemini API key exposed to client-side code (visible in browser network requests)
+2. **Configuration**: API key set as `GOOGLE_GEMINI_API_KEY` (server-side only, no `VITE_` prefix)
+3. **Architecture Inconsistency**: All other Gemini calls were server-side, but deduplication was client-side
+
+**Why It Was Intermittent**: Error only occurred when multiple drugs triggered deduplication. Basic fallback worked silently, masking the issue.
+
+**The Solution**: Created secure server-side endpoint following established patterns (`/api/extract-drug-names`, `/api/enhance-search`).
+
+**Architecture Comparison**:
+
+Before (❌ Insecure):
+```
+Browser → Access import.meta.env.VITE_GOOGLE_GEMINI_API_KEY
+       → Call Gemini API directly (key exposed)
+       → Parse response (147 lines of client code)
+```
+
+After (✅ Secure):
+```
+Browser → POST /api/deduplicate-drugs (no key needed)
+Server  → Access process.env.GOOGLE_GEMINI_API_KEY (secure)
+        → Call Gemini API server-side
+        → Return deduplicated drugs
+Browser → Receive results (27 lines of client code)
+```
+
+**Client-Side Simplification**: Reduced `extractDrugNames.ts` deduplication method from 147 lines to 27 lines by offloading to server.
+
+**Request Body**:
+```typescript
+{
+  drugs: Array<{
+    name: string              // Drug name
+    type?: string             // Drug type (optional)
+    confidence?: number       // Confidence score (optional)
+    brandNames?: string[]     // Brand names (optional)
+    mechanism?: string        // Mechanism of action (optional)
+  }>
+}
+```
+
+**Response**:
+```typescript
+{
+  success: boolean
+  drugs: DrugInfo[]           // Deduplicated drug array
+  originalCount: number       // Count before deduplication
+  deduplicatedCount: number   // Count after deduplication
+  error?: string              // Error message if failed
+}
+```
+
+**Deduplication Logic**:
+
+1. **Small List Optimization**: If ≤2 drugs, return as-is (no deduplication needed)
+
+2. **LLM-Based Deduplication**: Use Gemini to identify semantic duplicates
+   ```typescript
+   const prompt = `You are a pharmaceutical expert. Deduplicate this list of drugs:
+   
+   ${drugNames.map((name, i) => `${i + 1}. ${name}`).join('\n')}
+   
+   Instructions:
+   - Identify drugs that refer to the same compound (generic/brand name pairs)
+   - Keep generic name as primary identifier
+   - Remove true duplicates
+   - Return ONLY valid JSON array of unique drug names
+   
+   Example:
+   Input: ["Ozempic", "Semaglutide", "Wegovy", "Metformin"]
+   Output: ["Semaglutide", "Metformin"]  // Ozempic and Wegovy are brand names of Semaglutide
+   `
+   ```
+
+3. **Response Reconstruction**: Match deduplicated names back to original `DrugInfo` objects
+   - Find original object by normalized name matching
+   - Preserve all metadata (type, confidence, mechanism, brandNames)
+
+**Error Handling**:
+- HTTP 405: Method not allowed (non-POST)
+- HTTP 400: Missing or invalid `drugs` array
+- HTTP 500: Missing API key or Gemini API error
+- Fallback: Return original list if deduplication fails
+
+**Usage Flow**:
+
+```typescript
+// Client-side call (src/services/extractDrugNames.ts)
+private static async deduplicateDrugs(drugs: DrugInfo[]): Promise<DrugInfo[]> {
+  const response = await fetch('/api/deduplicate-drugs', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ drugs })
+  })
+  
+  const data = await response.json()
+  console.log(`✅ LLM deduplication: ${data.originalCount} → ${data.deduplicatedCount} drugs`)
+  return data.drugs
+}
+```
+
+**Before/After Migration**:
+
+**Before (Nov 22)**: Client-side deduplication
+```typescript
+// ❌ API key exposed in browser
+const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GOOGLE_GEMINI_API_KEY)
+const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' })
+const result = await model.generateContent(prompt)
+```
+
+**After (Nov 23)**: Server-side deduplication
+```typescript
+// ✅ API key secured on server
+const response = await fetch('/api/deduplicate-drugs', {
+  method: 'POST',
+  body: JSON.stringify({ drugs })
+})
+```
+
+**User Impact**:
+
+Before Fix:
+- ❌ Intermittent error messages in console
+- ❌ Deduplication silently falling back to basic mode
+- ❌ Duplicate drugs appearing (e.g., "Keytruda" and "Pembrolizumab" listed separately)
+
+After Fix:
+- ✅ No error messages (deduplication works reliably)
+- ✅ Advanced LLM-based deduplication always active
+- ✅ Cleaner drug lists with brand/generic names properly merged
+
+**Benefits**:
+- **Security**: API key never exposed to client (prevents credential leakage in browser network tab)
+- **Reliability**: Error eliminated by using proper server-side configuration
+- **Architecture**: Consistent with other API endpoints (all Gemini calls now server-side)
+- **Code Quality**: 120-line reduction in client code (147 → 27 lines)
+- **Testability**: Endpoint can be unit tested with mocked Gemini responses
+- **Maintainability**: Cleaner separation of concerns (API logic on server, business logic on client)
+
+**Testing**:
+- Unit tests: `api/__tests__/deduplicate-drugs.test.ts` (10 test cases covering edge cases)
+  - Non-POST requests rejected
+  - Missing drugs array validation
+  - Single drug bypass (no deduplication needed)
+  - Gemini API integration
+  - JSON parsing edge cases (markdown code blocks)
+  - Error handling (API failures, invalid JSON)
+  - Source combination when merging
+  - Confidence preservation
+- Integration: Tested via `extractDrugNames.ts` service in production flow
+
+**Environment Configuration**:
+
+No changes needed! Existing `GOOGLE_GEMINI_API_KEY` environment variable (without `VITE_` prefix) works correctly because it's now only accessed server-side.
+
+```bash
+# .env or Vercel environment variables
+GOOGLE_GEMINI_API_KEY=your_gemini_api_key_here
+```
+
+**Important**: Do NOT add `VITE_GOOGLE_GEMINI_API_KEY` - this would expose the key to the browser.
+
+---
+
+### 6. AI Conversational Response (HW8 ABC-57)
 
 **File**: `api/generate-response.ts`
 
@@ -770,7 +1006,7 @@ Actual: "GLP-1 receptor agonists are a class of medications primarily used for t
 
 ---
 
-### 6. Slide Generation
+### 7. Slide Generation
 
 **File**: `api/generate-slide.ts`
 
@@ -805,7 +1041,7 @@ Actual: "GLP-1 receptor agonists are a class of medications primarily used for t
 
 ---
 
-### 7. PDF Table Extraction
+### 8. PDF Table Extraction
 
 **File**: `api/extract_tables.js` (Node.js)
 

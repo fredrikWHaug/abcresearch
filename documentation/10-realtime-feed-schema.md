@@ -273,3 +273,178 @@ User views in Realtime Feed UI
 - Check RLS policies are enabled
 - Ensure user is authenticated
 
+---
+
+## Setup and Deployment
+
+### Step 1: Environment Variables
+
+Add these to your Vercel project environment variables:
+
+```bash
+# Existing variables (should already be set)
+VITE_SUPABASE_URL=your_supabase_url
+VITE_SUPABASE_ANON_KEY=your_anon_key
+
+# New variables needed for RSS Feed feature
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key  # For cron job
+CRON_SECRET=create_a_random_secret_string        # To secure cron endpoint
+GOOGLE_GEMINI_API_KEY=your_gemini_api_key        # For LLM summaries
+```
+
+**To get your Supabase Service Role Key:**
+1. Go to your Supabase project dashboard
+2. Navigate to Settings → API
+3. Copy the "service_role" key (keep this secret!)
+
+**To generate a CRON_SECRET:**
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+### Step 2: Vercel Configuration
+
+Ensure `vercel.json` includes the cron job configuration:
+
+```json
+{
+  "crons": [
+    {
+      "path": "/api/cron-check-rss-feeds",
+      "schedule": "0 0 * * *"  // Daily at midnight UTC
+    }
+  ],
+  "functions": {
+    "api/cron-check-rss-feeds.ts": {
+      "maxDuration": 300  // 5 minutes
+    }
+  }
+}
+```
+
+**Cron Schedule Examples:**
+- `"0 0 * * *"` - Daily at midnight UTC
+- `"0 */6 * * *"` - Every 6 hours
+- `"0 */12 * * *"` - Twice daily
+
+### Step 3: Verify Deployment
+
+1. Go to your Vercel dashboard
+2. Navigate to your project → Settings → Cron Jobs
+3. You should see: `/api/cron-check-rss-feeds` scheduled
+4. Click "Run" to test it manually
+5. Check function logs for any errors
+
+## RSS Feed URL Format
+
+ClinicalTrials.gov RSS URLs follow this pattern:
+
+```
+https://clinicaltrials.gov/api/rss?[parameters]
+```
+
+**Common parameters:**
+- `intr=DrugName` - Filter by intervention (drug name)
+- `cond=Disease` - Filter by condition  
+- `locStr=Location` - Filter by location
+- `country=CountryCode` - Filter by country
+- `dateField=LastUpdatePostDate` - Date field to monitor
+
+**Example URLs:**
+
+```
+# Orforglipron trials in USA
+https://clinicaltrials.gov/api/rss?intr=Orforglipron&locStr=USA&country=US&dateField=LastUpdatePostDate
+
+# All diabetes trials
+https://clinicaltrials.gov/api/rss?cond=Diabetes&dateField=LastUpdatePostDate
+
+# Cancer trials in New York
+https://clinicaltrials.gov/api/rss?cond=Cancer&locStr=New%20York&country=US&dateField=LastUpdatePostDate
+```
+
+**To get RSS URLs:**
+1. Go to [ClinicalTrials.gov](https://clinicaltrials.gov)
+2. Search for trials using their advanced search
+3. Look for the RSS feed icon or link
+4. Copy the RSS feed URL
+
+## Architecture Comparison
+
+The Realtime Feed feature was refactored from Google Cloud Functions (Python) to Vercel Serverless Functions (TypeScript):
+
+| Aspect | Original (GCF + Python) | New (Vercel + TypeScript) |
+|--------|------------------------|---------------------------|
+| **Runtime** | Google Cloud Functions | Vercel Serverless Functions |
+| **Language** | Python 3.11 | TypeScript/Node.js |
+| **Scheduler** | Cloud Scheduler | Vercel Cron Jobs |
+| **Storage** | Google Cloud Storage | Supabase (PostgreSQL) |
+| **Secrets** | Secret Manager | Vercel Environment Variables |
+| **Email** | SendGrid | Not implemented yet (future) |
+| **HTML Parsing** | BeautifulSoup | Cheerio |
+| **HTTP Client** | httpx | fetch API |
+| **RSS Parsing** | feedparser | cheerio + custom parser |
+
+**Benefits of New Architecture:**
+- ✅ All in one codebase (TypeScript)
+- ✅ No separate Google Cloud project needed
+- ✅ Vercel's built-in cron jobs (no external scheduler)
+- ✅ Database-backed storage (vs file-based)
+- ✅ Better integration with existing Supabase setup
+
+## Customization
+
+### Change Detection Window
+
+In `api/cron-check-rss-feeds.ts`, adjust the lookback period:
+
+```typescript
+const recentEntries = entries.filter((e) => isWithinDays(e.updated_dt, 14));
+// Change 14 to your preferred number of days
+```
+
+### Improve LLM Summaries
+
+Edit the prompt in `src/services/rssFeedService.ts`:
+
+```typescript
+export async function generateChangeSummary(
+  nctId: string,
+  title: string,
+  diffs: string[]
+): Promise<string> {
+  // Customize this prompt to get better summaries
+  const prompt = `You are a clinical-trial change summarizer...`;
+  // Add more context, examples, or constraints here
+}
+```
+
+### Adjust Cron Frequency
+
+Edit `vercel.json` to change the schedule:
+
+```json
+{
+  "crons": [
+    {
+      "path": "/api/cron-check-rss-feeds",
+      "schedule": "0 */6 * * *"  // Every 6 hours instead of daily
+    }
+  ]
+}
+```
+
+## Files Reference
+
+### Backend
+- `api/cron-check-rss-feeds.ts` - Vercel cron job that checks all feeds
+- `api/rss-feeds.ts` - API endpoints for RSS feed operations
+- `src/services/rssFeedService.ts` - Core RSS parsing and diff detection logic
+
+### Frontend
+- `src/components/RealtimeFeed.tsx` - Timeline UI component with feed management
+- `src/types/rss-feed.ts` - TypeScript type definitions
+
+### Configuration
+- `vercel.json` - Cron job configuration and function timeouts
+
