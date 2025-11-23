@@ -19,6 +19,8 @@ interface AssetDevelopmentPipelineProps {
   query?: string;
   onAddPaperToContext?: (paper: PubMedArticle) => void;
   isPaperInContext?: (pmid: string) => boolean;
+  pipelineCandidates?: any[];
+  setPipelineCandidates?: React.Dispatch<React.SetStateAction<any[]>>;
 }
 
 export function AssetDevelopmentPipeline({ 
@@ -27,18 +29,29 @@ export function AssetDevelopmentPipeline({
   drugGroups,
   query = '',
   onAddPaperToContext,
-  isPaperInContext
+  isPaperInContext,
+  pipelineCandidates: externalCandidates,
+  setPipelineCandidates: setExternalCandidates
 }: AssetDevelopmentPipelineProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStage, setSelectedStage] = useState<PipelineStage | 'All'>('All');
   const [showFilters, setShowFilters] = useState(false);
-  const [processedCandidates, setProcessedCandidates] = useState<PipelineDrugCandidate[]>([]);
+  const [processedCandidates, setProcessedCandidates] = useState<PipelineDrugCandidate[]>(externalCandidates || []);
   const [isExtracting, setIsExtracting] = useState(false);
   const [extractionError, setExtractionError] = useState<string | null>(null);
-  const [usedLLM, setUsedLLM] = useState(false);
+  const [usedLLM, setUsedLLM] = useState((externalCandidates && externalCandidates.length > 0) || false);
   const [selectedDrug, setSelectedDrug] = useState<DrugGroup | null>(null);
   const [showDrugModal, setShowDrugModal] = useState(false);
   const [drugLimit, setDrugLimit] = useState<number>(10);
+
+  // Sync external candidates to local state when they change
+  React.useEffect(() => {
+    if (externalCandidates && externalCandidates.length > 0) {
+      console.log('[Pipeline] Syncing external candidates to local state:', externalCandidates.length);
+      setProcessedCandidates(externalCandidates);
+      setUsedLLM(true);
+    }
+  }, [externalCandidates]);
 
   // Handle LLM extraction
   const handleLLMExtraction = async () => {
@@ -58,9 +71,17 @@ export function AssetDevelopmentPipeline({
 
     try {
       const candidates = await PipelineLLMService.extractPipelineData(drugGroups, drugLimit);
+      console.log('[Pipeline] Extracted candidates:', candidates);
+      console.log('[Pipeline] Candidates length:', candidates.length);
+      console.log('[Pipeline] Sample candidate:', candidates[0]);
       setProcessedCandidates(candidates);
+      // Also update external state if provided (lifts state to Dashboard)
+      if (setExternalCandidates) {
+        setExternalCandidates(candidates);
+        console.log('[Pipeline] Updated external state (Dashboard level)');
+      }
       setUsedLLM(true);
-      console.log('LLM extraction complete:', candidates);
+      console.log('[Pipeline] State updated - processedCandidates should now be:', candidates.length);
     } catch (error) {
       console.error('LLM extraction failed:', error);
       setExtractionError(error instanceof Error ? error.message : 'Failed to extract pipeline data');
@@ -164,6 +185,16 @@ export function AssetDevelopmentPipeline({
   // Check if we have data available
   const hasDrugData = drugGroups && drugGroups.length > 0;
   const hasExtractedData = processedCandidates.length > 0;
+
+  // Debug logging
+  console.log('[Pipeline Render]', {
+    processedCandidatesLength: processedCandidates.length,
+    candidatesLength: candidates.length,
+    filteredCandidatesLength: filteredCandidates.length,
+    hasExtractedData,
+    usedLLM,
+    isExtracting
+  });
 
   return (
     <div className="h-full flex flex-col bg-gray-50">
