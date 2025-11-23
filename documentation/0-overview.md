@@ -1,4 +1,4 @@
-LATEST UPDATE: 11/08/25
+LATEST UPDATE: 11/23/25
 
 # ABCresearch - Application Overview
 
@@ -61,7 +61,26 @@ The platform serves as a centralized hub for:
 - Supabase Edge Function processing for scalability
 - Structured data output for analysis
 
-### 8. Authentication & Data Persistence
+### 8. Real-time RSS Feed Monitoring (Nov 23, 2025)
+- Automated RSS feed monitoring for clinical trial updates
+- Supabase real-time subscriptions for live progress tracking
+- Background refresh with progress indicators
+- `refresh_status` JSONB tracking for transparency
+
+### 9. Drug-Entity Associations (Nov 23, 2025)
+- Proper database relationships replace text-based matching
+- Junction tables for drug-trial, drug-paper, drug-press release, drug-IR deck associations
+- Persistent associations that survive project switches
+- Support for press releases and investor relations decks
+- 809-line consolidated `drugAssociationService` for all association operations
+
+### 10. Modular Dashboard Architecture (Nov 23, 2025)
+- Refactored from 2,200-line monolith to 8 modular view components
+- Views: Initial, Research Split, Research Chat, Market Map, Pipeline, Data Extraction, RSS Feed
+- Improved maintainability (40-450 lines per view)
+- Better testability and reusability
+
+### 11. Authentication & Data Persistence
 - Supabase-powered authentication
 - Guest mode for trial usage
 - Project saving and restoration
@@ -108,11 +127,16 @@ The platform serves as a centralized hub for:
 - **UI Components**: Radix UI + TailwindCSS
 - **State Management**: React Hooks (useState, useEffect, useContext)
 - **Routing**: Single-page application with view mode switching
+- **Architecture**: Modular dashboard with 8 specialized view components (Nov 23)
 
 ### Backend
-- **API Proxies**: Vercel serverless functions
-- **Database**: Supabase (PostgreSQL)
-- **Authentication**: Supabase Auth
+- **API Proxies**: Vercel serverless functions (8 endpoints including `/api/deduplicate-drugs` for secure server-side LLM calls)
+- **Database**: Supabase (PostgreSQL) with normalized schema
+  - Entity tables: `trials`, `papers`, `drugs`, `press_releases`, `ir_decks`
+  - Junction tables: `drug_trials`, `drug_papers`, `drug_press_releases`, `drug_ir_decks` (Nov 23)
+  - Project management: `projects`, `market_maps`, `watched_feeds`
+- **Authentication**: Supabase Auth with JWT
+- **Real-time**: Supabase real-time subscriptions for RSS feed updates (Nov 23)
 - **External APIs**:
   - ClinicalTrials.gov API v2
   - PubMed E-utilities API
@@ -171,15 +195,19 @@ Market Map / Asset Pipeline / Save Session (Optional)
 
 2. **AI-First Approach**: Every user query is processed through multiple AI models (Claude for chat, Gemini for search enhancement and drug extraction)
 
-3. **Multi-Source Integration**: Combines clinical trials, academic papers, and drug intelligence in one unified platform
+3. **Multi-Source Integration**: Combines clinical trials, academic papers, press releases, and IR decks in one unified platform
 
-4. **Drug-Centric View**: Unique perspective automatically grouping all research by drug compound with synonym normalization
+4. **Drug-Centric View with Persistent Associations** (Nov 23): Unique perspective automatically grouping all research by drug compound. Associations stored in database (not re-derived via text matching), ensuring consistency across project switches
 
 5. **Smart Ranking**: Multi-factor ranking algorithm considering phase, enrollment, recency, and trial status
 
-6. **Session Persistence**: Full context saving including chat history, search results, papers, and AI-generated analysis
+6. **Session Persistence**: Full context saving including chat history, search results, papers, AI-generated analysis, and exact drug associations
 
-7. **Guest Mode**: Try before authentication for seamless onboarding
+7. **Real-time Monitoring** (Nov 23): RSS feed tracking with Supabase real-time subscriptions for live trial update notifications
+
+8. **Modular Architecture** (Nov 23): Clean separation of concerns with 8 specialized view components for better maintainability and testability
+
+9. **Guest Mode**: Try before authentication for seamless onboarding
 
 ## Use Cases
 
@@ -238,9 +266,10 @@ Market Map / Asset Pipeline / Save Session (Optional)
 
 - JWT-based authentication via Supabase
 - API key management through environment variables
+- **Server-side API key protection** (Nov 23): Gemini API key moved from client to server via `/api/deduplicate-drugs` endpoint
 - CORS-enabled API proxies
 - Guest mode without data persistence
-- Row-level security on database
+- Row-level security on database (RLS policies for multi-tenant isolation)
 
 ## Future Roadmap
 

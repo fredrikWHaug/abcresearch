@@ -1,12 +1,18 @@
-**Documentation Version**: 3.0   
-**Last Updated**: November 10, 2025  
-**Last Updated by**: Bozhen (Paul) Peng
+**Documentation Version**: 3.1   
+**Last Updated**: November 23, 2025  
+**Last Updated by**: Sofie Yang (Drug associations refactor)
 
 # ABCresearch - Database Documentation
 
-**IMPLEMENTATION STATUS (Nov 10, 2025)**: 
+**IMPLEMENTATION STATUS (Nov 23, 2025)**: 
 - ✅ **Phase 1 Complete**: Project creation and storage implemented
 - ✅ **Phase 2 Complete**: Normalized schema with dual-write strategy
+- ✅ **Phase 3 Complete**: Drug-entity associations with junction tables (Nov 23, 2025)
+  - Created entity tables: `press_releases`, `ir_decks`
+  - Created drug association junction tables: `drug_trials`, `drug_papers`, `drug_press_releases`, `drug_ir_decks`
+  - Replaced text-based matching with proper database relationships
+  - Implemented `drugAssociationService` (809 lines) for managing associations
+  - All drug groups now persist with exact associations (no re-derivation needed)
 - ✅ **PDF Extraction Async System**: Job queue and results tables added (Nov 10, 2025)
   - Created `trials`, `papers`, `drugs` tables with proper columns
   - Created junction tables: `project_trials`, `project_papers`, `project_drugs`
@@ -166,20 +172,52 @@ ABCresearch uses a **hybrid dual-write architecture** during the transition from
     ▼           ▼             ▼        └──────────┘  └────────┬───────────┘
 ┌────────┐ ┌──────────┐ ┌────────────┐                       │ 1:1
 │trials  │ │papers    │ │drugs       │                       ▼
-│        │ │          │ │            │              ┌────────────────────────┐
-│nct_id  │ │pmid      │ │name        │              │pdf_extraction_results  │
-│title   │ │title     │ │type        │              │                        │
-│phase   │ │abstract  │ │mechanism   │              │job_id (FK)             │
-│...     │ │...       │ │...         │              │markdown_content        │
-└────────┘ └──────────┘ └────────────┘              │graphify_results (JSONB)│
-                                                     │original_images (JSONB) │
-                                                     │...                     │
-                                                     └────────────────────────┘
+│        │ │          │ │     ┬      │              ┌────────────────────────┐
+│nct_id  │ │pmid      │ │name │      │              │pdf_extraction_results  │
+│title   │ │title     │ │type │      │              │                        │
+│phase   │ │abstract  │ │...  │      │              │job_id (FK)             │
+│...     │ │...       │ └─────┼──────┘              │markdown_content        │
+└────────┘ └──────────┘       │                     │graphify_results (JSONB)│
+                               │                     │original_images (JSONB) │
+                               │                     └────────────────────────┘
+                               │
+        ┌──────────────────────┼────────────────────┬────────────────────┐
+        │                      │                    │                    │
+        │ N:M                  │ N:M                │ N:M                │ N:M
+        ▼                      ▼                    ▼                    ▼
+┌────────────────┐   ┌────────────────┐   ┌────────────────────┐  ┌────────────────┐
+│  drug_trials   │   │  drug_papers   │   │drug_press_releases │  │ drug_ir_decks  │
+│                │   │                │   │                    │  │                │
+│drug_id (FK)    │   │drug_id (FK)    │   │drug_id (FK)        │  │drug_id (FK)    │
+│trial_id (FK)   │   │paper_id (FK)   │   │press_release_id(FK)│  │ir_deck_id (FK) │
+│project_id (FK) │   │project_id (FK) │   │project_id (FK)     │  │project_id (FK) │
+│added_at        │   │added_at        │   │added_at            │  │added_at        │
+└───────┬────────┘   └───────┬────────┘   └────────┬───────────┘  └────────┬───────┘
+        │ N:1                │ N:1                 │ N:1                   │ N:1
+        │                    │                     │                       │
+        │                    │                     ▼                       ▼
+        │                    │            ┌──────────────────┐  ┌──────────────────┐
+        │                    │            │press_releases    │  │    ir_decks      │
+        │                    │            │                  │  │                  │
+        │                    │            │id (PK)           │  │id (PK)           │
+        │                    │            │title             │  │title             │
+        │                    │            │company           │  │company           │
+        │                    │            │release_date      │  │deck_date         │
+        │                    │            │url               │  │url               │
+        │                    │            │content           │  │description       │
+        │                    │            │...               │  │...               │
+        └────────────────────┴────────────┴──────────────────┴──┴──────────────────┘
+                                                    (All link to entity tables above)
 ```
 
 **New Tables (Nov 2025)**:
-- `pdf_extraction_jobs`: Track async PDF extraction with status/progress
-- `pdf_extraction_results`: Store completed extraction results (markdown, images, graphs)
+- **PDF Extraction** (Nov 10):
+  - `pdf_extraction_jobs`: Track async PDF extraction with status/progress
+  - `pdf_extraction_results`: Store completed extraction results (markdown, images, graphs)
+- **Drug Associations** (Nov 23):
+  - `drug_trials`, `drug_papers`, `drug_press_releases`, `drug_ir_decks`: Junction tables for drug-entity associations
+  - `press_releases`: Press release entity data
+  - `ir_decks`: IR deck entity data
 
 ## Tables
 
@@ -547,6 +585,299 @@ CREATE INDEX idx_project_drugs_project_id ON project_drugs(project_id);
 - Referential Integrity: Foreign keys prevent orphaned records
 - Efficient Queries: Indexed joins for fast lookups
 - Scalability: No JSONB array size limits
+
+### 3a. Drug Association Junction Tables (Nov 23, 2025)
+
+**Purpose**: Establish many-to-many relationships between drugs and various entities (trials, papers, press releases, IR decks) within project context.
+
+**Architecture**: Replaced text-based matching with proper database relationships. Previously, drug associations were re-derived by searching for drug names in text every time a project was loaded. Now, associations are stored explicitly and persist exactly as saved.
+
+#### Drug-Trial Associations
+
+```sql
+CREATE TABLE drug_trials (
+  drug_id BIGINT REFERENCES drugs(id) ON DELETE CASCADE,
+  trial_id BIGINT REFERENCES trials(id) ON DELETE CASCADE,
+  project_id BIGINT REFERENCES projects(id) ON DELETE CASCADE,
+  added_at TIMESTAMPTZ DEFAULT NOW(),
+  PRIMARY KEY (drug_id, trial_id, project_id)
+);
+
+CREATE INDEX idx_drug_trials_drug_id ON drug_trials(drug_id);
+CREATE INDEX idx_drug_trials_trial_id ON drug_trials(trial_id);
+CREATE INDEX idx_drug_trials_project_id ON drug_trials(project_id);
+```
+
+#### Drug-Paper Associations
+
+```sql
+CREATE TABLE drug_papers (
+  drug_id BIGINT REFERENCES drugs(id) ON DELETE CASCADE,
+  paper_id BIGINT REFERENCES papers(id) ON DELETE CASCADE,
+  project_id BIGINT REFERENCES projects(id) ON DELETE CASCADE,
+  added_at TIMESTAMPTZ DEFAULT NOW(),
+  PRIMARY KEY (drug_id, paper_id, project_id)
+);
+
+CREATE INDEX idx_drug_papers_drug_id ON drug_papers(drug_id);
+CREATE INDEX idx_drug_papers_paper_id ON drug_papers(paper_id);
+CREATE INDEX idx_drug_papers_project_id ON drug_papers(project_id);
+```
+
+#### Drug-Press Release Associations
+
+```sql
+CREATE TABLE drug_press_releases (
+  drug_id BIGINT REFERENCES drugs(id) ON DELETE CASCADE,
+  press_release_id BIGINT REFERENCES press_releases(id) ON DELETE CASCADE,
+  project_id BIGINT REFERENCES projects(id) ON DELETE CASCADE,
+  added_at TIMESTAMPTZ DEFAULT NOW(),
+  PRIMARY KEY (drug_id, press_release_id, project_id)
+);
+
+CREATE INDEX idx_drug_press_releases_drug_id ON drug_press_releases(drug_id);
+CREATE INDEX idx_drug_press_releases_pr_id ON drug_press_releases(press_release_id);
+CREATE INDEX idx_drug_press_releases_project_id ON drug_press_releases(project_id);
+```
+
+#### Drug-IR Deck Associations
+
+```sql
+CREATE TABLE drug_ir_decks (
+  drug_id BIGINT REFERENCES drugs(id) ON DELETE CASCADE,
+  ir_deck_id BIGINT REFERENCES ir_decks(id) ON DELETE CASCADE,
+  project_id BIGINT REFERENCES projects(id) ON DELETE CASCADE,
+  added_at TIMESTAMPTZ DEFAULT NOW(),
+  PRIMARY KEY (drug_id, ir_deck_id, project_id)
+);
+
+CREATE INDEX idx_drug_ir_decks_drug_id ON drug_ir_decks(drug_id);
+CREATE INDEX idx_drug_ir_decks_deck_id ON drug_ir_decks(ir_deck_id);
+CREATE INDEX idx_drug_ir_decks_project_id ON drug_ir_decks(project_id);
+```
+
+**Benefits of Drug Association Tables**:
+- **Consistency**: Associations persist exactly as saved (no re-derivation via text matching)
+- **Performance**: No text scanning on every project load (direct database joins)
+- **Reliability**: Text matching can fail with drug name variations (e.g., "Ozempic" vs "Semaglutide")
+- **Extensibility**: Easy to add new entity types (press releases, IR decks already supported)
+- **Multi-Tenancy**: `project_id` allows same drug to have different associations per project
+
+**Migration from Text Matching**:
+
+Before (Nov 22, 2025):
+```typescript
+// Load drugs from project_drugs
+// Load trials and papers separately
+// Re-derive associations by searching for drug names in text
+const drugTrials = trials.filter(trial => 
+  trial.title.toLowerCase().includes(drugName.toLowerCase())
+)
+```
+
+After (Nov 23, 2025):
+```typescript
+// Load drugs with associations directly from junction tables
+const { data } = await supabase
+  .from('drug_trials')
+  .select('trials (*)')
+  .eq('drug_id', drugId)
+  .eq('project_id', projectId)
+```
+
+### 3b. New Entity Tables (Nov 23, 2025)
+
+#### Press Releases Table
+
+**Purpose**: Store press release data for pharmaceutical companies and drugs.
+
+```sql
+CREATE TABLE press_releases (
+  id BIGSERIAL PRIMARY KEY,
+  
+  -- Content
+  title TEXT NOT NULL,
+  summary TEXT,
+  content TEXT,
+  
+  -- Metadata
+  company TEXT,
+  release_date DATE,
+  url TEXT,
+  source TEXT,
+  
+  -- Full-text search
+  search_vector TSVECTOR GENERATED ALWAYS AS (
+    setweight(to_tsvector('english', COALESCE(title, '')), 'A') ||
+    setweight(to_tsvector('english', COALESCE(summary, '')), 'B') ||
+    setweight(to_tsvector('english', COALESCE(content, '')), 'C')
+  ) STORED,
+  
+  -- Timestamps
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_press_releases_company ON press_releases(company);
+CREATE INDEX idx_press_releases_date ON press_releases(release_date DESC);
+CREATE INDEX idx_press_releases_search ON press_releases USING GIN(search_vector);
+```
+
+#### IR Decks Table
+
+**Purpose**: Store investor relations deck/presentation data.
+
+```sql
+CREATE TABLE ir_decks (
+  id BIGSERIAL PRIMARY KEY,
+  
+  -- Content
+  title TEXT NOT NULL,
+  description TEXT,
+  content TEXT,
+  
+  -- Metadata
+  company TEXT,
+  deck_date DATE,
+  url TEXT,
+  file_type TEXT,
+  
+  -- Full-text search
+  search_vector TSVECTOR GENERATED ALWAYS AS (
+    setweight(to_tsvector('english', COALESCE(title, '')), 'A') ||
+    setweight(to_tsvector('english', COALESCE(description, '')), 'B') ||
+    setweight(to_tsvector('english', COALESCE(content, '')), 'C')
+  ) STORED,
+  
+  -- Timestamps
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_ir_decks_company ON ir_decks(company);
+CREATE INDEX idx_ir_decks_date ON ir_decks(deck_date DESC);
+CREATE INDEX idx_ir_decks_search ON ir_decks USING GIN(search_vector);
+```
+
+**Usage Example**:
+
+```typescript
+// Save drug group with associations
+await drugAssociationService.saveDrugGroups(drugGroups, projectId)
+
+// Load drug groups with associations
+const drugGroups = await drugAssociationService.loadDrugGroups(projectId)
+
+// Each DrugGroup now contains:
+// - trials: ClinicalTrial[] (from drug_trials junction)
+// - papers: PubMedArticle[] (from drug_papers junction)
+// - pressReleases: PressRelease[] (from drug_press_releases junction)
+// - irDecks: IRDeck[] (from drug_ir_decks junction)
+```
+
+**Why This Architecture?**
+
+Before Nov 23, 2025, the system used text-based matching to derive drug associations:
+```typescript
+// ❌ OLD: Re-derive associations every time
+const drugTrials = trials.filter(trial => 
+  trial.title.toLowerCase().includes(drugName.toLowerCase())
+)
+```
+
+Problems with text matching:
+- Inconsistent results (fails with drug name variations like "Ozempic" vs "Semaglutide")
+- Performance overhead (scanning all text every project load)
+- No support for press releases or IR decks
+- Lost associations if drug names changed
+
+After Nov 23, 2025, associations are stored explicitly:
+```typescript
+// ✅ NEW: Load exact associations from database
+const { data } = await supabase
+  .from('drug_trials')
+  .select('trials (*)')
+  .eq('drug_id', drugId)
+  .eq('project_id', projectId)
+```
+
+**Data Flow - Saving (After Search)**
+
+```
+User performs search
+    ↓
+Drug groups created with trials/papers/press releases/IR decks
+    ↓
+Dashboard.tsx calls saveDrugGroups()
+    ↓
+drugAssociationService.ts processes each drug group:
+    1. Upsert drug → get drug_id
+    2. Link drug to project via project_drugs
+    3. Upsert each trial → get trial_ids
+    4. Upsert each paper → get paper_ids
+    5. Upsert each press release → get press_release_ids
+    6. Upsert each IR deck → get ir_deck_ids
+    7. Batch create associations in junction tables
+```
+
+**Data Flow - Loading (Project Switch)**
+
+```
+User switches to project
+    ↓
+Dashboard.tsx calls loadDrugGroups()
+    ↓
+drugAssociationService.ts:
+    1. Get all drugs for project from project_drugs
+    2. For each drug:
+        a. Get associated entity IDs from junction tables
+        b. Fetch actual entities (trials, papers, etc.)
+        c. Reconstruct DrugGroup object
+    3. Sort by totalResults
+    4. Return complete drug groups
+```
+
+**Migration Path for Existing Data**
+
+Existing projects created before Nov 23, 2025 will:
+1. Still have drugs in `project_drugs` table
+2. NOT have associations in junction tables
+3. **Fallback behavior**: Drug groups will load with 0 results
+
+To backfill existing projects:
+```typescript
+// Re-perform text matching one last time to create associations
+const drugGroups = /* recreate drug groups from existing data */
+await saveDrugGroups(projectId, drugGroups)
+```
+
+Going forward, all new searches automatically create proper associations.
+
+**Troubleshooting**
+
+Common issues and solutions:
+
+| Issue | Solution |
+|-------|----------|
+| Drug groups not loading | Check browser console for errors. Verify junction tables exist. |
+| Drugs show with 0 results | Expected for old projects. Perform a new search to create associations. |
+| Performance slow with many drugs | Check database indexes. Consider pagination for 100+ drugs. |
+
+Debug queries:
+```sql
+-- See all associations for a drug in a project
+SELECT * FROM drug_trials 
+WHERE drug_id = 123 AND project_id = 456;
+
+-- Count associations per drug
+SELECT d.name, 
+  COUNT(DISTINCT dt.trial_id) as trials,
+  COUNT(DISTINCT dp.paper_id) as papers
+FROM drugs d
+LEFT JOIN drug_trials dt ON d.id = dt.drug_id AND dt.project_id = 456
+LEFT JOIN drug_papers dp ON d.id = dp.drug_id AND dp.project_id = 456
+GROUP BY d.name;
+```
 
 **Example Queries**:
 
