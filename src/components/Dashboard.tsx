@@ -92,7 +92,31 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
     }
 
     // PDF Extraction context handlers
-    const handleAddExtractionToContext = (extraction: {jobId: string, fileName: string, markdownContent: string, hasTables: boolean}) => {
+    const handleAddExtractionToContext = (extraction: {
+      jobId: string, 
+      fileName: string, 
+      markdownContent: string, 
+      hasTables: boolean,
+      tablesData?: Array<{
+        index: number;
+        headers: string[];
+        rows: string[][];
+        rawMarkdown: string;
+      }>;
+      graphifyResults?: Array<{
+        imageName: string;
+        isGraph: boolean;
+        graphType?: string;
+        reason?: string;
+        pythonCode?: string;
+        data?: Record<string, unknown>;
+        assumptions?: string;
+        error?: string;
+        renderedImage?: string;
+        renderError?: string;
+        renderTimeMs?: number;
+      }>;
+    }) => {
       // Check if extraction is already in context
       if (selectedExtractions.some(e => e.jobId === extraction.jobId)) {
         return; // Already added
@@ -555,7 +579,31 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
   // Paper context state (for AI conversation)
   const [selectedPapers, setSelectedPapers] = useState<PubMedArticle[]>([])
   const [selectedPressReleases, setSelectedPressReleases] = useState<PressRelease[]>([])
-  const [selectedExtractions, setSelectedExtractions] = useState<Array<{jobId: string, fileName: string, markdownContent: string, hasTables: boolean}>>([])
+  const [selectedExtractions, setSelectedExtractions] = useState<Array<{
+    jobId: string, 
+    fileName: string, 
+    markdownContent: string, 
+    hasTables: boolean,
+    tablesData?: Array<{
+      index: number;
+      headers: string[];
+      rows: string[][];
+      rawMarkdown: string;
+    }>;
+    graphifyResults?: Array<{
+      imageName: string;
+      isGraph: boolean;
+      graphType?: string;
+      reason?: string;
+      pythonCode?: string;
+      data?: Record<string, unknown>;
+      assumptions?: string;
+      error?: string;
+      renderedImage?: string;
+      renderError?: string;
+      renderTimeMs?: number;
+    }>;
+  }>>([])
   const [showContextPanel, setShowContextPanel] = useState(false)
   const [showGraphSuggestion, setShowGraphSuggestion] = useState(false)
 

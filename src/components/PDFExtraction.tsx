@@ -18,6 +18,25 @@ interface PDFExtractionProps {
     fileName: string
     markdownContent: string
     hasTables: boolean
+    tablesData?: Array<{
+      index: number;
+      headers: string[];
+      rows: string[][];
+      rawMarkdown: string;
+    }>;
+    graphifyResults?: Array<{
+      imageName: string;
+      isGraph: boolean;
+      graphType?: string;
+      reason?: string;
+      pythonCode?: string;
+      data?: Record<string, unknown>;
+      assumptions?: string;
+      error?: string;
+      renderedImage?: string;
+      renderError?: string;
+      renderTimeMs?: number;
+    }>;
   }) => void
   onRemoveFromChat?: (jobId: string) => void
   isExtractionInContext?: (jobId: string) => boolean
