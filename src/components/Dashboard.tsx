@@ -309,7 +309,7 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
       try {
         const { saveChatHistory } = await import('@/services/projectService')
         await saveChatHistory(currentProjectId, chatHistory)
-        console.log('[Dashboard] 💾 Auto-saved chat history to database:', chatHistory.length, 'messages')
+        console.log('[Dashboard] Auto-saved chat history to database:', chatHistory.length, 'messages')
       } catch (error) {
         console.error('[Dashboard] Failed to save chat history:', error)
       }
@@ -542,15 +542,23 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
     try {
       console.log(`🎯 Deep Dive search for: "${drugName}"`);
       
-      // Notify user
-      setChatHistory(prev => [...prev, {
-        type: 'system' as const,
-        message: `Searching for comprehensive data on "${drugName}"...`,
-        searchSuggestions: []
-      }]);
+      // Progress callback for Deep Dive search
+      const onProgress = (message: string) => {
+        setChatHistory(prev => {
+          const filtered = prev.filter(item => !item.message.startsWith('progress:'));
+          return [...filtered, {
+            type: 'system' as const,
+            message: `progress:${message}`,
+            searchSuggestions: []
+          }];
+        });
+      };
+      
+      // Initial notification
+      onProgress(`Searching for comprehensive data on "${drugName}"...`);
       
       // Search specifically for this drug
-      const result = await GatherSearchResultsService.gatherSearchResults(drugName);
+      const result = await GatherSearchResultsService.gatherSearchResults(drugName, onProgress);
       
       // Sort trials by recency and participant size
       const sortedTrials = [...result.trials].sort((a, b) => {
@@ -599,12 +607,15 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
       // Open the drug modal to show results
       setSelectedDrug(updatedDrugGroup);
       
-      // Notify success
-      setChatHistory(prev => [...prev, {
-        type: 'system' as const,
-        message: `Found ${sortedTrials.length} trials and ${sortedPapers.length} papers for "${drugName}" (sorted by recency and size)`,
-        searchSuggestions: []
-      }]);
+      // Notify success (remove progress messages)
+      setChatHistory(prev => {
+        const filtered = prev.filter(item => !item.message.startsWith('progress:'));
+        return [...filtered, {
+          type: 'system' as const,
+          message: `Found ${sortedTrials.length} trials and ${sortedPapers.length} papers for "${drugName}" (sorted by recency and size)`,
+          searchSuggestions: []
+        }];
+      });
       
       console.log(`✅ Deep Dive complete: ${sortedTrials.length} trials, ${sortedPapers.length} papers`);
     } catch (error) {
@@ -630,15 +641,22 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
       console.log('Stage 1: Performing initial search and extracting drugs...');
       setExtractingDrugs(true);
       
-      // Add Stage 1 loading message to chat
-      setChatHistory(prev => [...prev, { 
-        type: 'system' as const, 
-        message: 'stage1_loading',
-        searchSuggestions: []
-      }]);
+      // Progress callback to update chat with detailed steps
+      const onProgress = (message: string, data?: { trials?: number; papers?: number; pressReleases?: number; irDecks?: number }) => {
+        setChatHistory(prev => {
+          // Remove any previous progress messages
+          const filtered = prev.filter(item => !item.message.startsWith('progress:'));
+          return [...filtered, { 
+            type: 'system' as const, 
+            message: `progress:${message}`,
+            searchSuggestions: [],
+            data
+          }];
+        });
+      };
       
-      // Perform initial search
-      const initialResult = await GatherSearchResultsService.gatherSearchResults(suggestion.query);
+      // Perform initial search with progress callback
+      const initialResult = await GatherSearchResultsService.gatherSearchResults(suggestion.query, onProgress);
       
       // Save the initial search queries and strategies for display
       setInitialSearchQueries({
@@ -681,12 +699,12 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
       setTrials(trialsWithDrugs);
       setPapers(papersWithDrugs);
       
-      // Update chat with completion (remove loading message)
+      // Update chat with completion (remove progress messages)
       setChatHistory(prev => {
-        const filtered = prev.filter(item => item.message !== 'stage1_loading');
+        const filtered = prev.filter(item => !item.message.startsWith('progress:'));
         return [...filtered, { 
           type: 'system' as const, 
-          message: `Found ${uniqueDrugNames.length} unique drugs from ${trialsWithDrugs.length} trials and ${papersWithDrugs.length} papers. Grouping results...`,
+          message: `Discovery complete! Found ${uniqueDrugNames.length} drugs with ${trialsWithDrugs.length} clinical trials, ${papersWithDrugs.length} research papers, ${initialResult.pressReleases?.length || 0} press releases, and ${initialResult.irDecks?.length || 0} IR decks. Results are displayed on the right.`,
           searchSuggestions: []
         }];
       });
@@ -753,25 +771,15 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
       setPressReleases(initialResult.pressReleases);
       setIRDecks(initialResult.irDecks || []);
 
-      // Add final message to chat
-      const chatMessages: Array<{type: 'system' | 'user', message: string, searchSuggestions: any[]}> = [
-        { 
-          type: 'system' as const, 
-          message: `Discovery complete! Found ${filteredDrugGroups.length} drugs with ${initialResult.trials.length} clinical trials, ${initialResult.papers.length} research papers, and ${initialResult.pressReleases.length} press releases. Results are displayed on the right.`,
-          searchSuggestions: []
-        }
-      ];
-      
-      // Add deduplication warning if present
-      if (drugExtractionResult.deduplicationWarning) {
-        chatMessages.push({
+      // Add deduplication warning if present (not common, but good to show)
+      const warning = drugExtractionResult.deduplicationWarning;
+      if (warning && warning.trim().length > 0) {
+        setChatHistory(prev => [...prev, {
           type: 'system' as const,
-          message: drugExtractionResult.deduplicationWarning,
+          message: warning.trim(),
           searchSuggestions: []
-        });
+        }]);
       }
-      
-      setChatHistory(prev => [...prev, ...chatMessages]);
       
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
@@ -782,7 +790,7 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
         const filtered = prev.filter(item => item.message !== 'stage1_loading');
         return [...filtered, { 
           type: 'system' as const, 
-          message: `❌ Search failed: ${errorMessage}\n\nPlease try again or contact support if the issue persists.`,
+          message: `Search failed: ${errorMessage}\n\nPlease try again or contact support if the issue persists.`,
           searchSuggestions: []
         }];
       });
@@ -1355,13 +1363,12 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
                         : 'bg-gray-50 text-gray-700 border-gray-200'
                     }`}
                   >
-                    {/* Special handling for Stage 1 loading */}
-                    {item.message === 'stage1_loading' ? (
+                    {/* Special handling for progress messages */}
+                    {item.message.startsWith('progress:') ? (
                       <div className="flex items-center gap-3">
                         <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
                         <div className="text-sm">
-                          <div className="font-medium text-gray-900">Stage 1: Extracting Drug Names</div>
-                          <div className="text-gray-600 mt-1">Analyzing initial search results to identify all unique drugs...</div>
+                          <div className="font-medium text-gray-900">{item.message.replace('progress:', '')}</div>
                         </div>
                       </div>
                     ) : (
@@ -1719,13 +1726,12 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
                 ? 'bg-gray-800 text-white border-gray-700' 
                 : 'bg-gray-50 text-gray-700 border-gray-200'
             }`}>
-              {/* Special handling for Stage 1 loading */}
-              {item.message === 'stage1_loading' ? (
+              {/* Special handling for progress messages */}
+              {item.message.startsWith('progress:') ? (
                 <div className="flex items-center gap-3">
                   <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
                   <div className="text-sm">
-                    <div className="font-medium text-gray-900">Stage 1: Extracting Drug Names</div>
-                    <div className="text-gray-600 mt-1">Analyzing initial search results to identify all unique drugs...</div>
+                    <div className="font-medium text-gray-900">{item.message.replace('progress:', '')}</div>
                   </div>
                 </div>
               ) : (

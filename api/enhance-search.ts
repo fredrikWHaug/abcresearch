@@ -171,11 +171,11 @@ SEARCH STRATEGY TYPES:
 
 Generate EXACTLY 5 search strategies that uncover drugs. Focus on:
 
-1. **Therapeutic mechanisms** (queryTerm: "GLP-1 receptor agonist", phase: "Phase 2")
-2. **Disease + mechanism** (queryTerm: "diabetes incretin therapy", phase: "Phase 2")
-3. **Alternative terminology** (queryTerm: "glucagon-like peptide", phase: "Phase 2")
-4. **Indication-based** (queryTerm: "anti-obesity agent", phase: "Phase 2")
-5. **Formulation variations** (queryTerm: "oral GLP-1", phase: "Phase 2")
+1. **Therapeutic mechanisms** 
+2. **Disease + mechanism**
+3. **Alternative terminology** 
+4. **Indication-based** 
+5. **Formulation variations**
 
 CRITICAL RULES:
 - ALWAYS extract phase to the "phase" field if specified by user
