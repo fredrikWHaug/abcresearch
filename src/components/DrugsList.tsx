@@ -23,6 +23,20 @@ export function DrugsList({ drugGroups, loading, query, onDrugClick, onDrugSpeci
   const [showSearchTermsModal, setShowSearchTermsModal] = useState(false);
   const [searchingDrug, setSearchingDrug] = useState<string | null>(null);
 
+  // Debug log
+  React.useEffect(() => {
+    console.log('[DrugsList] Received drugGroups:', {
+      count: drugGroups.length,
+      loading,
+      query,
+      sample: drugGroups.slice(0, 3).map(dg => ({
+        name: dg.drugName,
+        trials: dg.trials.length,
+        papers: dg.papers.length
+      }))
+    });
+  }, [drugGroups, loading, query]);
+
   const handleDrugSpecificSearch = async (drugName: string, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent card click
     if (!onDrugSpecificSearch) return;
@@ -47,7 +61,8 @@ export function DrugsList({ drugGroups, loading, query, onDrugClick, onDrugSpeci
     );
   }
 
-  if (!query) {
+  // Only show "enter query" message if there are no drugs AND no query
+  if (!query && drugGroups.length === 0) {
     return (
       <div className="w-full h-full flex items-center justify-center">
         <div className="text-center text-gray-500">
@@ -63,7 +78,7 @@ export function DrugsList({ drugGroups, loading, query, onDrugClick, onDrugSpeci
     return (
       <div className="w-full h-full flex items-center justify-center">
         <div className="text-center">
-          <p className="text-gray-600">No drugs found for: "{query}"</p>
+          <p className="text-gray-600">No drugs found{query ? ` for: "${query}"` : ''}</p>
           <p className="text-sm text-gray-500 mt-2">Try adjusting your search terms</p>
         </div>
       </div>

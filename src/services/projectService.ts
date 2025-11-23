@@ -179,3 +179,48 @@ export async function loadChatHistory(projectId: number): Promise<any[]> {
   return data?.chat_history || []
 }
 
+/**
+ * Save search queries for a project
+ */
+export async function saveSearchQueries(
+  projectId: number, 
+  searchQueries: { 
+    originalQuery: string
+    strategies?: any[]
+  } | null
+): Promise<void> {
+  const { error } = await supabase
+    .from('projects')
+    .update({
+      search_queries: searchQueries,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', projectId)
+
+  if (error) {
+    console.error('[ProjectService] Error saving search queries:', error)
+    throw error
+  }
+}
+
+/**
+ * Load search queries for a project
+ */
+export async function loadSearchQueries(projectId: number): Promise<{
+  originalQuery: string
+  strategies?: any[]
+} | null> {
+  const { data, error } = await supabase
+    .from('projects')
+    .select('search_queries')
+    .eq('id', projectId)
+    .single()
+
+  if (error) {
+    console.error('[ProjectService] Error loading search queries:', error)
+    return null
+  }
+
+  return data?.search_queries || null
+}
+
