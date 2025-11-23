@@ -41,6 +41,14 @@ export interface GatherSearchResultsResponse {
   strategiesUsed: number;
 }
 
+export type ProgressCallback = (message: string, data?: {
+  trials?: number;
+  papers?: number;
+  pressReleases?: number;
+  irDecks?: number;
+  drugs?: number;
+}) => void;
+
 /**
  * Get server API base URL - handles both browser (vercel deployment) and test environments (localhost)
  */
@@ -109,8 +117,10 @@ export class GatherSearchResultsService {
    * Enhance a user query using AI and return phrase-based discovery strategies
    * Generates EXACTLY 5 strategies focused on discovering drugs (not searching for known drugs)
    */
-  private static async enhanceQuery(userQuery: string): Promise<SearchStrategy[]> {
+  private static async enhanceQuery(userQuery: string, onProgress?: ProgressCallback): Promise<SearchStrategy[]> {
     try {
+      onProgress?.('Enhancing search terms');
+      
       const response = await fetch(buildApiUrl('/api/enhance-search'), {
         method: 'POST',
         headers: {
@@ -156,13 +166,15 @@ export class GatherSearchResultsService {
    * Search for clinical trials using phrase-based discovery strategies
    * Executes 5 LLM-generated queries that match user's phase requirements
    */
-  private static async searchClinicalTrials(userQuery: string): Promise<{
+  private static async searchClinicalTrials(userQuery: string, onProgress?: ProgressCallback): Promise<{
     trials: ClinicalTrial[];
     searchStrategies: StrategyResult[];
   }> {
     try {
       // Get 5 phrase-based discovery strategies from AI (phase-aware)
-      const strategies = await this.enhanceQuery(userQuery);
+      const strategies = await this.enhanceQuery(userQuery, onProgress);
+      
+      onProgress?.('Gathering clinical trials, papers and other sources');
       
       console.log(`🔍 Executing ${strategies.length} discovery searches in parallel...`);
       
@@ -261,12 +273,12 @@ export class GatherSearchResultsService {
    * Search for research papers using phrase-based discovery strategies
    * Uses all 5 LLM-generated queries to maximize paper discovery
    */
-  private static async searchResearchPapers(userQuery: string): Promise<PubMedArticle[]> {
+  private static async searchResearchPapers(userQuery: string, onProgress?: ProgressCallback): Promise<PubMedArticle[]> {
     try {
       // Get 5 phrase-based discovery strategies from AI (same as trials)
       //TODO check if enhance query API has a different set of instructions for PubMed.
       //maybe you can merge the query enhancement with the searching
-      const strategies = await this.enhanceQuery(userQuery);
+      const strategies = await this.enhanceQuery(userQuery, onProgress);
       
       console.log(`📄 Searching papers with ${strategies.length} discovery strategies...`);
       
@@ -384,7 +396,7 @@ export class GatherSearchResultsService {
    * Orchestrates 5 LLM-generated queries for trials and 5 for papers
    * Goal: UNCOVER drugs across all stages (discovery → approved)
    */
-  static async gatherSearchResults(userQuery: string): Promise<GatherSearchResultsResponse> {
+  static async gatherSearchResults(userQuery: string, onProgress?: ProgressCallback): Promise<GatherSearchResultsResponse> {
     try {
       console.log(`\n🚀 Starting drug discovery search for: "${userQuery}"`);
       console.log(`   Strategy: Phrase-based discovery (NOT drug-specific)`);
@@ -393,11 +405,19 @@ export class GatherSearchResultsService {
       // Search clinical trials, research papers, press releases, and IR decks in parallel
       // Trials and papers each use 5 LLM-generated phrase-based queries
       const [trialsResult, papers, pressReleases, irDecks] = await Promise.all([
-        this.searchClinicalTrials(userQuery),
-        this.searchResearchPapers(userQuery),
+        this.searchClinicalTrials(userQuery, onProgress),
+        this.searchResearchPapers(userQuery, onProgress),
         this.searchPressReleases(userQuery),
         this.searchIRDecks(userQuery)
       ]);
+
+      // Report results found
+      onProgress?.(`Found ${trialsResult.trials.length} trials and ${papers.length} papers. Grouping results...`, {
+        trials: trialsResult.trials.length,
+        papers: papers.length,
+        pressReleases: pressReleases.length,
+        irDecks: irDecks.length
+      });
 
       console.log(`\n✅ Discovery search complete!`);
       console.log(`   Unique trials: ${trialsResult.trials.length}`);

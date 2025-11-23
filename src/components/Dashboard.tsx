@@ -9,6 +9,7 @@ import { DrugDetailModal } from '@/components/DrugDetailModal'
 import { AssetDevelopmentPipeline } from '@/components/AssetDevelopmentPipeline'
 import { PDFExtraction } from '@/components/PDFExtraction'
 import { RealtimeFeed } from '@/components/RealtimeFeed'
+import { CreateProjectModal } from '@/components/CreateProjectModal'
 import { GatherSearchResultsService } from '@/services/gatherSearchResults'
 import type { PubMedArticle } from '@/types/papers'
 import type { SavedMarketMap } from '@/services/marketMapService'
@@ -180,11 +181,6 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
     }
   }
 
-  const handleStartNewProject = () => {
-    console.log('Starting new project - clearing current session');
-    clearCurrentSession();
-  }
-
   const [message, setMessage] = useState('')
   const [trials, setTrials] = useState<ClinicalTrial[]>([])
   const [loading, setLoading] = useState(false)
@@ -211,6 +207,8 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
   const [showProjectsDropdown, setShowProjectsDropdown] = useState(false)
   const [userProjects, setUserProjects] = useState<Array<{id: number, name: string, description?: string}>>([])
   const [loadingProjects, setLoadingProjects] = useState(false)
+  const [showCreateProjectModal, setShowCreateProjectModal] = useState(false)
+  const [creatingProject, setCreatingProject] = useState(false)
   
   // Fetch user's projects on mount
   React.useEffect(() => {
@@ -260,10 +258,78 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
             console.log('[Dashboard] 📥 Loaded', dbChat.length, 'messages from database on mount')
             setChatHistory([...dbChat])
             projectChatHistoryRef.current.set(projectId, [...dbChat])
+            // Set hasSearched to true so the UI shows the research view with chat history
+            setHasSearched(true)
+            // Ensure we're in research view mode
+            setViewMode('research')
           }
         } catch (error) {
           console.error('[Dashboard] Failed to load chat history on mount:', error)
         }
+      })
+      
+      // Load trials, papers, and drug groups for the project
+      console.log('[Dashboard] 📥 Loading project data on mount for project', projectId)
+      Promise.all([
+        import('@/services/trialService').then(({ getProjectTrials }) => getProjectTrials(projectId)),
+        import('@/services/paperService').then(({ getProjectPapers }) => getProjectPapers(projectId)),
+        import('@/services/drugService').then(({ getProjectDrugs }) => getProjectDrugs(projectId))
+      ]).then(([projectTrials, projectPapers, projectDrugs]) => {
+        console.log('[Dashboard] ✅ Loaded project data on mount:', {
+          trials: projectTrials.length,
+          papers: projectPapers.length,
+          drugs: projectDrugs.length
+        })
+        
+        if (projectTrials.length > 0 || projectPapers.length > 0) {
+          setTrials(projectTrials)
+          setPapers(projectPapers)
+          
+          // Group trials and papers by drugs
+          if (projectDrugs.length > 0) {
+            const drugGroupsMap: Map<string, DrugGroup> = new Map()
+            
+            projectDrugs.forEach(drug => {
+              const normalizedName = drug.name.toLowerCase()
+              
+              // Find trials and papers mentioning this drug
+              const drugTrials = projectTrials.filter(trial => {
+                const trialText = [
+                  trial.briefTitle,
+                  trial.officialTitle,
+                  ...(trial.interventions || []),
+                  ...(trial.conditions || [])
+                ].join(' ').toLowerCase()
+                return trialText.includes(normalizedName)
+              })
+              
+              const drugPapers = projectPapers.filter(paper => {
+                const paperText = [paper.title, paper.abstract].join(' ').toLowerCase()
+                return paperText.includes(normalizedName)
+              })
+              
+              if (drugTrials.length > 0 || drugPapers.length > 0) {
+                drugGroupsMap.set(drug.name, {
+                  drugName: drug.name,
+                  normalizedName: normalizedName,
+                  papers: drugPapers,
+                  trials: drugTrials,
+                  pressReleases: [],
+                  irDecks: [],
+                  totalResults: drugTrials.length + drugPapers.length
+                })
+              }
+            })
+            
+            const drugGroupsArray = Array.from(drugGroupsMap.values())
+              .sort((a, b) => b.totalResults - a.totalResults)
+            
+            setDrugGroups(drugGroupsArray)
+            console.log('[Dashboard] ✅ Created', drugGroupsArray.length, 'drug groups on mount')
+          }
+        }
+      }).catch(error => {
+        console.error('[Dashboard] Failed to load project data on mount:', error)
       })
     }
     if (projectName) {
@@ -309,7 +375,7 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
       try {
         const { saveChatHistory } = await import('@/services/projectService')
         await saveChatHistory(currentProjectId, chatHistory)
-        console.log('[Dashboard] 💾 Auto-saved chat history to database:', chatHistory.length, 'messages')
+        console.log('[Dashboard] Auto-saved chat history to database:', chatHistory.length, 'messages')
       } catch (error) {
         console.error('[Dashboard] Failed to save chat history:', error)
       }
@@ -346,9 +412,10 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
         })
       }
       
-      // THEN: Load chat history for new project from database
+      // THEN: Load chat history and data for new project from database
       console.log('[Dashboard] 📥 Loading chat history for project', currentProjectId, 'from database...')
       
+      // Load chat history
       import('@/services/projectService').then(async ({ loadChatHistory }) => {
         try {
           const dbChat = await loadChatHistory(currentProjectId)
@@ -357,30 +424,103 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
             console.log('[Dashboard] ✅ Loaded', dbChat.length, 'messages from database for project', currentProjectId)
             setChatHistory([...dbChat])
             projectChatHistoryRef.current.set(currentProjectId, [...dbChat])
+            // Set hasSearched to true so the UI shows the research view with chat history
+            setHasSearched(true)
+            // Ensure we're in research view mode
+            setViewMode('research')
           } else {
             // Check in-memory cache as fallback
             const cachedChat = projectChatHistoryRef.current.get(currentProjectId)
             if (cachedChat && cachedChat.length > 0) {
               console.log('[Dashboard] ✅ Loading', cachedChat.length, 'messages from cache for project', currentProjectId)
               setChatHistory([...cachedChat])
+              // Set hasSearched to true so the UI shows the research view with chat history
+              setHasSearched(true)
+              // Ensure we're in research view mode
+              setViewMode('research')
             } else {
               console.log('[Dashboard] ✅ No chat history for project', currentProjectId, ', starting fresh')
               setChatHistory([])
+              setHasSearched(false)
+              setViewMode('research')
             }
           }
         } catch (error) {
           console.error('[Dashboard] Failed to load chat history:', error)
           setChatHistory([])
+          setHasSearched(false)
         }
       })
       
-      // Clear search results when switching projects
-      setTrials([])
-      setPapers([])
+      // Load trials, papers, and drug groups for the new project
+      console.log('[Dashboard] 📥 Loading project data (trials, papers, drugs) for project', currentProjectId)
+      Promise.all([
+        import('@/services/trialService').then(({ getProjectTrials }) => getProjectTrials(currentProjectId)),
+        import('@/services/paperService').then(({ getProjectPapers }) => getProjectPapers(currentProjectId)),
+        import('@/services/drugService').then(({ getProjectDrugs }) => getProjectDrugs(currentProjectId))
+      ]).then(([projectTrials, projectPapers, projectDrugs]) => {
+        console.log('[Dashboard] ✅ Loaded project data:', {
+          trials: projectTrials.length,
+          papers: projectPapers.length,
+          drugs: projectDrugs.length
+        })
+        
+        setTrials(projectTrials)
+        setPapers(projectPapers)
+        
+        // Group trials and papers by drugs
+        if (projectDrugs.length > 0) {
+          const drugGroupsMap: Map<string, DrugGroup> = new Map()
+          
+          projectDrugs.forEach(drug => {
+            const normalizedName = drug.name.toLowerCase()
+            
+            // Find trials and papers mentioning this drug
+            const drugTrials = projectTrials.filter(trial => {
+              const trialText = [
+                trial.briefTitle,
+                trial.officialTitle,
+                ...(trial.interventions || []),
+                ...(trial.conditions || [])
+              ].join(' ').toLowerCase()
+              return trialText.includes(normalizedName)
+            })
+            
+            const drugPapers = projectPapers.filter(paper => {
+              const paperText = [paper.title, paper.abstract].join(' ').toLowerCase()
+              return paperText.includes(normalizedName)
+            })
+            
+            if (drugTrials.length > 0 || drugPapers.length > 0) {
+              drugGroupsMap.set(drug.name, {
+                drugName: drug.name,
+                normalizedName: normalizedName,
+                papers: drugPapers,
+                trials: drugTrials,
+                pressReleases: [],
+                irDecks: [],
+                totalResults: drugTrials.length + drugPapers.length
+              })
+            }
+          })
+          
+          const drugGroupsArray = Array.from(drugGroupsMap.values())
+            .sort((a, b) => b.totalResults - a.totalResults)
+          
+          setDrugGroups(drugGroupsArray)
+          console.log('[Dashboard] ✅ Created', drugGroupsArray.length, 'drug groups')
+        }
+      }).catch(error => {
+        console.error('[Dashboard] Failed to load project data:', error)
+        setTrials([])
+        setPapers([])
+        setDrugGroups([])
+      })
+      
+      // Clear other state when switching projects
       setPressReleases([])
       setLastQuery('')
       setMessage('')
-      setDrugGroups([])
       setSelectedDrug(null)
       setSelectedPapers([])
       setShowContextPanel(false)
@@ -542,15 +682,23 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
     try {
       console.log(`🎯 Deep Dive search for: "${drugName}"`);
       
-      // Notify user
-      setChatHistory(prev => [...prev, {
-        type: 'system' as const,
-        message: `Searching for comprehensive data on "${drugName}"...`,
-        searchSuggestions: []
-      }]);
+      // Progress callback for Deep Dive search
+      const onProgress = (message: string) => {
+        setChatHistory(prev => {
+          const filtered = prev.filter(item => !item.message.startsWith('progress:'));
+          return [...filtered, {
+            type: 'system' as const,
+            message: `progress:${message}`,
+            searchSuggestions: []
+          }];
+        });
+      };
+      
+      // Initial notification
+      onProgress(`Searching for comprehensive data on "${drugName}"...`);
       
       // Search specifically for this drug
-      const result = await GatherSearchResultsService.gatherSearchResults(drugName);
+      const result = await GatherSearchResultsService.gatherSearchResults(drugName, onProgress);
       
       // Sort trials by recency and participant size
       const sortedTrials = [...result.trials].sort((a, b) => {
@@ -599,12 +747,15 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
       // Open the drug modal to show results
       setSelectedDrug(updatedDrugGroup);
       
-      // Notify success
-      setChatHistory(prev => [...prev, {
-        type: 'system' as const,
-        message: `Found ${sortedTrials.length} trials and ${sortedPapers.length} papers for "${drugName}" (sorted by recency and size)`,
-        searchSuggestions: []
-      }]);
+      // Notify success (remove progress messages)
+      setChatHistory(prev => {
+        const filtered = prev.filter(item => !item.message.startsWith('progress:'));
+        return [...filtered, {
+          type: 'system' as const,
+          message: `Found ${sortedTrials.length} trials and ${sortedPapers.length} papers for "${drugName}" (sorted by recency and size)`,
+          searchSuggestions: []
+        }];
+      });
       
       console.log(`✅ Deep Dive complete: ${sortedTrials.length} trials, ${sortedPapers.length} papers`);
     } catch (error) {
@@ -630,15 +781,22 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
       console.log('Stage 1: Performing initial search and extracting drugs...');
       setExtractingDrugs(true);
       
-      // Add Stage 1 loading message to chat
-      setChatHistory(prev => [...prev, { 
-        type: 'system' as const, 
-        message: 'stage1_loading',
-        searchSuggestions: []
-      }]);
+      // Progress callback to update chat with detailed steps
+      const onProgress = (message: string, data?: { trials?: number; papers?: number; pressReleases?: number; irDecks?: number }) => {
+        setChatHistory(prev => {
+          // Remove any previous progress messages
+          const filtered = prev.filter(item => !item.message.startsWith('progress:'));
+          return [...filtered, { 
+            type: 'system' as const, 
+            message: `progress:${message}`,
+            searchSuggestions: [],
+            data
+          }];
+        });
+      };
       
-      // Perform initial search
-      const initialResult = await GatherSearchResultsService.gatherSearchResults(suggestion.query);
+      // Perform initial search with progress callback
+      const initialResult = await GatherSearchResultsService.gatherSearchResults(suggestion.query, onProgress);
       
       // Save the initial search queries and strategies for display
       setInitialSearchQueries({
@@ -681,12 +839,12 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
       setTrials(trialsWithDrugs);
       setPapers(papersWithDrugs);
       
-      // Update chat with completion (remove loading message)
+      // Update chat with completion (remove progress messages)
       setChatHistory(prev => {
-        const filtered = prev.filter(item => item.message !== 'stage1_loading');
+        const filtered = prev.filter(item => !item.message.startsWith('progress:'));
         return [...filtered, { 
           type: 'system' as const, 
-          message: `Found ${uniqueDrugNames.length} unique drugs from ${trialsWithDrugs.length} trials and ${papersWithDrugs.length} papers. Grouping results...`,
+          message: `Discovery complete! Found ${uniqueDrugNames.length} drugs with ${trialsWithDrugs.length} clinical trials, ${papersWithDrugs.length} research papers, ${initialResult.pressReleases?.length || 0} press releases, and ${initialResult.irDecks?.length || 0} IR decks. Results are displayed on the right.`,
           searchSuggestions: []
         }];
       });
@@ -753,25 +911,15 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
       setPressReleases(initialResult.pressReleases);
       setIRDecks(initialResult.irDecks || []);
 
-      // Add final message to chat
-      const chatMessages: Array<{type: 'system' | 'user', message: string, searchSuggestions: any[]}> = [
-        { 
-          type: 'system' as const, 
-          message: `Discovery complete! Found ${filteredDrugGroups.length} drugs with ${initialResult.trials.length} clinical trials, ${initialResult.papers.length} research papers, and ${initialResult.pressReleases.length} press releases. Results are displayed on the right.`,
-          searchSuggestions: []
-        }
-      ];
-      
-      // Add deduplication warning if present
-      if (drugExtractionResult.deduplicationWarning) {
-        chatMessages.push({
+      // Add deduplication warning if present (not common, but good to show)
+      const warning = drugExtractionResult.deduplicationWarning;
+      if (warning && warning.trim().length > 0) {
+        setChatHistory(prev => [...prev, {
           type: 'system' as const,
-          message: drugExtractionResult.deduplicationWarning,
+          message: warning.trim(),
           searchSuggestions: []
-        });
+        }]);
       }
-      
-      setChatHistory(prev => [...prev, ...chatMessages]);
       
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
@@ -782,7 +930,7 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
         const filtered = prev.filter(item => item.message !== 'stage1_loading');
         return [...filtered, { 
           type: 'system' as const, 
-          message: `❌ Search failed: ${errorMessage}\n\nPlease try again or contact support if the issue persists.`,
+          message: `Search failed: ${errorMessage}\n\nPlease try again or contact support if the issue persists.`,
           searchSuggestions: []
         }];
       });
@@ -798,7 +946,7 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
   }
 
   // Shared header component
-  const Header = ({ onStartNewProject, currentProjectId }: { onStartNewProject?: () => void, currentProjectId?: number | null } = {}) => (
+  const Header = ({ currentProjectId }: { currentProjectId?: number | null } = {}) => (
     <div className="h-16 bg-white border-b border-gray-200 z-50 flex items-center relative">
       {/* Left Side - Hamburger Menu (only for authenticated users) + Guest Banner + Context Indicator */}
       <div className="flex items-center gap-3 px-6">
@@ -833,7 +981,7 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
       </div>
       
       {/* Toggle Buttons - Absolutely positioned center with equal widths */}
-      {(hasSearched || viewMode === 'savedmaps' || viewMode === 'pipeline' || viewMode === 'dataextraction' || viewMode === 'realtimefeed') && (
+      {(currentProjectId || hasSearched || viewMode === 'savedmaps' || viewMode === 'pipeline' || viewMode === 'dataextraction' || viewMode === 'realtimefeed') && (
         <div 
           className="absolute z-20"
           style={{ left: '50%', transform: 'translateX(-50%)' }}
@@ -844,13 +992,13 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
                 onClick={() => setShowProjectsDropdown(!showProjectsDropdown)}
                 className={`py-2 px-4 rounded-md text-sm font-medium transition-colors w-full text-center whitespace-nowrap overflow-hidden ${
                   showProjectsDropdown
-                    ? 'bg-white text-gray-900 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'bg-blue-500 text-white hover:bg-blue-600'
                 }`}
-                title={currentProjectName || 'Projects'}
+                title={currentProjectName ? `Project: ${currentProjectName}` : 'Projects'}
               >
                 <span className="truncate">
-                  {currentProjectName || 'Projects'}
+                  {currentProjectName ? `Project: ${currentProjectName}` : 'Projects'}
                 </span>
               </button>
               
@@ -907,6 +1055,30 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
                         No projects yet
                       </div>
                     )}
+                  </div>
+                  
+                  {/* Create New Project Button */}
+                  <div className="border-t border-gray-200 pt-2">
+                    <button
+                      onClick={() => {
+                        setShowCreateProjectModal(true)
+                        setShowProjectsDropdown(false)
+                      }}
+                      className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 bg-blue-100">
+                          <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                          </svg>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-blue-600">
+                            Create New Project
+                          </p>
+                        </div>
+                      </div>
+                    </button>
                   </div>
                 </div>
               )}
@@ -975,18 +1147,6 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
         </div>
       )}
       
-      {/* Right Side - New Project Button */}
-      {currentProjectId && onStartNewProject && (
-        <div className="absolute right-6 top-1/2 transform -translate-y-1/2">
-          <button
-            onClick={onStartNewProject}
-            className="px-3 py-1.5 text-sm bg-gray-800 text-white rounded-md hover:bg-gray-900 transition-colors"
-          >
-            New Project
-          </button>
-        </div>
-      )}
-      
       {/* Vertical center line indicator (hidden but marks the center) */}
       <div className="absolute left-1/2 transform -translate-x-1/2 w-px h-full pointer-events-none"></div>
     </div>
@@ -1038,6 +1198,59 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
       </div>
     );
   };
+
+  // Create Project Modal Component (shared across all views)
+  const ProjectModal = () => (
+    <CreateProjectModal
+      isOpen={showCreateProjectModal}
+      onClose={() => setShowCreateProjectModal(false)}
+      onConfirm={async (name) => {
+        console.log('[Dashboard] Creating new project:', name)
+        
+        // Block guest users from creating projects
+        if (isGuest) {
+          console.warn('[Dashboard] Guest users cannot create projects')
+          alert('Guest users cannot create projects. Please sign up or sign in to create projects.')
+          return
+        }
+        
+        try {
+          setCreatingProject(true)
+          
+          // Import and call createProject service
+          const { createProject } = await import('@/services/projectService')
+          const project = await createProject(name)
+          
+          console.log('[Dashboard] Project created successfully:', project)
+          
+          // Clear current session state before switching to new project
+          clearCurrentSession()
+          
+          // Switch to the new project
+          setCurrentProjectId(project.id)
+          setCurrentProjectName(project.name)
+          
+          // Close modal
+          setShowCreateProjectModal(false)
+          
+          // Refresh projects list
+          const { getUserProjects } = await import('@/services/projectService')
+          const projects = await getUserProjects()
+          setUserProjects(projects)
+          
+          // Navigate to research view
+          setViewMode('research')
+          
+        } catch (error) {
+          console.error('[Dashboard] Error creating project:', error)
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+          alert(`Failed to create project: ${errorMessage}\n\nPlease check the browser console for more details.`)
+        } finally {
+          setCreatingProject(false)
+        }
+      }}
+    />
+  );
 
   if (!hasSearched && viewMode !== 'savedmaps' && viewMode !== 'pipeline' && viewMode !== 'realtimefeed') {
     // Initial centered search bar layout (skip if showing saved maps)
@@ -1214,8 +1427,11 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
 
         {/* Header with centered buttons */}
         <div className="fixed top-0 left-0 right-0 z-50">
-          <Header onStartNewProject={handleStartNewProject} currentProjectId={currentProjectId} />
+          <Header currentProjectId={currentProjectId} />
         </div>
+        
+        {/* Create Project Modal */}
+        <ProjectModal />
       </div>
     );
   }
@@ -1225,7 +1441,7 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
   if (viewMode === 'savedmaps') {
     return (
       <div className="h-screen flex flex-col overflow-hidden">
-        <Header onStartNewProject={handleStartNewProject} currentProjectId={currentProjectId} />
+        <Header currentProjectId={currentProjectId} />
         <div className="flex-1 overflow-y-auto bg-gray-50">
           <SavedMaps 
             onLoadMap={handleLoadSavedMap}
@@ -1233,6 +1449,9 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
             currentProjectId={currentProjectId}
           />
         </div>
+        
+        {/* Create Project Modal */}
+        <ProjectModal />
       </div>
     );
   }
@@ -1242,7 +1461,7 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
     // Full screen market map view
     return (
       <div className="h-screen flex flex-col overflow-hidden">
-        <Header onStartNewProject={handleStartNewProject} currentProjectId={currentProjectId} />
+        <Header currentProjectId={currentProjectId} />
         
         {/* Full Screen Market Map */}
         <div className="flex-1 overflow-hidden bg-gray-50">
@@ -1267,6 +1486,9 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
             onNavigateToResearch={() => setViewMode('research')}
           />
         </div>
+        
+        {/* Create Project Modal */}
+        <ProjectModal />
       </div>
     );
   }
@@ -1276,7 +1498,7 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
   if (viewMode === 'pipeline') {
     return (
       <div className="h-screen flex flex-col overflow-hidden">
-        <Header onStartNewProject={handleStartNewProject} currentProjectId={currentProjectId} />
+        <Header currentProjectId={currentProjectId} />
         
         {/* Asset Development Pipeline Content */}
         <div className="flex-1 overflow-hidden">
@@ -1288,6 +1510,9 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
             isPaperInContext={isPaperInContext}
           />
         </div>
+        
+        {/* Create Project Modal */}
+        <ProjectModal />
       </div>
     );
   }
@@ -1296,12 +1521,15 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
   if (viewMode === 'dataextraction') {
     return (
       <div className="h-screen flex flex-col bg-gray-50">
-        <Header onStartNewProject={handleStartNewProject} currentProjectId={currentProjectId} />
+        <Header currentProjectId={currentProjectId} />
         
         {/* PDF Data Extraction Content */}
         <div className="flex-1 overflow-y-auto">
           <PDFExtraction />
         </div>
+        
+        {/* Create Project Modal */}
+        <ProjectModal />
       </div>
     );
   }
@@ -1311,12 +1539,15 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
   if (viewMode === 'realtimefeed') {
     return (
       <div className="h-screen flex flex-col overflow-hidden">
-        <Header onStartNewProject={handleStartNewProject} currentProjectId={currentProjectId} />
+        <Header currentProjectId={currentProjectId} />
         
         {/* Realtime Feed Content */}
         <div className="flex-1 overflow-y-auto">
           <RealtimeFeed />
         </div>
+        
+        {/* Create Project Modal */}
+        <ProjectModal />
       </div>
     );
   }
@@ -1327,7 +1558,7 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
     console.log('Rendering split screen');
     return (
     <div className="h-screen flex flex-col relative">
-      <Header onStartNewProject={handleStartNewProject} currentProjectId={currentProjectId} />
+      <Header currentProjectId={currentProjectId} />
       
       {/* Vertical separator line - spans from header to bottom with precise centering */}
       <div 
@@ -1355,13 +1586,12 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
                         : 'bg-gray-50 text-gray-700 border-gray-200'
                     }`}
                   >
-                    {/* Special handling for Stage 1 loading */}
-                    {item.message === 'stage1_loading' ? (
+                    {/* Special handling for progress messages */}
+                    {item.message.startsWith('progress:') ? (
                       <div className="flex items-center gap-3">
                         <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
                         <div className="text-sm">
-                          <div className="font-medium text-gray-900">Stage 1: Extracting Drug Names</div>
-                          <div className="text-gray-600 mt-1">Analyzing initial search results to identify all unique drugs...</div>
+                          <div className="font-medium text-gray-900">{item.message.replace('progress:', '')}</div>
                         </div>
                       </div>
                     ) : (
@@ -1699,6 +1929,9 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
           isPressReleaseInContext={isPressReleaseInContext}
         />
       )}
+      
+      {/* Create Project Modal */}
+      <ProjectModal />
     </div>
   )
   }
@@ -1719,13 +1952,12 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
                 ? 'bg-gray-800 text-white border-gray-700' 
                 : 'bg-gray-50 text-gray-700 border-gray-200'
             }`}>
-              {/* Special handling for Stage 1 loading */}
-              {item.message === 'stage1_loading' ? (
+              {/* Special handling for progress messages */}
+              {item.message.startsWith('progress:') ? (
                 <div className="flex items-center gap-3">
                   <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
                   <div className="text-sm">
-                    <div className="font-medium text-gray-900">Stage 1: Extracting Drug Names</div>
-                    <div className="text-gray-600 mt-1">Analyzing initial search results to identify all unique drugs...</div>
+                    <div className="font-medium text-gray-900">{item.message.replace('progress:', '')}</div>
                   </div>
                 </div>
               ) : (
@@ -2000,6 +2232,9 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
           </div>
         </div>
       </div>
+      
+      {/* Create Project Modal */}
+      <ProjectModal />
     </div>
   )
 }

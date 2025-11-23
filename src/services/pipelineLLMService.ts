@@ -8,25 +8,32 @@ interface ExtractPipelineResponse {
   candidates: PipelineDrugCandidate[];
   totalProcessed: number;
   totalRequested: number;
-  top10Count: number;
+  limit: number;
   errors?: string[];
 }
 
 export class PipelineLLMService {
   /**
    * Extract pipeline data for drug groups using LLM
-   * Only processes top 10 drugs by paper count to control costs
+   * Processes drugs ordered by combined papers + trials count
    */
   static async extractPipelineData(
-    drugGroups: DrugGroup[]
+    drugGroups: DrugGroup[],
+    limit: number = 10
   ): Promise<PipelineDrugCandidate[]> {
     try {
-      // Sort by paper count to show which will be processed
-      const sortedDrugs = [...drugGroups].sort((a, b) => b.papers.length - a.papers.length);
-      const top10 = sortedDrugs.slice(0, 10);
+      // Sort by combined papers + trials count
+      const sortedDrugs = [...drugGroups].sort((a, b) => {
+        const aTotal = a.papers.length + a.trials.length;
+        const bTotal = b.papers.length + b.trials.length;
+        return bTotal - aTotal;
+      });
+      const topDrugs = sortedDrugs.slice(0, limit);
       
-      console.log(`Extracting pipeline data for top ${top10.length} drugs (out of ${drugGroups.length} total)`);
-      console.log('Top drugs by paper count:', top10.map(d => `${d.drugName} (${d.papers.length} papers)`));
+      console.log(`Extracting pipeline data for top ${topDrugs.length} drugs (out of ${drugGroups.length} total)`);
+      console.log('Top drugs by combined count:', topDrugs.map(d => 
+        `${d.drugName} (${d.papers.length} papers, ${d.trials.length} trials)`
+      ));
 
       // Call the API endpoint
       const response = await fetch('/api/generate-asset-pipeline-table', {
@@ -35,7 +42,8 @@ export class PipelineLLMService {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          drugGroups: top10
+          drugGroups: topDrugs,
+          limit
         })
       });
 
@@ -54,7 +62,7 @@ export class PipelineLLMService {
       // Add sourceGroupId to match candidates back to their drug groups
       const candidatesWithRefs = data.candidates.map(candidate => {
         // Find the matching drug group by normalized name
-        const matchingGroup = top10.find(group => 
+        const matchingGroup = topDrugs.find(group => 
           group.normalizedName === candidate.id ||
           group.drugName.toLowerCase() === candidate.scientificName.toLowerCase()
         );
@@ -73,41 +81,46 @@ export class PipelineLLMService {
   }
 
   /**
-   * Get the top 10 drugs that will be processed
+   * Get the top N drugs that will be processed (by combined papers + trials)
    */
-  static getTop10Drugs(drugGroups: DrugGroup[]): DrugGroup[] {
+  static getTopDrugs(drugGroups: DrugGroup[], limit: number = 10): DrugGroup[] {
     return [...drugGroups]
-      .sort((a, b) => b.papers.length - a.papers.length)
-      .slice(0, 10);
+      .sort((a, b) => {
+        const aTotal = a.papers.length + a.trials.length;
+        const bTotal = b.papers.length + b.trials.length;
+        return bTotal - aTotal;
+      })
+      .slice(0, limit);
   }
 
   /**
-   * Check if a drug will be processed (in top 10 by paper count)
+   * Check if a drug will be processed (in top N by combined count)
    */
-  static willBeProcessed(drugGroup: DrugGroup, allDrugGroups: DrugGroup[]): boolean {
-    const top10 = this.getTop10Drugs(allDrugGroups);
-    return top10.some(d => d.drugName === drugGroup.drugName);
+  static willBeProcessed(drugGroup: DrugGroup, allDrugGroups: DrugGroup[], limit: number = 10): boolean {
+    const topDrugs = this.getTopDrugs(allDrugGroups, limit);
+    return topDrugs.some(d => d.drugName === drugGroup.drugName);
   }
 
   /**
    * Get statistics about what will be processed
    */
-  static getProcessingStats(drugGroups: DrugGroup[]): {
+  static getProcessingStats(drugGroups: DrugGroup[], limit: number = 10): {
     total: number;
     willProcess: number;
     willSkip: number;
-    top10: Array<{ name: string; paperCount: number; trialCount: number }>;
+    topDrugs: Array<{ name: string; paperCount: number; trialCount: number; totalCount: number }>;
   } {
-    const top10 = this.getTop10Drugs(drugGroups);
+    const topDrugs = this.getTopDrugs(drugGroups, limit);
     
     return {
       total: drugGroups.length,
-      willProcess: Math.min(10, drugGroups.length),
-      willSkip: Math.max(0, drugGroups.length - 10),
-      top10: top10.map(d => ({
+      willProcess: Math.min(limit, drugGroups.length),
+      willSkip: Math.max(0, drugGroups.length - limit),
+      topDrugs: topDrugs.map(d => ({
         name: d.drugName,
         paperCount: d.papers.length,
-        trialCount: d.trials.length
+        trialCount: d.trials.length,
+        totalCount: d.papers.length + d.trials.length
       }))
     };
   }

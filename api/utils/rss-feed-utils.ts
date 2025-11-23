@@ -51,14 +51,29 @@ export function buildRssUrl(
  * Parse RSS feed and return entries
  */
 export async function parseRssFeed(rssUrl: string): Promise<RSSEntry[]> {
+  console.log(`\n📡 Parsing RSS feed: ${rssUrl}`);
+  
   try {
+    // Simple fetch with default headers
     const response = await fetch(rssUrl, { headers: DEFAULT_HEADERS });
+    
+    if (!response.ok) {
+      throw new Error(`RSS feed returned status ${response.status}: ${response.statusText}`);
+    }
+    
+    // Read response text
     const xmlText = await response.text();
     
+    if (!xmlText || xmlText.length === 0) {
+      throw new Error('RSS feed returned empty response');
+    }
+    
+    // Parse XML
+    const parseStartTime = Date.now();
     const $ = cheerio.load(xmlText, { xmlMode: true });
     const entries: RSSEntry[] = [];
     
-    console.log(`\n📡 Parsing RSS feed...`);
+    console.log(`[RSS] Parsing XML content...`);
     
     $('item').each((_, item) => {
       const title = $(item).find('title').text();
@@ -96,17 +111,20 @@ export async function parseRssFeed(rssUrl: string): Promise<RSSEntry[]> {
       entries.push({ title, link, updated_dt, created_dt, isNew });
     });
     
+    const parseDuration = Date.now() - parseStartTime;
+    
     const newCount = entries.filter(e => e.isNew).length;
     const updatedCount = entries.length - newCount;
     console.log(`\n📊 RSS Feed Summary:`);
     console.log(`   Total entries: ${entries.length}`);
     console.log(`   New studies: ${newCount}`);
     console.log(`   Updated studies: ${updatedCount}`);
+    console.log(`✅ Parsing completed in ${parseDuration}ms`);
     
     return entries;
-  } catch (error) {
-    console.error('Failed to parse RSS feed:', error);
-    return [];
+  } catch (error: any) {
+    console.error(`❌ Failed to parse RSS feed:`, error.message);
+    throw error;
   }
 }
 

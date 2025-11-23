@@ -1,3 +1,13 @@
+export interface RefreshStatus {
+  total: number;
+  processed: number;
+  in_progress: boolean;
+  started_at?: string;
+  completed_at?: string;
+  new_updates?: number;
+  error?: string;
+}
+
 export interface WatchedFeed {
   id: number;
   user_id: string;
@@ -5,6 +15,7 @@ export interface WatchedFeed {
   label: string;
   created_at: string;
   last_checked_at?: string;
+  refresh_status?: RefreshStatus;
 }
 
 export interface TrialUpdate {

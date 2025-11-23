@@ -11,6 +11,7 @@ export interface PipelineDrugCandidate {
   indications?: string[]; // e.g., ["Alzheimer's Disease", "Dementia"]
   lastTrialStartDate?: string; // ISO date string
   sourceGroupId?: string; // Reference to original DrugGroup for modal lookup
+  totalEnrollment?: number; // Total enrollment across all trials
 }
 
 export type PipelineStage = 
