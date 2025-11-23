@@ -50,6 +50,7 @@ interface PipelineDrugCandidate {
   indications?: string[];
   lastTrialStartDate?: string;
   confidence?: number;
+  totalEnrollment?: number;
 }
 
 /**
@@ -98,7 +99,7 @@ Based on the data above, extract the following information about ${drugName}:
 3. **Sponsor Company**: The lead organization developing this drug (from trial sponsors)
 
 4. **Development Stage**: Determine the most advanced stage achieved in the United States:
-   - "Marketed" - If approved/marketed or completed Phase 4
+   - "Marketed" - If approved/marketed or started Phase 4
    - "Phase III" - If any Phase 3 trials exist
    - "Phase II" - If any Phase 2 trials exist (but no Phase 3)
    - "Phase I" - If only Phase 1 trials exist
@@ -150,6 +151,15 @@ function parseJSON(response: string): any {
 }
 
 /**
+ * Calculate total enrollment across all trials for a drug
+ */
+function calculateTotalEnrollment(trials: ClinicalTrial[]): number {
+  return trials.reduce((total, trial) => {
+    return total + (trial.enrollment || 0);
+  }, 0);
+}
+
+/**
  * Extract pipeline data for a single drug using Claude
  * 
  * Model: Claude 3.5 Haiku
@@ -183,6 +193,9 @@ async function extractDrugData(drugGroup: DrugGroup): Promise<PipelineDrugCandid
       throw new Error('Missing required fields in LLM response');
     }
     
+    // Calculate total enrollment
+    const totalEnrollment = calculateTotalEnrollment(drugGroup.trials);
+    
     // Build candidate object
     const candidate: PipelineDrugCandidate = {
       id: drugGroup.drugName.toLowerCase(),
@@ -194,7 +207,8 @@ async function extractDrugData(drugGroup: DrugGroup): Promise<PipelineDrugCandid
       mechanismOfAction: extracted.mechanismOfAction || 'Unknown',
       indications: Array.isArray(extracted.indications) ? extracted.indications : [],
       lastTrialStartDate: extracted.lastTrialStartDate || undefined,
-      confidence: 0.9 // High confidence for Claude extraction
+      confidence: 0.9, // High confidence for Claude extraction
+      totalEnrollment: totalEnrollment > 0 ? totalEnrollment : undefined
     };
     
     return candidate;
@@ -214,7 +228,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const { drugGroups } = req.body as { drugGroups: DrugGroup[] };
+    const { drugGroups, limit = 10 } = req.body as { drugGroups: DrugGroup[]; limit?: number };
 
     if (!drugGroups || !Array.isArray(drugGroups)) {
       return res.status(400).json({ error: 'Invalid request: drugGroups array required' });
@@ -224,28 +238,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json({ candidates: [] });
     }
 
-    // Sort by number of papers (descending) and take top 10
-    const top10Drugs = [...drugGroups]
-      .sort((a, b) => b.papers.length - a.papers.length)
-      .slice(0, 10);
+    // Validate limit
+    const requestedLimit = Math.min(Math.max(1, limit), 50); // Cap at 50 for cost control
 
-    console.log(`Processing top 10 drugs (out of ${drugGroups.length} total)`);
-    console.log('Top drugs:', top10Drugs.map(d => `${d.drugName} (${d.papers.length} papers)`));
+    // Sort by combined papers + trials count (descending)
+    const sortedDrugs = [...drugGroups]
+      .sort((a, b) => {
+        const aTotal = a.papers.length + a.trials.length;
+        const bTotal = b.papers.length + b.trials.length;
+        return bTotal - aTotal;
+      })
+      .slice(0, requestedLimit);
+
+    console.log(`Processing top ${sortedDrugs.length} drugs (out of ${drugGroups.length} total)`);
+    console.log('Top drugs:', sortedDrugs.map(d => 
+      `${d.drugName} (${d.papers.length} papers, ${d.trials.length} trials)`
+    ));
 
     // Extract data for each drug sequentially (to avoid rate limits)
     const candidates: PipelineDrugCandidate[] = [];
     const errors: string[] = [];
 
-    for (let i = 0; i < top10Drugs.length; i++) {
-      const drugGroup = top10Drugs[i];
-      console.log(`Processing ${i + 1}/${top10Drugs.length}: ${drugGroup.drugName}`);
+    for (let i = 0; i < sortedDrugs.length; i++) {
+      const drugGroup = sortedDrugs[i];
+      console.log(`Processing ${i + 1}/${sortedDrugs.length}: ${drugGroup.drugName}`);
       
       try {
         const candidate = await extractDrugData(drugGroup);
         candidates.push(candidate);
         
         // Small delay to avoid rate limits
-        if (i < top10Drugs.length - 1) {
+        if (i < sortedDrugs.length - 1) {
           await new Promise(resolve => setTimeout(resolve, 500));
         }
       } catch (error) {
@@ -259,7 +282,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       candidates,
       totalProcessed: candidates.length,
       totalRequested: drugGroups.length,
-      top10Count: top10Drugs.length,
+      limit: requestedLimit,
       errors: errors.length > 0 ? errors : undefined
     });
 

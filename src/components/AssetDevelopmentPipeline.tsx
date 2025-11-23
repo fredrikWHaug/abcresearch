@@ -1,9 +1,9 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Search, Filter, Building2, FlaskConical, Calendar, AlertCircle, Sparkles, Loader2, Info } from 'lucide-react';
+import { Search, Filter, Building2, FlaskConical, Calendar, AlertCircle, Sparkles, Loader2, Info, Users } from 'lucide-react';
 import { DrugDetailModal } from '@/components/DrugDetailModal';
 import type { PipelineDrugCandidate, PipelineStage } from '@/types/pipeline';
 import type { ClinicalTrial } from '@/types/trials';
@@ -20,82 +20,6 @@ interface AssetDevelopmentPipelineProps {
   onAddPaperToContext?: (paper: PubMedArticle) => void;
   isPaperInContext?: (pmid: string) => boolean;
 }
-
-// Mock data for demonstration - will be replaced with real data from API/database
-const MOCK_CANDIDATES: PipelineDrugCandidate[] = [
-  {
-    id: '1',
-    commercialName: 'ADUHELM™',
-    scientificName: 'Aducanumab',
-    sponsorCompany: 'Biogen',
-    stage: 'Marketed',
-    technologies: 'Biologics',
-    mechanismOfAction: 'Monotherapy',
-    indications: ['Alzheimer\'s Disease'],
-    lastTrialStartDate: '2015-08-01',
-  },
-  {
-    id: '2',
-    commercialName: 'Namzaric',
-    scientificName: 'Memantine/Donepezil',
-    sponsorCompany: 'Allergan',
-    stage: 'Marketed',
-    technologies: 'Small Molecule',
-    mechanismOfAction: 'Combination Therapy',
-    indications: ['Alzheimer\'s Disease'],
-    lastTrialStartDate: '2012-03-15',
-  },
-  {
-    id: '3',
-    scientificName: 'ALZ-801',
-    sponsorCompany: 'Alzheon',
-    stage: 'Phase III',
-    technologies: 'Small Molecule',
-    mechanismOfAction: 'Oral',
-    indications: ['Alzheimer\'s Disease'],
-    lastTrialStartDate: '2019-06-20',
-  },
-  {
-    id: '4',
-    scientificName: 'Gantenerumab',
-    sponsorCompany: 'Roche',
-    stage: 'Phase III',
-    technologies: 'Biologics',
-    mechanismOfAction: 'Monotherapy',
-    indications: ['Alzheimer\'s Disease'],
-    lastTrialStartDate: '2018-11-12',
-  },
-  {
-    id: '5',
-    scientificName: 'Donanemab',
-    sponsorCompany: 'Eli Lilly',
-    stage: 'Phase III',
-    technologies: 'Biologics',
-    mechanismOfAction: 'Monotherapy',
-    indications: ['Alzheimer\'s Disease'],
-    lastTrialStartDate: '2020-07-08',
-  },
-  {
-    id: '6',
-    scientificName: 'Lecanemab',
-    sponsorCompany: 'Eisai/Biogen',
-    stage: 'Phase III',
-    technologies: 'Biologics',
-    mechanismOfAction: 'Monotherapy',
-    indications: ['Alzheimer\'s Disease'],
-    lastTrialStartDate: '2019-03-14',
-  },
-  {
-    id: '7',
-    scientificName: 'GV1001',
-    sponsorCompany: 'GemVax',
-    stage: 'Phase II',
-    technologies: 'Biologics',
-    mechanismOfAction: 'Immunotherapy',
-    indications: ['Alzheimer\'s Disease'],
-    lastTrialStartDate: '2020-09-01',
-  },
-];
 
 export function AssetDevelopmentPipeline({ 
   candidates: propCandidates, 
@@ -114,24 +38,7 @@ export function AssetDevelopmentPipeline({
   const [usedLLM, setUsedLLM] = useState(false);
   const [selectedDrug, setSelectedDrug] = useState<DrugGroup | null>(null);
   const [showDrugModal, setShowDrugModal] = useState(false);
-
-  // Process trials into pipeline candidates when trials change
-  useEffect(() => {
-    if (propCandidates) {
-      // Use provided candidates
-      setProcessedCandidates(propCandidates);
-      setUsedLLM(false);
-    } else if (trials && trials.length > 0) {
-      // Convert trials to pipeline candidates (pattern-based)
-      const converted = PipelineService.trialsToPipeline(trials);
-      setProcessedCandidates(converted);
-      setUsedLLM(false);
-    } else {
-      // Use mock data as fallback
-      setProcessedCandidates(MOCK_CANDIDATES);
-      setUsedLLM(false);
-    }
-  }, [propCandidates, trials]);
+  const [drugLimit, setDrugLimit] = useState<number>(10);
 
   // Handle LLM extraction
   const handleLLMExtraction = async () => {
@@ -140,11 +47,17 @@ export function AssetDevelopmentPipeline({
       return;
     }
 
+    // Validate limit
+    if (drugLimit < 1 || drugLimit > 50) {
+      setExtractionError('Please enter a number between 1 and 50.');
+      return;
+    }
+
     setIsExtracting(true);
     setExtractionError(null);
 
     try {
-      const candidates = await PipelineLLMService.extractPipelineData(drugGroups);
+      const candidates = await PipelineLLMService.extractPipelineData(drugGroups, drugLimit);
       setProcessedCandidates(candidates);
       setUsedLLM(true);
       console.log('LLM extraction complete:', candidates);
@@ -157,9 +70,15 @@ export function AssetDevelopmentPipeline({
   };
 
   // Get processing stats
-  const processingStats = drugGroups ? PipelineLLMService.getProcessingStats(drugGroups) : null;
+  const processingStats = drugGroups ? PipelineLLMService.getProcessingStats(drugGroups, drugLimit) : null;
 
   const candidates = processedCandidates;
+
+  // Format enrollment number with commas
+  const formatEnrollment = (enrollment?: number) => {
+    if (!enrollment) return 'N/A';
+    return enrollment.toLocaleString();
+  };
 
   // Handle drug click - find matching drug group and open modal
   const handleDrugClick = (candidate: PipelineDrugCandidate) => {
@@ -242,25 +161,25 @@ export function AssetDevelopmentPipeline({
 
   const stages: Array<PipelineStage | 'All'> = ['All', 'Marketed', 'Phase III', 'Phase II', 'Phase I', 'Pre-Clinical'];
 
-  // Check if we're using real data or mock data
-  const isUsingRealData = trials && trials.length > 0;
-  const isUsingMockData = !trials || trials.length === 0;
+  // Check if we have data available
+  const hasDrugData = drugGroups && drugGroups.length > 0;
+  const hasExtractedData = processedCandidates.length > 0;
 
   return (
     <div className="h-full flex flex-col bg-gray-50">
       {/* Header */}
       <div className="bg-white border-b border-gray-200 p-6">
         <div className="max-w-7xl mx-auto">
-          {/* Info Banner for Mock Data */}
-          {isUsingMockData && (
+          {/* Info Banner - No Data */}
+          {!hasDrugData && (
             <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
               <div className="flex items-start gap-3">
                 <AlertCircle className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
                 <div className="flex-1">
-                  <h3 className="text-sm font-semibold text-blue-900">Demo Data</h3>
+                  <h3 className="text-sm font-semibold text-blue-900">No Data Available</h3>
                   <p className="text-sm text-blue-800 mt-1">
-                    You're viewing sample pipeline data. To see real drug candidates, perform a search in the Research tab first. 
-                    The pipeline will automatically populate with drugs from your search results.
+                    To populate the asset development pipeline, perform a search in the Research tab first. 
+                    The pipeline will extract drug candidates from your search results.
                   </p>
                 </div>
               </div>
@@ -271,17 +190,32 @@ export function AssetDevelopmentPipeline({
             <div className="flex-1">
               <h1 className="text-3xl font-bold text-gray-900">Asset Development Pipeline</h1>
               <p className="text-gray-600 mt-1">
-                {isUsingRealData 
-                  ? usedLLM
-                    ? `Showing ${candidates.length} AI-extracted drug candidates (top 10 by paper count)`
-                    : `Showing ${candidates.length} drug candidates from your search results`
-                  : 'Comprehensive view of drug candidates across development stages'
+                {hasExtractedData 
+                  ? `Showing ${candidates.length} AI-extracted drug candidates (ordered by papers + trials)`
+                  : 'Extract comprehensive drug pipeline data from your search results'
                 }
               </p>
             </div>
             <div className="flex items-center gap-3">
+              {/* Drug Limit Input */}
+              {hasDrugData && !usedLLM && (
+                <div className="flex items-center gap-2">
+                  <label htmlFor="drugLimit" className="text-sm font-medium text-gray-700">
+                    # of drugs:
+                  </label>
+                  <Input
+                    id="drugLimit"
+                    type="number"
+                    min="1"
+                    max="50"
+                    value={drugLimit}
+                    onChange={(e) => setDrugLimit(parseInt(e.target.value) || 10)}
+                    className="w-20 h-9"
+                  />
+                </div>
+              )}
               {/* AI Extraction Button */}
-              {drugGroups && drugGroups.length > 0 && !usedLLM && (
+              {hasDrugData && !usedLLM && (
                 <Button
                   onClick={handleLLMExtraction}
                   disabled={isExtracting}
@@ -295,18 +229,20 @@ export function AssetDevelopmentPipeline({
                   ) : (
                     <>
                       <Sparkles className="h-4 w-4" />
-                      AI Extract (Top 10)
+                      AI Extract
                     </>
                   )}
                 </Button>
               )}
-              <button
-                onClick={() => setShowFilters(!showFilters)}
-                className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
-              >
-                <Filter className="h-4 w-4" />
-                <span className="text-sm font-medium">Filters</span>
-              </button>
+              {hasExtractedData && (
+                <button
+                  onClick={() => setShowFilters(!showFilters)}
+                  className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                >
+                  <Filter className="h-4 w-4" />
+                  <span className="text-sm font-medium">Filters</span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -319,13 +255,11 @@ export function AssetDevelopmentPipeline({
                   <h3 className="text-sm font-semibold text-purple-900">AI Extraction Available</h3>
                   <p className="text-sm text-purple-800 mt-1">
                     Click "AI Extract" to use Claude AI to extract comprehensive drug information from your search results. 
-                    To control costs, only the top {processingStats.willProcess} drugs (by paper count) will be processed.
+                    Drugs are ordered by total papers + trials count. Set the number of drugs to process (1-50) and click extract.
                   </p>
-                  {processingStats.willSkip > 0 && (
-                    <p className="text-xs text-purple-700 mt-2">
-                      Note: {processingStats.willSkip} drugs with fewer papers will be skipped.
-                    </p>
-                  )}
+                  <p className="text-xs text-purple-700 mt-2">
+                    Will process: {processingStats.willProcess} drugs{processingStats.willSkip > 0 ? ` (${processingStats.willSkip} will be skipped)` : ''}
+                  </p>
                 </div>
               </div>
             </div>
@@ -352,7 +286,7 @@ export function AssetDevelopmentPipeline({
                 <div className="flex-1">
                   <h3 className="text-sm font-semibold text-blue-900">Extracting Pipeline Data...</h3>
                   <p className="text-sm text-blue-800 mt-1">
-                    Processing top {processingStats?.willProcess || 10} drugs with AI. This may take 30-60 seconds.
+                    Processing top {drugLimit} drugs with AI. This may take {Math.ceil(drugLimit * 2 / 60)} minute{Math.ceil(drugLimit * 2 / 60) > 1 ? 's' : ''}.
                   </p>
                 </div>
               </div>
@@ -372,38 +306,40 @@ export function AssetDevelopmentPipeline({
           )}
 
           {/* Search and Filters */}
-          <div className="space-y-4">
-            {/* Search Bar */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <Input
-                type="text"
-                placeholder="Search by drug name, company, or indication..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 h-11"
-              />
-            </div>
-
-            {/* Stage Filters */}
-            {showFilters && (
-              <div className="flex flex-wrap gap-2">
-                {stages.map((stage) => (
-                  <button
-                    key={stage}
-                    onClick={() => setSelectedStage(stage)}
-                    className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                      selectedStage === stage
-                        ? 'bg-gray-800 text-white'
-                        : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
-                    }`}
-                  >
-                    {stage}
-                  </button>
-                ))}
+          {hasExtractedData && (
+            <div className="space-y-4">
+              {/* Search Bar */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  type="text"
+                  placeholder="Search by drug name, company, or indication..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10 h-11"
+                />
               </div>
-            )}
-          </div>
+
+              {/* Stage Filters */}
+              {showFilters && (
+                <div className="flex flex-wrap gap-2">
+                  {stages.map((stage) => (
+                    <button
+                      key={stage}
+                      onClick={() => setSelectedStage(stage)}
+                      className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                        selectedStage === stage
+                          ? 'bg-gray-800 text-white'
+                          : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      {stage}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -434,6 +370,9 @@ export function AssetDevelopmentPipeline({
                       Indications
                     </th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Total Enrollment
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                       Last Trial Date
                     </th>
                   </tr>
@@ -441,10 +380,20 @@ export function AssetDevelopmentPipeline({
                 <tbody className="bg-white divide-y divide-gray-200">
                   {filteredCandidates.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
+                      <td colSpan={8} className="px-6 py-12 text-center text-gray-500">
                         <FlaskConical className="h-12 w-12 mx-auto mb-3 text-gray-400" />
-                        <p className="text-lg font-medium">No candidates found</p>
-                        <p className="text-sm mt-1">Try adjusting your search or filters</p>
+                        <p className="text-lg font-medium">
+                          {!hasExtractedData 
+                            ? 'No pipeline data extracted yet' 
+                            : 'No candidates found'
+                          }
+                        </p>
+                        <p className="text-sm mt-1">
+                          {!hasExtractedData
+                            ? 'Perform a search and click "AI Extract" to populate the pipeline'
+                            : 'Try adjusting your search or filters'
+                          }
+                        </p>
                       </td>
                     </tr>
                   ) : (
@@ -535,6 +484,16 @@ export function AssetDevelopmentPipeline({
                             ) : (
                               <span className="text-gray-500 text-sm">N/A</span>
                             )}
+                          </div>
+                        </td>
+
+                        {/* Total Enrollment */}
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-2">
+                            <Users className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                            <span className="text-gray-700 text-sm font-medium">
+                              {formatEnrollment(candidate.totalEnrollment)}
+                            </span>
                           </div>
                         </td>
 
