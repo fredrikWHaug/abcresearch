@@ -109,8 +109,15 @@ export default async function handler(req: any, res: any) {
       });
     }
 
+    // HW9 ABC-85: Detect if user is asking for graph generation early to optimize context
+    const isGraphRequest = userQuery.toLowerCase().includes('graph') || 
+                          userQuery.toLowerCase().includes('chart') || 
+                          userQuery.toLowerCase().includes('comparison') ||
+                          userQuery.toLowerCase().includes('visualiz');
+    
     // ABC-39, HW9: Build system prompt with context papers, press releases, and PDF extractions (persistent)
-    const systemPrompt = buildSystemPrompt(contextPapers, contextPressReleases, contextExtractions);
+    // HW9 ABC-85: Pass isGraphRequest to optimize context (only tables for graph generation)
+    const systemPrompt = buildSystemPrompt(contextPapers, contextPressReleases, contextExtractions, isGraphRequest);
 
     // ABC-39: Build messages array from chat history and current query
     const messages = buildMessagesFromHistory(chatHistory || [], userQuery);
@@ -158,8 +165,8 @@ Keep the response concise (2-3 sentences) and natural. Don't use bullet points o
           'anthropic-version': '2023-06-01'
         },
         body: JSON.stringify({
-          model: 'claude-3-haiku-20240307',
-          max_tokens: 500,
+          model: 'claude-sonnet-4-5',
+          max_tokens: 800,
           temperature: 0.7,
           messages: [
             {
@@ -203,11 +210,7 @@ Keep the response concise (2-3 sentences) and natural. Don't use bullet points o
 
     // ABC-39: Use proper Anthropic API structure with system prompt and messages array
     // HW8 ABC-57: Reduce max_tokens to encourage brevity (Claude tends to be verbose)
-    // Detect if user is asking for graph generation - if so, need more tokens for Python code
-    const isGraphRequest = userQuery.toLowerCase().includes('graph') || 
-                          userQuery.toLowerCase().includes('chart') || 
-                          userQuery.toLowerCase().includes('comparison') ||
-                          userQuery.toLowerCase().includes('visualiz');
+    // HW9 ABC-85: Graph request detected earlier to optimize system prompt context
     // HW11: Ensure minimum 1500 tokens to prevent mid-sentence truncation, but allow more for graphs
     const maxTokens = isGraphRequest ? 2000 : 1500;  // Graph code needs ~500-1000 tokens, normal needs 1500 to prevent truncation
     
