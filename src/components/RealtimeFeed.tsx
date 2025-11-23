@@ -59,8 +59,8 @@ export function RealtimeFeed() {
               setRefreshProgress(prev => ({
                 ...prev,
                 [updatedFeed.id]: {
-                  total: updatedFeed.refresh_status.total || 0,
-                  processed: updatedFeed.refresh_status.processed || 0,
+                  total: updatedFeed.refresh_status?.total || 0,
+                  processed: updatedFeed.refresh_status?.processed || 0,
                 },
               }));
 
@@ -144,8 +144,8 @@ export function RealtimeFeed() {
             setRefreshProgress(prev => ({
               ...prev,
               [feed.id]: {
-                total: feed.refresh_status.total || 0,
-                processed: feed.refresh_status.processed || 0,
+                total: feed.refresh_status?.total || 0,
+                processed: feed.refresh_status?.processed || 0,
               },
             }));
             setRefreshingFeedId(feed.id);
