@@ -31,13 +31,28 @@ ABCresearch is an AI-powered research assistant platform designed for biotech eq
 - `trials` - Clinical trial data from ClinicalTrials.gov
 - `papers` - Research papers from PubMed
 - `drugs` - Pharmaceutical drug data
-- `project_trials`, `project_papers`, `project_drugs` - Junction tables for many-to-many relationships
+- **`press_releases` (Nov 23, 2025)** - Press release entity data
+- **`ir_decks` (Nov 23, 2025)** - Investor relations deck entity data
+- **`watched_feeds` (Nov 23, 2025)** - RSS feed subscriptions with `refresh_status` JSONB for real-time progress tracking
+- `project_trials`, `project_papers`, `project_drugs` - Junction tables for many-to-many relationships (Project ↔ Entity)
+
+**Drug Association Junction Tables (Nov 23, 2025):**
+- **`drug_trials`** - Drug-to-trial associations within project context
+- **`drug_papers`** - Drug-to-paper associations within project context
+- **`drug_press_releases`** - Drug-to-press release associations within project context
+- **`drug_ir_decks`** - Drug-to-IR deck associations within project context
+
+All drug association tables include `project_id` for multi-tenant scoping and use composite primary keys `(drug_id, entity_id, project_id)`.
 
 **Key Relationships:**
 - Projects → Market Maps (one-to-many)
 - Projects ↔ Trials (many-to-many via `project_trials`)
 - Projects ↔ Papers (many-to-many via `project_papers`)
 - Projects ↔ Drugs (many-to-many via `project_drugs`)
+- **Drugs ↔ Trials (many-to-many via `drug_trials`, scoped by project)**
+- **Drugs ↔ Papers (many-to-many via `drug_papers`, scoped by project)**
+- **Drugs ↔ Press Releases (many-to-many via `drug_press_releases`, scoped by project)**
+- **Drugs ↔ IR Decks (many-to-many via `drug_ir_decks`, scoped by project)**
 
 ### Important Services
 
@@ -45,15 +60,26 @@ ABCresearch is an AI-powered research assistant platform designed for biotech eq
 - `src/services/trialService.ts` - CRUD for normalized trial data
 - `src/services/paperService.ts` - CRUD for normalized paper data
 - `src/services/drugService.ts` - CRUD for normalized drug data
+- **`src/services/drugAssociationService.ts` (Nov 23, 2025)** - Consolidated service for drug-entity associations (809 lines). Replaces text-based matching with proper database relationships via junction tables (`drug_trials`, `drug_papers`, `drug_press_releases`, `drug_ir_decks`)
 - `src/services/projectService.ts` - Project management and chat history persistence
 
 ### Key Components
 
-- `src/components/Dashboard.tsx` - Main dashboard with project switching, chat history management, and data loading
+- `src/components/Dashboard.tsx` - Main dashboard with project switching, chat history management, and data loading (refactored Nov 23, 2025 from 2,200 lines to 1,363 lines with modular views)
+- **Dashboard View Components** (Nov 23, 2025):
+  - `src/components/dashboard/views/InitialResearchView.tsx` - Landing search interface
+  - `src/components/dashboard/views/ResearchSplitView.tsx` - Main research interface (chat + results)
+  - `src/components/dashboard/views/ResearchChatView.tsx` - Standalone chat interface
+  - `src/components/dashboard/views/MarketMapCombinedView.tsx` - Market map visualization wrapper
+  - `src/components/dashboard/views/PipelineView.tsx` - Asset development pipeline wrapper
+  - `src/components/dashboard/views/DataExtractionView.tsx` - PDF extraction interface wrapper
+  - `src/components/dashboard/views/RealtimeFeedView.tsx` - RSS feed monitoring wrapper
+  - `src/components/dashboard/views/types.ts` - Shared view type definitions
 - `src/components/MarketMap.tsx` - Market map visualization and saving
 - `src/components/SavedMaps.tsx` - Displays saved maps filtered by project
 - `src/components/PapersDiscovery.tsx` - Paper search and display
 - `src/components/TrialsList.tsx` - Trial search and display
+- `src/components/RealtimeFeed.tsx` - RSS feed monitoring with real-time progress tracking (Nov 23, 2025)
 
 ### Git Workflow
 
