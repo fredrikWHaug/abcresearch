@@ -22,8 +22,8 @@ interface AssetDevelopmentPipelineProps {
 }
 
 export function AssetDevelopmentPipeline({ 
-  candidates: propCandidates, 
-  trials, 
+  candidates: _propCandidates, 
+  trials: _trials, 
   drugGroups,
   query = '',
   onAddPaperToContext,
