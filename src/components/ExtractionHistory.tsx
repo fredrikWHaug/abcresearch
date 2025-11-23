@@ -42,6 +42,25 @@ interface ExtractionHistoryProps {
     fileName: string
     markdownContent: string
     hasTables: boolean
+    tablesData?: Array<{
+      index: number;
+      headers: string[];
+      rows: string[][];
+      rawMarkdown: string;
+    }>;
+    graphifyResults?: Array<{
+      imageName: string;
+      isGraph: boolean;
+      graphType?: string;
+      reason?: string;
+      pythonCode?: string;
+      data?: Record<string, unknown>;
+      assumptions?: string;
+      error?: string;
+      renderedImage?: string;
+      renderError?: string;
+      renderTimeMs?: number;
+    }>;
   }) => void
   onRemoveFromChat?: (jobId: string) => void
   isInContext?: (jobId: string) => boolean
@@ -454,11 +473,40 @@ export function ExtractionHistory({ currentProjectId = null, isVisible = true, r
                                       const hasTables = response.result.markdown_content.includes('|') && 
                                                       response.result.markdown_content.split('\n').some(line => line.trim().startsWith('|'))
                                       
+                                      // Extract structured tables data from database
+                                      const tablesData = Array.isArray(response.result.tables_data) 
+                                        ? response.result.tables_data as Array<{
+                                            index: number;
+                                            headers: string[];
+                                            rows: string[][];
+                                            rawMarkdown: string;
+                                          }>
+                                        : undefined
+                                      
+                                      // Extract graphify results from database
+                                      const graphifyResults = Array.isArray(response.result.graphify_results)
+                                        ? response.result.graphify_results as Array<{
+                                            imageName: string;
+                                            isGraph: boolean;
+                                            graphType?: string;
+                                            reason?: string;
+                                            pythonCode?: string;
+                                            data?: Record<string, unknown>;
+                                            assumptions?: string;
+                                            error?: string;
+                                            renderedImage?: string;
+                                            renderError?: string;
+                                            renderTimeMs?: number;
+                                          }>
+                                        : undefined
+                                      
                                       onAddToChat({
                                         jobId: job.id,
                                         fileName: job.file_name,
                                         markdownContent: response.result.markdown_content,
-                                        hasTables
+                                        hasTables,
+                                        tablesData,
+                                        graphifyResults
                                       })
                                     }
                                   }
