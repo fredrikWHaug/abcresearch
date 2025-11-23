@@ -154,7 +154,8 @@ export function MarketMap({
     );
   }
 
-  if (!query) {
+  // Only show "search required" message if there's no query AND no trials
+  if (!query && trials.length === 0) {
     return (
       <div className="w-full h-full flex items-center justify-center min-h-0">
         <div className="text-center text-gray-500">
@@ -176,7 +177,7 @@ export function MarketMap({
     return (
       <div className="w-full h-full flex items-center justify-center min-h-0">
         <div className="text-center">
-          <p className="text-gray-600">No trials found for: "{query}"</p>
+          <p className="text-gray-600">No trials found{query ? ` for: "${query}"` : ''}</p>
           <p className="text-sm text-gray-500 mt-2">Try adjusting your search terms</p>
         </div>
       </div>
