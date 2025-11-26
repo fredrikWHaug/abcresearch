@@ -189,7 +189,7 @@ Keep the response concise (2-3 sentences) and natural. Don't use bullet points o
       },
       body: JSON.stringify({
         model: 'claude-3-haiku-20240307',
-        max_tokens: 200,  // HW8 ABC-57: Balanced for metadata + brief response
+        max_tokens: 1500,  // HW11: Increased to prevent mid-sentence truncation
         temperature: 0.7,
         system: systemPrompt,  // Papers persist here (ABC-39)
         messages: messages     // Conversation flows here (ABC-39)
