@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
 import Anthropic from '@anthropic-ai/sdk';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 

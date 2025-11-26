@@ -1,3 +1,4 @@
+ 
 import type { ClinicalTrial } from '@/types/trials';
 
 interface ChartData {

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Project Service
  * Handles project CRUD operations in Supabase

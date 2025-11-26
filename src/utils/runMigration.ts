@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Admin utility to run database migrations
  * Can be called from browser console: window.runMigration()

@@ -1,3 +1,4 @@
+ 
 import React from 'react'
 import { ArrowUp } from 'lucide-react'
 import type { ChatMessage } from '@/types/chat'

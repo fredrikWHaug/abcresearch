@@ -1,3 +1,4 @@
+ 
 // Gather Search Results Service
 // Orchestrates AI-enhanced search, clinical trials, and research papers
 // Contains business logic for searching across multiple data sources

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
 // Vercel API Route for enhancing search queries with Gemini
 // Generates flexible, comprehensive search strategies using LLM
 

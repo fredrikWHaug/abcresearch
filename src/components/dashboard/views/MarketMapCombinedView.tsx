@@ -1,3 +1,4 @@
+ 
 import React from 'react'
 import { MarketMap } from '@/components/MarketMap'
 import { SavedMaps } from '@/components/SavedMaps'
