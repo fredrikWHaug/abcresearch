@@ -15,7 +15,10 @@ export const alzheimersPaper: PubMedArticle = {
   doi: '10.1056/NEJMoa2024001',
   nctNumber: 'NCT04567890',
   relevanceScore: 95,
-  fullTextLinks: [{ url: 'https://www.nejm.org/doi/full/10.1056/NEJMoa2024001', source: 'Publisher' }],
+  fullTextLinks: {
+    pubmed: 'https://pubmed.ncbi.nlm.nih.gov/38123456/',
+    doi: '10.1056/NEJMoa2024001',
+  },
 }
 
 export const diabetesPaper: PubMedArticle = {
@@ -26,8 +29,11 @@ export const diabetesPaper: PubMedArticle = {
   publicationDate: '2023-11-20',
   authors: ['Garcia MH', 'Martinez LP', 'Rodriguez AS', 'Gonzalez JM'],
   doi: '10.2337/dc23-1234',
-  relevanceScore: 92,
-  fullTextLinks: [],
+    relevanceScore: 92,
+    fullTextLinks: {
+      pubmed: `https://pubmed.ncbi.nlm.nih.gov/87654321/`,
+      doi: '10.2000/diacare.2023.002',
+    },
 }
 
 export const cancerPaper: PubMedArticle = {
@@ -39,7 +45,10 @@ export const cancerPaper: PubMedArticle = {
   authors: ['Chen X', 'Li Y', 'Wang Z', 'Zhang H', 'Liu W'],
   doi: '10.1200/JCO.2023.41.1234',
   relevanceScore: 88,
-  fullTextLinks: [{ url: 'https://ascopubs.org/doi/full/10.1200/JCO.2023.41.1234', source: 'Publisher' }],
+  fullTextLinks: {
+    pubmed: 'https://pubmed.ncbi.nlm.nih.gov/38345678/',
+    doi: '10.1200/JCO.2023.41.1234',
+  },
 }
 
 export const methodologyPaper: PubMedArticle = {
@@ -51,7 +60,9 @@ export const methodologyPaper: PubMedArticle = {
   authors: ['Anderson KL', 'Thompson RM', 'White PJ'],
   doi: '10.1177/1740774523001234',
   relevanceScore: 75,
-  fullTextLinks: [],
+  fullTextLinks: {
+    pubmed: 'https://pubmed.ncbi.nlm.nih.gov/38456789/',
+  },
 }
 
 export const mockPapers = [

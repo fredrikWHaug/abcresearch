@@ -21,8 +21,8 @@ export const phase2AlzheimersTrial: ClinicalTrial = {
   startDate: '2023-06-01',
   completionDate: '2025-12-31',
   locations: [
-    { facility: 'Memory Care Center', city: 'Boston', state: 'MA', country: 'USA' },
-    { facility: 'Brain Health Institute', city: 'San Francisco', state: 'CA', country: 'USA' }
+    { facility: 'Memory Care Center', city: 'Boston', country: 'USA' },
+    { facility: 'Brain Health Institute', city: 'San Francisco', country: 'USA' }
   ],
   studyType: 'Interventional',
 }
@@ -42,9 +42,9 @@ export const phase3DiabetesTrial: ClinicalTrial = {
   startDate: '2022-01-15',
   completionDate: '2024-06-30',
   locations: [
-    { facility: 'Diabetes Center', city: 'New York', state: 'NY', country: 'USA' },
-    { facility: 'Endocrinology Clinic', city: 'Chicago', state: 'IL', country: 'USA' },
-    { facility: 'Metabolic Research Unit', city: 'Houston', state: 'TX', country: 'USA' }
+    { facility: 'Diabetes Center', city: 'New York', country: 'USA' },
+    { facility: 'Endocrinology Clinic', city: 'Chicago', country: 'USA' },
+    { facility: 'Metabolic Research Unit', city: 'Houston', country: 'USA' }
   ],
   studyType: 'Interventional',
 }
@@ -65,7 +65,7 @@ export const phase1CancerTrial: ClinicalTrial = {
   startDate: '2024-03-01',
   completionDate: '2026-03-01',
   locations: [
-    { facility: 'Cancer Treatment Center', city: 'Seattle', state: 'WA', country: 'USA' }
+    { facility: 'Cancer Treatment Center', city: 'Seattle', country: 'USA' }
   ],
   studyType: 'Interventional',
 }
@@ -85,7 +85,7 @@ export const observationalStudy: ClinicalTrial = {
   startDate: '2020-01-01',
   completionDate: '2030-12-31',
   locations: [
-    { facility: 'Community Health Center', city: 'Various', state: 'Multiple', country: 'USA' }
+    { facility: 'Community Health Center', city: 'Various', country: 'USA' }
   ],
   studyType: 'Observational',
 }

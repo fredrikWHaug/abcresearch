@@ -4,7 +4,7 @@
  */
 
 import React from 'react'
-import { render, RenderOptions } from '@testing-library/react'
+import { render, type RenderOptions } from '@testing-library/react'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { vi } from 'vitest'
 
