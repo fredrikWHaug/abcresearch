@@ -27,6 +27,7 @@ interface DashboardProps {
   projectId?: number | null;
 }
 
+
 export function Dashboard({ initialShowSavedMaps = false, projectName = '', projectId = null }: DashboardProps) {
   const { signOut, isGuest, exitGuestMode } = useAuth()
   
@@ -1180,46 +1181,23 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
     />
   );
 
-  type ViewVariant = 'initial' | 'default';
+  // Determine which view to show
+  const showInitialSearch = !hasSearched && viewMode !== 'pipeline' && viewMode !== 'marketmap' && viewMode !== 'realtimefeed' && viewMode !== 'dataextraction';
+  const showMarketMap = viewMode === 'marketmap';
+  const showPipeline = viewMode === 'pipeline';
+  const showDataExtraction = viewMode === 'dataextraction';
+  const showRealtimeFeed = viewMode === 'realtimefeed';
+  const showResearchSplit = hasSearched && (drugGroups.length > 0 || searchProgress.total > 0) && !showMarketMap && !showPipeline && !showDataExtraction && !showRealtimeFeed;
+  const showResearchChat = !showInitialSearch && !showMarketMap && !showPipeline && !showDataExtraction && !showRealtimeFeed && !showResearchSplit;
 
-  const DashboardLayout = ({
-    variant = 'default',
-    currentProjectId,
-    children
-  }: {
-    variant?: ViewVariant;
-    currentProjectId: number | null;
-    children: React.ReactNode;
-  }) => {
-    if (variant === 'initial') {
-    return (
-        <div className="h-screen flex flex-col bg-background">
-          <div className="flex-1 overflow-auto flex items-center justify-center">
-            {children}
-          </div>
-        <div className="fixed top-0 left-0 right-0 z-50">
-            <Header currentProjectId={currentProjectId} />
-        </div>
-          <ProjectModal />
-      </div>
-      )
-  }
-
-    return (
-      <div className="h-screen flex flex-col">
-        <Header currentProjectId={currentProjectId} />
-        <div className="flex-1 min-h-0">
-          {children}
-        </div>
-        <ProjectModal />
-      </div>
-    )
-  }
-
-  if (!hasSearched && viewMode !== 'pipeline' && viewMode !== 'marketmap' && viewMode !== 'realtimefeed') {
-    console.log('Rendering initial centered search. hasSearched:', hasSearched, 'viewMode:', viewMode);
-    return (
-      <DashboardLayout variant="initial" currentProjectId={currentProjectId}>
+  // Render all views but only show the active one
+  // This prevents unmounting/remounting and preserves component state
+  
+  // Use inline layout structure to avoid recreating wrapper component
+  const layoutContent = (
+    <>
+      {/* Initial Research View */}
+      <div key="initial-research-view" className={showInitialSearch ? 'block h-full' : 'hidden'}>
         <InitialResearchView
           selectedPapers={selectedPapers}
           selectedPressReleases={selectedPressReleases}
@@ -1231,82 +1209,58 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
           message={message}
           onMessageChange={(value) => setMessage(value)}
           onSendMessage={handleSendMessage}
-              onKeyPress={handleKeyPress}
+          onKeyPress={handleKeyPress}
           loading={loading}
           hasSearched={hasSearched}
         />
-      </DashboardLayout>
-    );
-  }
+      </div>
 
-  // Show combined market map view (includes saved maps)
-  if (viewMode === 'marketmap') {
-    return (
-      <DashboardLayout currentProjectId={currentProjectId}>
+      {/* Market Map View */}
+      <div key="market-map-view" className={showMarketMap ? 'block h-full' : 'hidden'}>
         <MarketMapCombinedView
-            trials={trials} 
-            loading={loading} 
-            query={lastQuery}
-            slideData={slideData}
-            setSlideData={setSlideData}
-            generatingSlide={generatingSlide}
-            setGeneratingSlide={setGeneratingSlide}
-            slideError={slideError}
-            setSlideError={setSlideError}
-            chatHistory={chatHistory}
-            papers={papers}
-            currentProjectId={currentProjectId}
-            onNavigateToResearch={() => setViewMode('research')}
-            onLoadMap={handleLoadSavedMap}
-            onDeleteMap={handleDeleteSavedMap}
-          />
-      </DashboardLayout>
-    );
-  }
+          trials={trials} 
+          loading={loading} 
+          query={lastQuery}
+          slideData={slideData}
+          setSlideData={setSlideData}
+          generatingSlide={generatingSlide}
+          setGeneratingSlide={setGeneratingSlide}
+          slideError={slideError}
+          setSlideError={setSlideError}
+          chatHistory={chatHistory}
+          papers={papers}
+          currentProjectId={currentProjectId}
+          onNavigateToResearch={() => setViewMode('research')}
+          onLoadMap={handleLoadSavedMap}
+          onDeleteMap={handleDeleteSavedMap}
+        />
+      </div>
 
-
-  // Asset Development Pipeline mode
-  if (viewMode === 'pipeline') {
-    return (
-      <DashboardLayout currentProjectId={currentProjectId}>
+      {/* Pipeline View */}
+      <div key="pipeline-view" className={showPipeline ? 'block h-full' : 'hidden'}>
         <PipelineView
-            trials={trials} 
-            drugGroups={drugGroups}
-            query={lastQuery}
-            onAddPaperToContext={handleAddPaperToContext}
-            isPaperInContext={isPaperInContext}
-            pipelineCandidates={pipelineCandidates}
-            setPipelineCandidates={setPipelineCandidates}
-          />
-      </DashboardLayout>
-    );
-  }
+          trials={trials} 
+          drugGroups={drugGroups}
+          query={lastQuery}
+          onAddPaperToContext={handleAddPaperToContext}
+          isPaperInContext={isPaperInContext}
+          pipelineCandidates={pipelineCandidates}
+          setPipelineCandidates={setPipelineCandidates}
+        />
+      </div>
 
-  // Data Extraction mode
-  if (viewMode === 'dataextraction') {
-    return (
-      <DashboardLayout currentProjectId={currentProjectId}>
-        <DataExtractionView />
-      </DashboardLayout>
-    );
-  }
+      {/* Data Extraction View */}
+      <div key="data-extraction-view" className={showDataExtraction ? 'block h-full' : 'hidden'}>
+        <DataExtractionView isVisible={showDataExtraction} />
+      </div>
 
+      {/* Realtime Feed View */}
+      <div key="realtime-feed-view" className={showRealtimeFeed ? 'block h-full' : 'hidden'}>
+        <RealtimeFeedView isVisible={showRealtimeFeed} />
+      </div>
 
-  // Realtime Feed mode
-  if (viewMode === 'realtimefeed') {
-    return (
-      <DashboardLayout currentProjectId={currentProjectId}>
-        <RealtimeFeedView />
-      </DashboardLayout>
-    );
-  }
-
-  // Research mode - split view layout (only when hasSearched is true and we have search results)
-  console.log('Checking split screen condition. hasSearched:', hasSearched, 'trials:', trials.length, 'papers:', papers.length);
-  if (hasSearched && (drugGroups.length > 0 || searchProgress.total > 0)) {
-    console.log('Rendering split screen');
-    return (
-      <DashboardLayout currentProjectId={currentProjectId}>
+      {/* Research Split View */}
+      <div key="research-split-view" className={showResearchSplit ? 'block h-full' : 'hidden'}>
         <ResearchSplitView
           chatHistory={chatHistory}
           selectedPapers={selectedPapers}
@@ -1318,16 +1272,16 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
           onClearContext={handleClearContext}
           onMessageChange={(value) => setMessage(value)}
           onSendMessage={handleSendMessage}
-                  onKeyPress={handleKeyPress}
+          onKeyPress={handleKeyPress}
           handleSearchSuggestion={handleSearchSuggestion}
           message={message}
           loading={loading}
           selectedDrug={selectedDrug}
           setSelectedDrug={setSelectedDrug}
-              drugGroups={drugGroups}
+          drugGroups={drugGroups}
           searchProgress={searchProgress}
           handleDrugSpecificSearch={handleDrugSpecificSearch}
-              initialSearchQueries={initialSearchQueries}
+          initialSearchQueries={initialSearchQueries}
           showDrugModal={showDrugModal}
           setShowDrugModal={setShowDrugModal}
           handleAddPaperToContext={handleAddPaperToContext}
@@ -1335,30 +1289,52 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
           handleAddPressReleaseToContext={handleAddPressReleaseToContext}
           isPressReleaseInContext={isPressReleaseInContext}
         />
-      </DashboardLayout>
+      </div>
+
+      {/* Research Chat View */}
+      <div key="research-chat-view" className={showResearchChat ? 'block h-full' : 'hidden'}>
+        <ResearchChatView
+          chatHistory={chatHistory}
+          selectedPapers={selectedPapers}
+          selectedPressReleases={selectedPressReleases}
+          showContextPanel={showContextPanel}
+          onToggleContextPanel={() => setShowContextPanel(prev => !prev)}
+          onRemovePaper={handleRemovePaperFromContext}
+          onRemovePressRelease={handleRemovePressReleaseFromContext}
+          onClearContext={handleClearContext}
+          handleSearchSuggestion={handleSearchSuggestion}
+          message={message}
+          onMessageChange={(value) => setMessage(value)}
+          onSendMessage={handleSendMessage}
+          onKeyPress={handleKeyPress}
+          loading={loading}
+        />
+      </div>
+    </>
+  );
+
+  // Render with appropriate layout variant
+  if (showInitialSearch) {
+    return (
+      <div className="h-screen flex flex-col bg-background">
+        <div className="flex-1 overflow-auto flex items-center justify-center">
+          {layoutContent}
+        </div>
+        <div className="fixed top-0 left-0 right-0 z-50">
+          <Header currentProjectId={currentProjectId} />
+        </div>
+        <ProjectModal />
+      </div>
     );
   }
 
-  // Wide screen chat interface - when hasSearched is true but no search results yet
-  console.log('Rendering wide screen chat interface. hasSearched:', hasSearched, 'trials:', trials.length, 'papers:', papers.length);
   return (
-    <DashboardLayout currentProjectId={currentProjectId}>
-      <ResearchChatView
-        chatHistory={chatHistory}
-        selectedPapers={selectedPapers}
-        selectedPressReleases={selectedPressReleases}
-        showContextPanel={showContextPanel}
-        onToggleContextPanel={() => setShowContextPanel(prev => !prev)}
-        onRemovePaper={handleRemovePaperFromContext}
-        onRemovePressRelease={handleRemovePressReleaseFromContext}
-        onClearContext={handleClearContext}
-        handleSearchSuggestion={handleSearchSuggestion}
-        message={message}
-        onMessageChange={(value) => setMessage(value)}
-        onSendMessage={handleSendMessage}
-              onKeyPress={handleKeyPress}
-        loading={loading}
-      />
-    </DashboardLayout>
-  )
+    <div className="h-screen flex flex-col">
+      <Header currentProjectId={currentProjectId} />
+      <div className="flex-1 min-h-0">
+        {layoutContent}
+      </div>
+      <ProjectModal />
+    </div>
+  );
 }
