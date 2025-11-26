@@ -9,8 +9,15 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest",
+    "test:run": "vitest run",
+    "test:ci": "vitest run --coverage",
+    "test:coverage": "vitest run --coverage",
     "test:ui": "vitest --ui",
-    "test:run": "vitest run"
+    "test:watch": "vitest --watch",
+    "test:unit": "vitest run __tests__/unit",
+    "test:integration": "vitest run __tests__/integration",
+    "test:e2e": "vitest run __tests__/e2e",
+    "test:legacy": "vitest run __tests_legacy__"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.67.0",
