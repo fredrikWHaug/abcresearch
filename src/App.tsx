@@ -44,6 +44,12 @@ function AppContent() {
     return <AuthForm />
   }
 
+  // Guest users bypass EntryChoice and go directly to Dashboard
+  // They can explore without creating a project (projectId will be null)
+  if (isGuest) {
+    return <Dashboard />
+  }
+
   // If authenticated but hasn't chosen entry, show entry choice
   if (!hasChosenEntry) {
     return (
