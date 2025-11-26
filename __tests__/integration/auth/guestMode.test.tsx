@@ -16,19 +16,12 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
-import userEvent from '@testing-library/user-event'
 import React from 'react'
 import * as AuthContext from '@/contexts/AuthContext'
 
 // Mock App component for testing
 const MockApp = () => {
   const { isGuest } = AuthContext.useAuth()
-  
-  const handleCreateProject = () => {
-    if (isGuest) {
-      alert('Guest users cannot create projects. Please sign up or sign in to create projects.')
-    }
-  }
   
   // Simulate the fixed App.tsx behavior
   if (isGuest) {

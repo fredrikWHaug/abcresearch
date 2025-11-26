@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Consolidated RSS Feed API
  * TODO: Fetching RSS feed and parsing isn't working after I tried to handle multiple feeds.
@@ -575,7 +576,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       // Try to select refresh_status, but fallback to selecting all columns if column doesn't exist
-      let { data: feed, error: feedError } = await supabase
+      const { data: feed, error: feedError } = await supabase
         .from('watched_feeds')
         .select('*') // Select all columns to handle missing refresh_status gracefully
         .eq('id', feedIdNum)

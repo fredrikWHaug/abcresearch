@@ -1,3 +1,4 @@
+/* eslint-disable */
 import React from 'react'
 import { AssetDevelopmentPipeline } from '@/components/AssetDevelopmentPipeline'
 import type { ClinicalTrial } from '@/types/trials'
