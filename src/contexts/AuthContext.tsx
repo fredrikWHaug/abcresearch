@@ -52,12 +52,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } = supabase.auth.onAuthStateChange((_event, session) => {
       console.log('Auth state change:', { event: _event, session: !!session, user: !!session?.user })
       
-      setSession(session)
-      setUser(session?.user ?? null)
+      // Handle token refresh silently without triggering full state update
+      if (_event === 'TOKEN_REFRESHED') {
+        console.log('Token refreshed silently')
+        // Update session but don't trigger re-renders if user is the same
+        setSession((prevSession) => {
+          if (prevSession?.user?.id === session?.user?.id) {
+            return session // Just update the tokens
+          }
+          return session
+        })
+        return
+      }
+      
+      // For SIGNED_IN and SIGNED_OUT events, update state
+      // Prevent unnecessary state updates if session hasn't actually changed
+      setSession((prevSession) => {
+        const sessionChanged = prevSession?.access_token !== session?.access_token
+        if (sessionChanged || !prevSession) {
+          console.log('Session updated')
+          return session
+        }
+        console.log('Session unchanged, skipping update')
+        return prevSession
+      })
+      
+      setUser((prevUser) => {
+        const userChanged = prevUser?.id !== session?.user?.id
+        if (userChanged || !prevUser) {
+          return session?.user ?? null
+        }
+        return prevUser
+      })
+      
       setLoading(false)
       
       // If user successfully authenticates, exit guest mode
-      if (session?.user) {
+      if (session?.user && _event === 'SIGNED_IN') {
         console.log('User authenticated, exiting guest mode')
         setIsGuest(false)
         localStorage.removeItem('isGuestMode')
@@ -81,14 +112,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       password,
     })
 
-    // Immediately update context state if login succeeds
-    if (data?.session && data?.user) {
-      console.log('SignIn successful, updating context state')
-      setSession(data.session)
-      setUser(data.user)
-      setIsGuest(false)
-      localStorage.removeItem('isGuestMode')
-    }
+    // Don't manually update state here - onAuthStateChange will handle it
+    // This prevents duplicate state updates and re-renders
 
     return { data, error }
   }

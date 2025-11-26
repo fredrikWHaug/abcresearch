@@ -7,6 +7,10 @@ import { supabase } from '@/lib/supabase';
 import type { WatchedFeed, TimelineItem, TrialUpdate } from '@/types/rss-feed';
 import { ExternalLink, Plus, Trash2, RefreshCw, Calendar, AlertCircle } from 'lucide-react';
 
+// Cache keys for sessionStorage - defined outside component to be accessible in all functions
+const HAS_LOADED_KEY = 'realtimefeed_has_loaded';
+const USER_ID_KEY = 'realtimefeed_user_id';
+
 export function RealtimeFeed() {
   const [feeds, setFeeds] = useState<WatchedFeed[]>([]);
   const [timeline, setTimeline] = useState<TimelineItem[]>([]);
@@ -27,8 +31,37 @@ export function RealtimeFeed() {
   const [refreshProgress, setRefreshProgress] = useState<Record<number, { total: number; processed: number }>>({});
 
   useEffect(() => {
-    loadFeeds();
-    loadUpdates();
+    const initializeData = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      const userId = session?.user?.id || null;
+      
+      // Check if we've already loaded data for this user in this browser session
+      const hasLoaded = sessionStorage.getItem(HAS_LOADED_KEY) === 'true';
+      const storedUserId = sessionStorage.getItem(USER_ID_KEY);
+      
+      // Only reload if:
+      // 1. Never loaded before in this browser session
+      // 2. User changed
+      const shouldReload = !hasLoaded || storedUserId !== userId;
+      
+      if (shouldReload) {
+        console.log('RealtimeFeed: Loading data from server', { 
+          firstLoad: !hasLoaded, 
+          userChanged: storedUserId !== userId
+        });
+        
+        sessionStorage.setItem(USER_ID_KEY, userId || '');
+        sessionStorage.setItem(HAS_LOADED_KEY, 'true');
+        
+        await loadFeeds();
+        await loadUpdates();
+      } else {
+        console.log('RealtimeFeed: Skipping reload (already loaded in this session)');
+        setLoading(false);
+      }
+    };
+    
+    initializeData();
   }, []);
 
   useEffect(() => {
@@ -262,6 +295,9 @@ export function RealtimeFeed() {
         setEnableEmailUpdates(false);
         setEmailAddress('');
         setShowAddModal(false);
+        
+        // Invalidate cache and reload fresh data
+        sessionStorage.removeItem(HAS_LOADED_KEY);
         await loadFeeds();
         
         // Real-time subscription will handle progress updates automatically
@@ -345,6 +381,8 @@ export function RealtimeFeed() {
       });
 
       if (response.ok) {
+        // Invalidate cache and reload fresh data
+        sessionStorage.removeItem(HAS_LOADED_KEY);
         await loadFeeds();
         if (selectedFeed === feedId) {
           setSelectedFeed(null);
@@ -378,6 +416,9 @@ export function RealtimeFeed() {
       if (response.ok) {
         const data = await response.json();
         setRefreshMessage('Refresh started in background');
+        
+        // Invalidate cache so next load will fetch fresh data
+        sessionStorage.removeItem(HAS_LOADED_KEY);
         
         // Real-time subscription will handle progress updates automatically
         setRefreshingFeedId(feedId);
