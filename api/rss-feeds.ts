@@ -125,6 +125,10 @@ async function refreshFeedInBackground(
 
     let newUpdates = 0;
 
+    // Step 1: Filter out entries that need processing (check for existing updates)
+    console.log(`[REFRESH] Step 4: Checking which entries need processing...`);
+    const entriesToProcess: typeof recentEntries = [];
+    
     for (const entry of recentEntries) {
       const nctId = extractNctId(entry.link);
       if (!nctId) {
@@ -143,101 +147,108 @@ async function refreshFeedInBackground(
       if (existing) {
         console.log(`Skipping ${nctId} - already processed`);
         processedItems++;
-        // Update progress (silently fail if column doesn't exist)
-        try {
-          await client
-            .from('watched_feeds')
-            .update({
-              refresh_status: {
-                total: totalItems,
-                processed: processedItems,
-                in_progress: true,
-              },
-            })
-            .eq('id', feedId);
-        } catch (err: any) {
-          if (!err?.message?.includes('does not exist') && err?.code !== '42703') {
-            console.error('[REFRESH] Failed to update progress:', err);
-          }
-        }
-        continue;
-      }
-
-      const studyUrl = `https://clinicaltrials.gov/study/${nctId}`;
-      let summary: string;
-      let historyUrl: string;
-      let comparisonUrl: string;
-      let versionA: number;
-      let versionB: number;
-      let diffBlocks: string[];
-
-      if (entry.isNew) {
-        console.log(`${nctId} is a NEW study - generating summary`);
-        summary = await generateNewStudySummary(nctId, entry.title, geminiApiKey);
-        historyUrl = buildHistoryUrl(nctId);
-        comparisonUrl = '';
-        versionA = 1;
-        versionB = 1;
-        diffBlocks = ['NEW_STUDY'];
       } else {
-        console.log(`${nctId} is an UPDATED study - comparing versions`);
-        historyUrl = buildHistoryUrl(nctId);
-        const versionPair = await parseLatestTwoVersions(historyUrl, geminiApiKey);
-
-        if (!versionPair) {
-          console.log(`No version pair found for ${nctId}`);
-          processedItems++;
-          // Update progress (silently fail if column doesn't exist)
-          try {
-            await client
-              .from('watched_feeds')
-              .update({
-                refresh_status: {
-                  total: totalItems,
-                  processed: processedItems,
-                  in_progress: true,
-                },
-              })
-              .eq('id', feedId);
-          } catch (err: any) {
-            if (!err?.message?.includes('does not exist') && err?.code !== '42703') {
-              console.error('[REFRESH] Failed to update progress:', err);
-            }
-          }
-          continue;
-        }
-
-        comparisonUrl = buildComparisonUrl(nctId, versionPair.a, versionPair.b);
-        diffBlocks = await extractDiffBlocks(comparisonUrl);
-        summary = await generateChangeSummary(nctId, entry.title, diffBlocks, geminiApiKey);
-        versionA = versionPair.a;
-        versionB = versionPair.b;
+        entriesToProcess.push(entry);
       }
+    }
 
-      const { error: insertError } = await client.from('trial_updates').insert({
-        feed_id: feedId,
-        nct_id: nctId,
-        title: entry.title,
-        last_update: entry.updated_dt?.toISOString() || new Date().toISOString(),
-        study_url: studyUrl,
-        history_url: historyUrl,
-        comparison_url: comparisonUrl || null,
-        version_a: versionA,
-        version_b: versionB,
-        raw_diff_blocks: diffBlocks,
-        llm_summary: summary,
-      });
+    console.log(`[REFRESH] Found ${entriesToProcess.length} entries to process`);
 
-      if (insertError) {
-        console.error(`Failed to insert update for ${nctId}:`, insertError);
-      } else {
-        newUpdates++;
-        console.log(`Saved ${entry.isNew ? 'NEW' : 'updated'} study ${nctId}`);
-      }
-
-      processedItems++;
+    // Step 2: Process entries in batches of 5 (for parallel Puppeteer operations)
+    const BATCH_SIZE = 5;
+    for (let i = 0; i < entriesToProcess.length; i += BATCH_SIZE) {
+      const batch = entriesToProcess.slice(i, i + BATCH_SIZE);
+      const batchNumber = Math.floor(i / BATCH_SIZE) + 1;
+      const totalBatches = Math.ceil(entriesToProcess.length / BATCH_SIZE);
       
-      // Update progress after each study (silently fail if column doesn't exist)
+      console.log(`\n[REFRESH] Processing batch ${batchNumber}/${totalBatches} (${batch.length} studies)`);
+      
+      // Process batch in parallel
+      const batchResults = await Promise.allSettled(
+        batch.map(async (entry) => {
+          const nctId = extractNctId(entry.link);
+          if (!nctId) throw new Error('No NCT ID found');
+
+          const studyUrl = `https://clinicaltrials.gov/study/${nctId}`;
+          let summary: string;
+          let historyUrl: string;
+          let comparisonUrl: string;
+          let versionA: number;
+          let versionB: number;
+          let diffBlocks: string[];
+
+          if (entry.isNew) {
+            console.log(`${nctId} is a NEW study - generating summary`);
+            summary = await generateNewStudySummary(nctId, entry.title, geminiApiKey);
+            historyUrl = buildHistoryUrl(nctId);
+            comparisonUrl = '';
+            versionA = 1;
+            versionB = 1;
+            diffBlocks = ['NEW_STUDY'];
+          } else {
+            console.log(`${nctId} is an UPDATED study - comparing versions`);
+            historyUrl = buildHistoryUrl(nctId);
+            const versionPair = await parseLatestTwoVersions(historyUrl, geminiApiKey);
+
+            if (!versionPair) {
+              throw new Error(`No version pair found for ${nctId}`);
+            }
+
+            comparisonUrl = buildComparisonUrl(nctId, versionPair.a, versionPair.b);
+            diffBlocks = await extractDiffBlocks(comparisonUrl);
+            summary = await generateChangeSummary(nctId, entry.title, diffBlocks, geminiApiKey);
+            versionA = versionPair.a;
+            versionB = versionPair.b;
+          }
+
+          return {
+            nctId,
+            entry,
+            studyUrl,
+            historyUrl,
+            comparisonUrl,
+            versionA,
+            versionB,
+            diffBlocks,
+            summary,
+          };
+        })
+      );
+
+      // Step 3: Save results from batch
+      for (let j = 0; j < batchResults.length; j++) {
+        const result = batchResults[j];
+        
+        if (result.status === 'fulfilled') {
+          const data = result.value;
+          const { error: insertError } = await client.from('trial_updates').insert({
+            feed_id: feedId,
+            nct_id: data.nctId,
+            title: data.entry.title,
+            last_update: data.entry.updated_dt?.toISOString() || new Date().toISOString(),
+            study_url: data.studyUrl,
+            history_url: data.historyUrl,
+            comparison_url: data.comparisonUrl || null,
+            version_a: data.versionA,
+            version_b: data.versionB,
+            raw_diff_blocks: data.diffBlocks,
+            llm_summary: data.summary,
+          });
+
+          if (insertError) {
+            console.error(`Failed to insert update for ${data.nctId}:`, insertError);
+          } else {
+            newUpdates++;
+            console.log(`✅ Saved ${data.entry.isNew ? 'NEW' : 'updated'} study ${data.nctId}`);
+          }
+        } else {
+          console.error(`❌ Failed to process study:`, result.reason);
+        }
+        
+        processedItems++;
+      }
+
+      // Step 4: Update progress after each batch
       try {
         await client
           .from('watched_feeds')
@@ -249,13 +260,17 @@ async function refreshFeedInBackground(
             },
           })
           .eq('id', feedId);
+        console.log(`[REFRESH] Progress: ${processedItems}/${totalItems} complete`);
       } catch (err: any) {
         if (!err?.message?.includes('does not exist') && err?.code !== '42703') {
           console.error('[REFRESH] Failed to update progress:', err);
         }
       }
 
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // Small delay between batches to avoid overwhelming the server
+      if (i + BATCH_SIZE < entriesToProcess.length) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      }
     }
 
     // Mark refresh as complete (silently fail if column doesn't exist)
@@ -429,16 +444,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         // Automatically refresh the feed after creation
+        // NOTE: In serverless, we must await or the execution context will be killed
         if (data && geminiApiKey) {
-          console.log(`[API] Starting background refresh for newly created feed ${data.id}`);
-          // Get access token from request headers for background operation
+          console.log(`[API] Starting initial refresh for newly created feed ${data.id}`);
           const accessToken = req.headers.authorization?.replace('Bearer ', '') || '';
-          // Start refresh in background (don't await)
-          refreshFeedInBackground(data.id, data.feed_url, geminiApiKey, supabase, user.id, accessToken).catch(err => {
-            console.error('[API] Background refresh error (unhandled):', err);
-            console.error('[API] Error stack:', err instanceof Error ? err.stack : 'No stack trace');
-          });
-          console.log(`[API] Background refresh initiated for feed ${data.id}`);
+          
+          try {
+            await refreshFeedInBackground(data.id, data.feed_url, geminiApiKey, supabase, user.id, accessToken);
+            console.log(`[API] Initial refresh completed for feed ${data.id}`);
+          } catch (refreshError) {
+            console.error('[API] Initial refresh failed (feed still created):', refreshError);
+            // Don't fail the feed creation if refresh fails - user can manually refresh
+          }
         } else {
           console.log(`[API] Skipping auto-refresh: data=${!!data}, geminiApiKey=${!!geminiApiKey}`);
         }
@@ -631,21 +648,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(404).json({ error: 'Feed not found' });
       }
 
-      // Start refresh in background
-      console.log(`[API] Starting background refresh for feed ${feed.id}`);
+      // Perform refresh synchronously (serverless functions can't do true background work)
+      console.log(`[API] Starting refresh for feed ${feed.id}`);
       // Get access token from request headers for background operation
       const accessToken = req.headers.authorization?.replace('Bearer ', '') || '';
-      refreshFeedInBackground(feed.id, feed.feed_url, geminiApiKey, supabase, user.id, accessToken).catch(err => {
-        console.error('[API] Background refresh error (unhandled):', err);
-        console.error('[API] Error stack:', err instanceof Error ? err.stack : 'No stack trace');
-      });
-      console.log(`[API] Background refresh initiated for feed ${feed.id}`);
-
-      return res.json({
-        success: true,
-        message: 'Refresh started in background',
-        feed_id: feedId,
-      });
+      
+      try {
+        await refreshFeedInBackground(feed.id, feed.feed_url, geminiApiKey, supabase, user.id, accessToken);
+        console.log(`[API] Refresh completed successfully for feed ${feed.id}`);
+        
+        return res.json({
+          success: true,
+          message: 'Refresh completed successfully',
+          feed_id: feedId,
+        });
+      } catch (refreshError) {
+        console.error('[API] Refresh failed:', refreshError);
+        return res.status(500).json({
+          success: false,
+          error: refreshError instanceof Error ? refreshError.message : 'Unknown error',
+          feed_id: feedId,
+        });
+      }
     } else {
       return res.status(400).json({ error: 'Invalid action parameter. Use: watch, updates, progress, or refresh' });
     }

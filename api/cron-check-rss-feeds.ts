@@ -59,7 +59,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         console.log(`Found ${recentEntries.length} recent entries for ${feed.label}`);
 
-        // 3. Process each recent entry
+        // 3. Filter entries that need processing
+        const entriesToProcess: typeof recentEntries = [];
         for (const entry of recentEntries) {
           const nctId = extractNctId(entry.link);
           if (!nctId) continue;
@@ -75,74 +76,105 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
           if (existing) {
             console.log(`Skipping ${nctId} - already processed`);
-            continue;
-          }
-
-          const studyUrl = `https://clinicaltrials.gov/study/${nctId}`;
-          let summary: string;
-          let historyUrl: string;
-          let comparisonUrl: string;
-          let versionA: number;
-          let versionB: number;
-          let diffBlocks: string[];
-
-          // Handle brand new studies differently
-          if (entry.isNew) {
-            console.log(`${nctId} is a NEW study - generating summary`);
-            
-            // For new studies, just generate a summary based on title
-            summary = await generateNewStudySummary(nctId, entry.title, geminiApiKey);
-            historyUrl = buildHistoryUrl(nctId);
-            comparisonUrl = '';
-            versionA = 1;
-            versionB = 1;
-            diffBlocks = ['NEW_STUDY'];
           } else {
-            console.log(`${nctId} is an UPDATED study - comparing versions`);
-            
-            // 4. Get version history
-            historyUrl = buildHistoryUrl(nctId);
-            const versionPair = await parseLatestTwoVersions(historyUrl, geminiApiKey);
+            entriesToProcess.push(entry);
+          }
+        }
 
-            if (!versionPair) {
-              console.log(`No version pair found for ${nctId}`);
-              continue;
+        console.log(`Processing ${entriesToProcess.length} new/updated entries`);
+
+        // 4. Process entries in batches of 5 (parallel Puppeteer operations)
+        const BATCH_SIZE = 5;
+        for (let i = 0; i < entriesToProcess.length; i += BATCH_SIZE) {
+          const batch = entriesToProcess.slice(i, i + BATCH_SIZE);
+          console.log(`Processing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(entriesToProcess.length / BATCH_SIZE)} (${batch.length} studies)`);
+
+          // Process batch in parallel
+          const batchResults = await Promise.allSettled(
+            batch.map(async (entry) => {
+              const nctId = extractNctId(entry.link);
+              if (!nctId) throw new Error('No NCT ID found');
+
+              const studyUrl = `https://clinicaltrials.gov/study/${nctId}`;
+              let summary: string;
+              let historyUrl: string;
+              let comparisonUrl: string;
+              let versionA: number;
+              let versionB: number;
+              let diffBlocks: string[];
+
+              // Handle brand new studies differently
+              if (entry.isNew) {
+                console.log(`${nctId} is a NEW study - generating summary`);
+                summary = await generateNewStudySummary(nctId, entry.title, geminiApiKey);
+                historyUrl = buildHistoryUrl(nctId);
+                comparisonUrl = '';
+                versionA = 1;
+                versionB = 1;
+                diffBlocks = ['NEW_STUDY'];
+              } else {
+                console.log(`${nctId} is an UPDATED study - comparing versions`);
+                historyUrl = buildHistoryUrl(nctId);
+                const versionPair = await parseLatestTwoVersions(historyUrl, geminiApiKey);
+
+                if (!versionPair) {
+                  throw new Error(`No version pair found for ${nctId}`);
+                }
+
+                comparisonUrl = buildComparisonUrl(nctId, versionPair.a, versionPair.b);
+                diffBlocks = await extractDiffBlocks(comparisonUrl);
+                summary = await generateChangeSummary(nctId, entry.title, diffBlocks, geminiApiKey);
+                versionA = versionPair.a;
+                versionB = versionPair.b;
+              }
+
+              return {
+                nctId,
+                entry,
+                studyUrl,
+                historyUrl,
+                comparisonUrl,
+                versionA,
+                versionB,
+                diffBlocks,
+                summary,
+              };
+            })
+          );
+
+          // Save results from batch
+          for (const result of batchResults) {
+            if (result.status === 'fulfilled') {
+              const data = result.value;
+              const { error: insertError } = await supabase.from('trial_updates').insert({
+                feed_id: feed.id,
+                nct_id: data.nctId,
+                title: data.entry.title,
+                last_update: data.entry.updated_dt?.toISOString() || new Date().toISOString(),
+                study_url: data.studyUrl,
+                history_url: data.historyUrl,
+                comparison_url: data.comparisonUrl || null,
+                version_a: data.versionA,
+                version_b: data.versionB,
+                raw_diff_blocks: data.diffBlocks,
+                llm_summary: data.summary,
+              });
+
+              if (insertError) {
+                console.error(`Failed to insert update for ${data.nctId}:`, insertError);
+              } else {
+                totalUpdates++;
+                console.log(`✅ Saved ${data.entry.isNew ? 'NEW' : 'updated'} study ${data.nctId}`);
+              }
+            } else {
+              console.error(`❌ Failed to process study:`, result.reason);
             }
-
-            // 5. Get comparison and extract diffs
-            comparisonUrl = buildComparisonUrl(nctId, versionPair.a, versionPair.b);
-            diffBlocks = await extractDiffBlocks(comparisonUrl);
-
-            // 6. Generate LLM summary using Gemini
-            summary = await generateChangeSummary(nctId, entry.title, diffBlocks, geminiApiKey);
-            versionA = versionPair.a;
-            versionB = versionPair.b;
           }
 
-          // 7. Save to database
-          const { error: insertError } = await supabase.from('trial_updates').insert({
-            feed_id: feed.id,
-            nct_id: nctId,
-            title: entry.title,
-            last_update: entry.updated_dt?.toISOString() || new Date().toISOString(),
-            study_url: studyUrl,
-            history_url: historyUrl,
-            comparison_url: comparisonUrl || null,
-            version_a: versionA,
-            version_b: versionB,
-            raw_diff_blocks: diffBlocks,
-            llm_summary: summary,
-          });
-
-          if (insertError) {
-            console.error(`Failed to insert update for ${nctId}:`, insertError);
-          } else {
-            totalUpdates++;
-            console.log(`Saved ${entry.isNew ? 'NEW' : 'updated'} study ${nctId}`);
+          // Small delay between batches
+          if (i + BATCH_SIZE < entriesToProcess.length) {
+            await new Promise((resolve) => setTimeout(resolve, 2000));
           }
-
-          // Polite delay
-          await new Promise((resolve) => setTimeout(resolve, 1000));
         }
 
         // Update last_checked_at

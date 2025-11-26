@@ -55,14 +55,39 @@ export async function parseRssFeed(rssUrl: string): Promise<RSSEntry[]> {
   console.log(`\n📡 Parsing RSS feed: ${rssUrl}`);
   
   try {
-    // Simple fetch with default headers
-    const response = await fetch(rssUrl, { headers: DEFAULT_HEADERS });
+    // Create AbortController for timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      console.log(`⏰ Fetch timeout after 30 seconds, aborting...`);
+      controller.abort();
+    }, 30000); // 30 second timeout
     
-    if (!response.ok) {
-      throw new Error(`RSS feed returned status ${response.status}: ${response.statusText}`);
+    console.log(`🌐 Fetching RSS feed...`);
+    
+    let response;
+    try {
+      response = await fetch(rssUrl, { 
+        headers: DEFAULT_HEADERS,
+        signal: controller.signal 
+      });
+      
+      clearTimeout(timeoutId);
+      
+      console.log(`✅ Fetch successful, status: ${response.status}`);
+      
+      if (!response.ok) {
+        throw new Error(`RSS feed returned status ${response.status}: ${response.statusText}`);
+      }
+    } catch (fetchError: any) {
+      clearTimeout(timeoutId);
+      if (fetchError.name === 'AbortError') {
+        throw new Error('RSS feed request timed out after 30 seconds');
+      }
+      throw fetchError;
     }
     
     // Read response text
+    console.log(`📥 Reading response body...`);
     const xmlText = await response.text();
     
     if (!xmlText || xmlText.length === 0) {
@@ -261,11 +286,16 @@ LATEST: 5
 
 Respond now with ONLY those two lines, no other text.`;
 
+    // Add timeout to Gemini API call
+    const geminiController = new AbortController();
+    const geminiTimeoutId = setTimeout(() => geminiController.abort(), 30000);
+    
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${geminiApiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: geminiController.signal,
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
           generationConfig: {
@@ -275,6 +305,8 @@ Respond now with ONLY those two lines, no other text.`;
         }),
       }
     );
+    
+    clearTimeout(geminiTimeoutId);
 
     if (!response.ok) {
       throw new Error('Gemini API request failed');
@@ -403,11 +435,16 @@ TRIAL: ${nctId} – ${title}
 
 Provide a clear, concise summary (2-3 sentences max) suitable for researchers monitoring new trials.`;
 
+    // Add timeout to Gemini API call
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+    
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${geminiApiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
         body: JSON.stringify({
           contents: [
             {
@@ -421,6 +458,8 @@ Provide a clear, concise summary (2-3 sentences max) suitable for researchers mo
         }),
       }
     );
+    
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -462,7 +501,8 @@ The HTML contains diff markers showing what changed between two versions:
 - <ins> tags or underlined text = ADDED content (new in latest version)
 - <del> tags or strikethrough/line-through text = REMOVED content (deleted from previous version)
 
-Your task: Identify and summarize the MOST IMPORTANT changes in 2-3 clear sentences.
+Your task: Identify and summarize the MOST IMPORTANT changes in 2-3 clear sentences. ALWAYS include the original value and the updated value for each change. For example, if the enrollment numbers changed from 100 to 200, say "Enrollment numbers increased from 100 to 200".
+
 
 Focus on substantive changes:
 - Enrollment numbers
@@ -481,11 +521,16 @@ ${comparisonHtml.substring(0, 15000)}
 
 Provide a brief, clear summary (2-3 sentences max). Ignore minor formatting changes. Focus ONLY on meaningful clinical changes that would matter to researchers or patients.`;
 
+    // Add timeout to Gemini API call
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+    
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${geminiApiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
         body: JSON.stringify({
           contents: [
             {
@@ -499,6 +544,8 @@ Provide a brief, clear summary (2-3 sentences max). Ignore minor formatting chan
         }),
       }
     );
+    
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       const errorText = await response.text();
