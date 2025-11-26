@@ -27,6 +27,7 @@ const DEFAULT_HEADERS = {
 
 const BASE_STUDY_URL = 'https://clinicaltrials.gov/study/';
 const HISTORY_TAB = 'history';
+const BASE_API_URL = 'https://clinicaltrials.gov/api/v2';
 
 /**
  * Build RSS URL from parameters
@@ -46,6 +47,49 @@ export function buildRssUrl(
   params.append('dateField', dateField || 'LastUpdatePostDate');
   
   return `${base}?${params.toString()}`;
+}
+
+/**
+ * Fetch sponsor information from ClinicalTrials.gov API
+ */
+export async function fetchSponsorInfo(nctId: string): Promise<string | null> {
+  try {
+    const url = `${BASE_API_URL}/studies/${nctId}?fields=LeadSponsorName`;
+    console.log(`📡 Fetching sponsor info for ${nctId}...`);
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+    
+    const response = await fetch(url, {
+      headers: DEFAULT_HEADERS,
+      signal: controller.signal,
+    });
+    
+    clearTimeout(timeoutId);
+    
+    if (!response.ok) {
+      console.warn(`⚠️  Failed to fetch sponsor for ${nctId}: ${response.status}`);
+      return null;
+    }
+    
+    const data = await response.json();
+    const sponsor = data?.protocolSection?.sponsorCollaboratorsModule?.leadSponsor?.name;
+    
+    if (sponsor) {
+      console.log(`✅ Found sponsor for ${nctId}: ${sponsor}`);
+      return sponsor;
+    }
+    
+    console.warn(`⚠️  No sponsor found in response for ${nctId}`);
+    return null;
+  } catch (error: any) {
+    if (error.name === 'AbortError') {
+      console.warn(`⏰ Sponsor fetch timeout for ${nctId}`);
+    } else {
+      console.error(`Failed to fetch sponsor for ${nctId}:`, error);
+    }
+    return null;
+  }
 }
 
 /**

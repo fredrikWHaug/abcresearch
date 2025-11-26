@@ -11,6 +11,7 @@ import {
   extractDiffBlocks,
   generateChangeSummary,
   generateNewStudySummary,
+  fetchSponsorInfo,
 } from './utils/rss-feed-utils.js';
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL!;
@@ -103,6 +104,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               let versionB: number;
               let diffBlocks: string[];
 
+              // Fetch sponsor information
+              const sponsor = await fetchSponsorInfo(nctId);
+
               // Handle brand new studies differently
               if (entry.isNew) {
                 console.log(`${nctId} is a NEW study - generating summary`);
@@ -138,6 +142,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 versionB,
                 diffBlocks,
                 summary,
+                sponsor,
               };
             })
           );
@@ -158,6 +163,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 version_b: data.versionB,
                 raw_diff_blocks: data.diffBlocks,
                 llm_summary: data.summary,
+                sponsor: data.sponsor || null,
               });
 
               if (insertError) {

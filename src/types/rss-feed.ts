@@ -31,6 +31,7 @@ export interface TrialUpdate {
   version_b: number;
   raw_diff_blocks: string[];
   llm_summary: string;
+  sponsor?: string;
   created_at: string;
 }
 

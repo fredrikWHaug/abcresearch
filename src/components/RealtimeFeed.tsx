@@ -7,11 +7,11 @@ import { supabase } from '@/lib/supabase';
 import type { WatchedFeed, TimelineItem, TrialUpdate } from '@/types/rss-feed';
 import { ExternalLink, Plus, Trash2, RefreshCw, Calendar, AlertCircle } from 'lucide-react';
 
-// Cache keys for sessionStorage - defined outside component to be accessible in all functions
-const HAS_LOADED_KEY = 'realtimefeed_has_loaded';
-const USER_ID_KEY = 'realtimefeed_user_id';
+interface RealtimeFeedProps {
+  isVisible?: boolean;
+}
 
-export function RealtimeFeed() {
+export function RealtimeFeed({ isVisible = true }: RealtimeFeedProps = {}) {
   const [feeds, setFeeds] = useState<WatchedFeed[]>([]);
   const [timeline, setTimeline] = useState<TimelineItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -29,40 +29,17 @@ export function RealtimeFeed() {
   const [enableEmailUpdates, setEnableEmailUpdates] = useState(false);
   const [emailAddress, setEmailAddress] = useState('');
   const [refreshProgress, setRefreshProgress] = useState<Record<number, { total: number; processed: number }>>({});
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
 
+  // Lazy load: only load data when view becomes visible for the first time
+  // Data is user-scoped (not project-scoped), so no reload on project change
   useEffect(() => {
-    const initializeData = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      const userId = session?.user?.id || null;
-      
-      // Check if we've already loaded data for this user in this browser session
-      const hasLoaded = sessionStorage.getItem(HAS_LOADED_KEY) === 'true';
-      const storedUserId = sessionStorage.getItem(USER_ID_KEY);
-      
-      // Only reload if:
-      // 1. Never loaded before in this browser session
-      // 2. User changed
-      const shouldReload = !hasLoaded || storedUserId !== userId;
-      
-      if (shouldReload) {
-        console.log('RealtimeFeed: Loading data from server', { 
-          firstLoad: !hasLoaded, 
-          userChanged: storedUserId !== userId
-        });
-        
-        sessionStorage.setItem(USER_ID_KEY, userId || '');
-        sessionStorage.setItem(HAS_LOADED_KEY, 'true');
-        
-        await loadFeeds();
-        await loadUpdates();
-      } else {
-        console.log('RealtimeFeed: Skipping reload (already loaded in this session)');
-        setLoading(false);
-      }
-    };
-    
-    initializeData();
-  }, []);
+    if (isVisible && !hasLoadedOnce) {
+      setHasLoadedOnce(true);
+      loadFeeds();
+      loadUpdates();
+    }
+  }, [isVisible, hasLoadedOnce]);
 
   useEffect(() => {
     // Set up Supabase real-time subscriptions
@@ -295,9 +272,6 @@ export function RealtimeFeed() {
         setEnableEmailUpdates(false);
         setEmailAddress('');
         setShowAddModal(false);
-        
-        // Invalidate cache and reload fresh data
-        sessionStorage.removeItem(HAS_LOADED_KEY);
         await loadFeeds();
         
         // Real-time subscription will handle progress updates automatically
@@ -381,8 +355,6 @@ export function RealtimeFeed() {
       });
 
       if (response.ok) {
-        // Invalidate cache and reload fresh data
-        sessionStorage.removeItem(HAS_LOADED_KEY);
         await loadFeeds();
         if (selectedFeed === feedId) {
           setSelectedFeed(null);
@@ -416,9 +388,6 @@ export function RealtimeFeed() {
       if (response.ok) {
         const data = await response.json();
         setRefreshMessage('Refresh started in background');
-        
-        // Invalidate cache so next load will fetch fresh data
-        sessionStorage.removeItem(HAS_LOADED_KEY);
         
         // Real-time subscription will handle progress updates automatically
         setRefreshingFeedId(feedId);
@@ -670,6 +639,15 @@ export function RealtimeFeed() {
                                 }`}
                               >
                                 <div className="space-y-3">
+                                  {/* Sponsor pill at the top */}
+                                  {update.sponsor && (
+                                    <div className="flex items-center gap-2">
+                                      <span className="inline-flex items-center px-3 py-1 text-xs font-medium text-purple-700 bg-purple-100 rounded-full">
+                                        🏢 {update.sponsor}
+                                      </span>
+                                    </div>
+                                  )}
+
                                   {/* Header with NCT ID and version/new badge */}
                                   <div className="flex items-center gap-2 flex-wrap">
                                     <a

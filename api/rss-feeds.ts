@@ -23,6 +23,7 @@ import {
   extractDiffBlocks,
   generateChangeSummary,
   generateNewStudySummary,
+  fetchSponsorInfo,
 } from './utils/rss-feed-utils.js';
 
 // Simple helper function - doesn't need heavy dependencies
@@ -177,6 +178,9 @@ async function refreshFeedInBackground(
           let versionB: number;
           let diffBlocks: string[];
 
+          // Fetch sponsor information
+          const sponsor = await fetchSponsorInfo(nctId);
+
           if (entry.isNew) {
             console.log(`${nctId} is a NEW study - generating summary`);
             summary = await generateNewStudySummary(nctId, entry.title, geminiApiKey);
@@ -211,6 +215,7 @@ async function refreshFeedInBackground(
             versionB,
             diffBlocks,
             summary,
+            sponsor,
           };
         })
       );
@@ -233,6 +238,7 @@ async function refreshFeedInBackground(
             version_b: data.versionB,
             raw_diff_blocks: data.diffBlocks,
             llm_summary: data.summary,
+            sponsor: data.sponsor || null,
           });
 
           if (insertError) {
@@ -449,13 +455,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           console.log(`[API] Starting initial refresh for newly created feed ${data.id}`);
           const accessToken = req.headers.authorization?.replace('Bearer ', '') || '';
           
-          try {
-            await refreshFeedInBackground(data.id, data.feed_url, geminiApiKey, supabase, user.id, accessToken);
-            console.log(`[API] Initial refresh completed for feed ${data.id}`);
-          } catch (refreshError) {
-            console.error('[API] Initial refresh failed (feed still created):', refreshError);
-            // Don't fail the feed creation if refresh fails - user can manually refresh
-          }
+          // Start refresh in background - don't await it! Real-time subscriptions will update UI
+          refreshFeedInBackground(data.id, data.feed_url, geminiApiKey, supabase, user.id, accessToken)
+            .then(() => {
+              console.log(`[API] Initial refresh completed for feed ${data.id}`);
+            })
+            .catch((refreshError) => {
+              console.error('[API] Initial refresh failed (feed still created):', refreshError);
+            });
         } else {
           console.log(`[API] Skipping auto-refresh: data=${!!data}, geminiApiKey=${!!geminiApiKey}`);
         }
@@ -653,23 +660,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // Get access token from request headers for background operation
       const accessToken = req.headers.authorization?.replace('Bearer ', '') || '';
       
-      try {
-        await refreshFeedInBackground(feed.id, feed.feed_url, geminiApiKey, supabase, user.id, accessToken);
-        console.log(`[API] Refresh completed successfully for feed ${feed.id}`);
-        
-        return res.json({
-          success: true,
-          message: 'Refresh completed successfully',
-          feed_id: feedId,
+      // Start refresh in background - don't await it! Real-time subscriptions will update UI
+      refreshFeedInBackground(feed.id, feed.feed_url, geminiApiKey, supabase, user.id, accessToken)
+        .then(() => {
+          console.log(`[API] Refresh completed successfully for feed ${feed.id}`);
+        })
+        .catch((refreshError) => {
+          console.error('[API] Refresh failed:', refreshError);
         });
-      } catch (refreshError) {
-        console.error('[API] Refresh failed:', refreshError);
-        return res.status(500).json({
-          success: false,
-          error: refreshError instanceof Error ? refreshError.message : 'Unknown error',
-          feed_id: feedId,
-        });
-      }
+
+      // Return immediately - UI will update via real-time subscriptions
+      return res.json({
+        success: true,
+        message: 'Refresh started in background',
+        feed_id: feedId,
+      });
     } else {
       return res.status(400).json({ error: 'Invalid action parameter. Use: watch, updates, progress, or refresh' });
     }

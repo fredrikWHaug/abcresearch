@@ -2,10 +2,14 @@
 import React from 'react'
 import { PDFExtraction } from '@/components/PDFExtraction'
 
-export function DataExtractionView() {
+interface DataExtractionViewProps {
+  isVisible?: boolean;
+}
+
+export function DataExtractionView({ isVisible }: DataExtractionViewProps) {
   return (
     <div className="h-full overflow-y-auto bg-gray-50">
-      <PDFExtraction />
+      <PDFExtraction isVisible={isVisible} />
     </div>
   )
 }
