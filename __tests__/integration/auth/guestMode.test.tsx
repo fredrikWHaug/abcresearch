@@ -13,6 +13,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
+import '@testing-library/jest-dom/vitest'
 import userEvent from '@testing-library/user-event'
 import React from 'react'
 import * as AuthContext from '@/contexts/AuthContext'
@@ -254,7 +255,7 @@ describe('Guest Mode - Bug Detection & Fix Verification', () => {
       })
 
       vi.spyOn(AuthContext, 'useAuth').mockReturnValue({
-        user: { id: 'user123', email: 'test@example.com' },
+        user: { id: 'user123', email: 'test@example.com' } as any,
         session: {} as any,
         loading: false,
         isGuest: false,
@@ -306,7 +307,7 @@ describe('Guest Mode - Bug Detection & Fix Verification', () => {
     it('should show EntryChoice for authenticated users (not guests)', async () => {
       // Mock authenticated user
       vi.spyOn(AuthContext, 'useAuth').mockReturnValue({
-        user: { id: 'user123', email: 'test@example.com' },
+        user: { id: 'user123', email: 'test@example.com' } as any,
         session: {} as any,
         loading: false,
         isGuest: false,
@@ -330,7 +331,7 @@ describe('Guest Mode - Bug Detection & Fix Verification', () => {
     it('should allow authenticated users to create projects', async () => {
       // Mock authenticated user
       vi.spyOn(AuthContext, 'useAuth').mockReturnValue({
-        user: { id: 'user123', email: 'test@example.com' },
+        user: { id: 'user123', email: 'test@example.com' } as any,
         session: {} as any,
         loading: false,
         isGuest: false,
