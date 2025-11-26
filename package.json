@@ -29,6 +29,7 @@
     "@types/mdast": "^4.0.4",
     "@types/react-syntax-highlighter": "^15.5.13",
     "@vercel/node": "^5.5.0",
+    "axios": "^1.13.2",
     "cheerio": "^1.1.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
