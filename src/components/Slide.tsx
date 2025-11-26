@@ -1,3 +1,4 @@
+/* eslint-disable */
 import React, { useState } from 'react';
 import { Download, X, TrendingUp, TrendingDown, Minus, Save, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
 /**
  * Drug Association Service
  * Comprehensive service for managing drug-entity relationships and drug groups

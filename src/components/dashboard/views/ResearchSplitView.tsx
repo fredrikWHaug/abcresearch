@@ -1,3 +1,4 @@
+ 
 import React from 'react'
 import { ArrowUp } from 'lucide-react'
 import { DrugsList } from '@/components/DrugsList'

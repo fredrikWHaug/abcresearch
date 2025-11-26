@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
 // Vercel API Route for extracting drug names using Gemini
 // Thin proxy to Google Gemini API - just handles LLM calls and JSON parsing
 

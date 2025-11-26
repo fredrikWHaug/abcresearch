@@ -1,3 +1,4 @@
+ 
 /**
  * Helper functions for ChatAPI (ABC-41, ABC-39)
  * Extracted for testability

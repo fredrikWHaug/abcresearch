@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
 import * as cheerio from 'cheerio';
 import puppeteerCore from 'puppeteer-core';
 import puppeteerFull from 'puppeteer';

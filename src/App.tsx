@@ -14,7 +14,6 @@ function AppContent() {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [projectName, setProjectName] = useState('')
   const [projectId, setProjectId] = useState<number | null>(null)
-  const [creatingProject, setCreatingProject] = useState(false)
 
   // Reset entry choice when user logs out
   React.useEffect(() => {
@@ -79,7 +78,6 @@ function AppContent() {
             }
             
             try {
-              setCreatingProject(true)
               console.log('🟢 [App] Calling createProject service...')
               
               // Save project to database
@@ -98,8 +96,6 @@ function AppContent() {
               
               const errorMessage = error instanceof Error ? error.message : 'Unknown error'
               alert(`Failed to create project: ${errorMessage}\n\nPlease check the browser console for more details.`)
-            } finally {
-              setCreatingProject(false)
             }
           }}
         />
