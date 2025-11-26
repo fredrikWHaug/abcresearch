@@ -25,7 +25,6 @@ export function createMockTrial(overrides?: Partial<ClinicalTrial>): ClinicalTri
     locations: [{ 
       facility: 'Test Hospital', 
       city: 'Boston', 
-      state: 'MA', 
       country: 'USA' 
     }],
     studyType: 'Interventional',
@@ -47,7 +46,9 @@ export function createMockPaper(overrides?: Partial<PubMedArticle>): PubMedArtic
     authors: ['Test Author', 'Second Author'],
     doi: `10.1234/test.2024.${Math.floor(Math.random() * 1000)}`,
     relevanceScore: 85,
-    fullTextLinks: [],
+        fullTextLinks: {
+            pubmed: `https://pubmed.ncbi.nlm.nih.gov/${Math.floor(Math.random() * 100000000)}/`,
+        },
   }
 
   return { ...defaultPaper, ...overrides }
