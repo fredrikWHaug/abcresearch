@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { supabase } from '@/lib/supabase';
 import type { WatchedFeed, TimelineItem, TrialUpdate } from '@/types/rss-feed';
 import { ExternalLink, Plus, Trash2, RefreshCw, Calendar, AlertCircle } from 'lucide-react';
+import { InvestmentSignals } from '@/components/InvestmentSignals';
 
 interface RealtimeFeedProps {
   isVisible?: boolean;
@@ -456,7 +457,7 @@ export function RealtimeFeed({ isVisible = true }: RealtimeFeedProps = {}) {
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Realtime Feed</h1>
             <p className="text-sm text-gray-600 mt-1">
-              Monitor clinical trial updates from ClinicalTrials.gov
+              Monitor clinical trial updates from ClinicalTrials.gov. FDA Adverse Events Reporting coming soon...
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -479,8 +480,9 @@ export function RealtimeFeed({ isVisible = true }: RealtimeFeedProps = {}) {
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-7xl mx-auto p-6">
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-            {/* Sidebar - Watched Feeds */}
-            <div className="lg:col-span-1">
+            {/* Sidebar - Watched Feeds + Investment Signals */}
+            <div className="lg:col-span-1 space-y-6">
+              {/* Watched Feeds */}
               <Card className="p-4">
                 <h2 className="font-semibold text-gray-900 mb-4">Watched Feeds</h2>
                 {feeds.length === 0 ? (
@@ -586,6 +588,9 @@ export function RealtimeFeed({ isVisible = true }: RealtimeFeedProps = {}) {
                   </div>
                 )}
               </Card>
+
+              {/* Investment Signals Component */}
+              <InvestmentSignals isVisible={isVisible} />
             </div>
 
             {/* Main Content - Timeline */}
