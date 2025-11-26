@@ -39,6 +39,14 @@ The documentation is organized sequentially for easy navigation:
 
 **[8. Design Scheme](./8-design-scheme.md)** - UI/UX design system and component guidelines
 
+### Additional Documentation
+
+**[9. PDF Extraction](./9-pdf-extraction-(to-be-added-to-main-doc-later).md)** - PDF table extraction and processing
+
+**[10. Real-time Feed Schema](./10-realtime-feed-schema.md)** - RSS feed monitoring and real-time updates
+
+**[11. Testing](./11-testing.md)** - Test suite architecture, helpers, and CI/CD integration
+
 ## Reading Guide
 
 ### For First-Time Readers
@@ -58,6 +66,7 @@ The documentation is organized sequentially for easy navigation:
 - **Database changes**: Read 3 (Database) - note the project-centric design
 - **AI/LLM optimization**: Read 6 (LLM Strategy) and 7 (Model Options)
 - **UI components**: Read 8 (Design Scheme) and 1 (Components)
+- **Testing and CI/CD**: Read 11 (Testing) for test suite architecture and helpers
 
 ## Key Concepts
 
@@ -77,5 +86,5 @@ All documentation follows these conventions:
 
 ---
 
-**Last Updated**: November 8, 2025
+**Last Updated**: November 26, 2025
 
