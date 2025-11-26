@@ -387,12 +387,33 @@ export function RealtimeFeed({ isVisible = true }: RealtimeFeedProps = {}) {
 
       if (response.ok) {
         const data = await response.json();
-        setRefreshMessage('Refresh started in background');
+        setRefreshMessage(data.message || 'Refresh completed successfully');
         
-        // Real-time subscription will handle progress updates automatically
-        setRefreshingFeedId(feedId);
+        // Update the feed in local state if returned
+        if (data.feed) {
+          setFeeds(prev => prev.map(f => f.id === feedId ? data.feed : f));
+        }
+        
+        // Reload feeds and updates to show new data
+        await loadFeeds();
+        await loadUpdates(selectedFeed || undefined);
+        
+        // Clear refreshing state after completion
+        setRefreshingFeedId(null);
+        setRefreshProgress(prev => {
+          const updated = { ...prev };
+          delete updated[feedId];
+          return updated;
+        });
+        
+        // Clear success message after 3 seconds
+        setTimeout(() => {
+          setRefreshMessage('');
+        }, 3000);
       } else {
-        setRefreshMessage('Failed to refresh feed');
+        const errorData = await response.json();
+        setRefreshMessage(errorData.error || 'Failed to refresh feed');
+        setRefreshingFeedId(null);
         setTimeout(() => {
           setRefreshMessage('');
         }, 3000);
@@ -400,11 +421,10 @@ export function RealtimeFeed({ isVisible = true }: RealtimeFeedProps = {}) {
     } catch (error) {
       console.error('Failed to refresh feed:', error);
       setRefreshMessage('Error refreshing feed');
+      setRefreshingFeedId(null);
       setTimeout(() => {
         setRefreshMessage('');
       }, 3000);
-    } finally {
-      // Don't clear refreshingFeedId immediately - let progress polling handle it
     }
   };
 

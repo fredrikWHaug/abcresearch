@@ -183,13 +183,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           }
         }
 
-        // Update last_checked_at
+        // Update last_checked_at on success
         await supabase
           .from('watched_feeds')
           .update({ last_checked_at: new Date().toISOString() })
           .eq('id', feed.id);
       } catch (error) {
         console.error(`Error processing feed ${feed.id}:`, error);
+        
+        // ALWAYS update last_checked_at even on error (prevents immediate retry)
+        try {
+          await supabase
+            .from('watched_feeds')
+            .update({ last_checked_at: new Date().toISOString() })
+            .eq('id', feed.id);
+        } catch (updateError) {
+          console.error(`Failed to update last_checked_at for feed ${feed.id}:`, updateError);
+        }
+        
         // Continue with next feed
       }
     }

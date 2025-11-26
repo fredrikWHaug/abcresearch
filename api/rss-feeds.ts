@@ -317,19 +317,30 @@ async function refreshFeedInBackground(
     console.error(`[REFRESH] Error stack:`, refreshError instanceof Error ? refreshError.stack : 'No stack trace');
     console.error(`[REFRESH] Error details:`, JSON.stringify(refreshError, Object.getOwnPropertyNames(refreshError)));
     
-    // Mark refresh as failed (silently fail if column doesn't exist)
+    // ALWAYS update last_checked_at even on error (so we don't retry immediately)
     try {
       await client
         .from('watched_feeds')
         .update({
+          last_checked_at: new Date().toISOString(),
           refresh_status: {
             in_progress: false,
             error: refreshError instanceof Error ? refreshError.message : 'Unknown error',
+            completed_at: new Date().toISOString(),
           },
         })
         .eq('id', feedId);
     } catch (err: any) {
-      if (!err?.message?.includes('does not exist') && err?.code !== '42703') {
+      // Fallback: update last_checked_at even if refresh_status column doesn't exist
+      if (err?.message?.includes('does not exist') || err?.code === '42703') {
+        console.log(`[REFRESH] refresh_status column missing, updating last_checked_at only`);
+        await client
+          .from('watched_feeds')
+          .update({
+            last_checked_at: new Date().toISOString(),
+          })
+          .eq('id', feedId);
+      } else {
         console.error('[REFRESH] Failed to update error status:', err);
       }
     }
@@ -430,8 +441,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         const feedUrl = buildRssUrl(
           searchTerm,
-          locStr || 'USA',
-          country || 'US',
+          locStr,
+          country,
           dateField || 'LastUpdatePostDate'
         );
 
@@ -450,19 +461,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         // Automatically refresh the feed after creation
-        // NOTE: In serverless, we must await or the execution context will be killed
+        // NOTE: In serverless, we MUST await or the execution context will freeze and kill timers
         if (data && geminiApiKey) {
           console.log(`[API] Starting initial refresh for newly created feed ${data.id}`);
           const accessToken = req.headers.authorization?.replace('Bearer ', '') || '';
           
-          // Start refresh in background - don't await it! Real-time subscriptions will update UI
-          refreshFeedInBackground(data.id, data.feed_url, geminiApiKey, supabase, user.id, accessToken)
-            .then(() => {
-              console.log(`[API] Initial refresh completed for feed ${data.id}`);
-            })
-            .catch((refreshError) => {
-              console.error('[API] Initial refresh failed (feed still created):', refreshError);
-            });
+          // MUST AWAIT - serverless will freeze execution context if we don't
+          try {
+            await refreshFeedInBackground(data.id, data.feed_url, geminiApiKey, supabase, user.id, accessToken);
+            console.log(`[API] Initial refresh completed for feed ${data.id}`);
+          } catch (refreshError: any) {
+            // Feed was created successfully, but refresh failed - that's OK
+            console.error('[API] Initial refresh failed (feed still created):', refreshError.message);
+          }
         } else {
           console.log(`[API] Skipping auto-refresh: data=${!!data}, geminiApiKey=${!!geminiApiKey}`);
         }
@@ -660,21 +671,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // Get access token from request headers for background operation
       const accessToken = req.headers.authorization?.replace('Bearer ', '') || '';
       
-      // Start refresh in background - don't await it! Real-time subscriptions will update UI
-      refreshFeedInBackground(feed.id, feed.feed_url, geminiApiKey, supabase, user.id, accessToken)
-        .then(() => {
-          console.log(`[API] Refresh completed successfully for feed ${feed.id}`);
-        })
-        .catch((refreshError) => {
-          console.error('[API] Refresh failed:', refreshError);
+      // MUST AWAIT in serverless - otherwise execution context freezes and kills timers
+      try {
+        await refreshFeedInBackground(feed.id, feed.feed_url, geminiApiKey, supabase, user.id, accessToken);
+        console.log(`[API] Refresh completed successfully for feed ${feed.id}`);
+        
+        // Get updated feed data with new last_checked_at
+        const { data: updatedFeed, error: fetchError } = await supabase
+          .from('watched_feeds')
+          .select('*')
+          .eq('id', feedId)
+          .eq('user_id', user.id)
+          .single();
+        
+        if (fetchError) {
+          console.error('[API] Failed to fetch updated feed:', fetchError);
+        }
+        
+        return res.json({
+          success: true,
+          message: 'Refresh completed successfully',
+          feed_id: feedId,
+          feed: updatedFeed || null,
         });
-
-      // Return immediately - UI will update via real-time subscriptions
-      return res.json({
-        success: true,
-        message: 'Refresh started in background',
-        feed_id: feedId,
-      });
+      } catch (refreshError: any) {
+        console.error('[API] Refresh failed:', refreshError);
+        return res.status(500).json({
+          success: false,
+          error: refreshError.message || 'Refresh failed',
+          feed_id: feedId,
+        });
+      }
     } else {
       return res.status(400).json({ error: 'Invalid action parameter. Use: watch, updates, progress, or refresh' });
     }
