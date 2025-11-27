@@ -69,15 +69,15 @@ function RootRedirect() {
   return <Navigate to="/auth" replace />
 }
 
-// Project route wrapper - passes project ID to Dashboard
-function ProjectRoute() {
+// Project route wrapper - passes project ID and view mode to Dashboard
+function ProjectRoute({ view = 'research' }: { view?: string }) {
   const { projectId } = useParams<{ projectId: string }>()
   
   // Convert string projectId to number, or null if not provided or "null" string
   const numericProjectId = projectId && projectId !== 'null' ? parseInt(projectId, 10) : null
 
-  // showHeader={false} because AppShell provides the navigation
-  return <Dashboard projectId={numericProjectId} showHeader={false} />
+  // Hide Dashboard's internal header since AppShell now handles everything
+  return <Dashboard projectId={numericProjectId} showHeader={false} insideAppShell={true} initialView={view} />
 }
 
 // Auth route wrapper - redirects if already authenticated
@@ -137,8 +137,16 @@ function AppContent() {
           } 
         />
 
-        {/* Individual project view */}
-        <Route path="project/:projectId" element={<ProjectRoute />} />
+        {/* Individual project views with sub-routes */}
+        <Route path="project/:projectId">
+          {/* Default to research view */}
+          <Route index element={<Navigate to="research" replace />} />
+          <Route path="research" element={<ProjectRoute view="research" />} />
+          <Route path="pipeline" element={<ProjectRoute view="pipeline" />} />
+          <Route path="marketmap" element={<ProjectRoute view="marketmap" />} />
+          <Route path="extraction" element={<ProjectRoute view="dataextraction" />} />
+          <Route path="feed" element={<ProjectRoute view="realtimefeed" />} />
+        </Route>
 
         {/* Redirect /app to /app/home */}
         <Route index element={<Navigate to="/app/home" replace />} />
