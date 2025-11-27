@@ -9,6 +9,12 @@ export function AppShell() {
   const location = useLocation()
   const { user, signOut } = useAuth()
   const isHomePage = location.pathname === '/app/home'
+  
+  // Detect if we're on a project route
+  const projectRouteMatch = location.pathname.match(/^\/app\/project\/([^/]+)(?:\/(.+))?/)
+  const projectId = projectRouteMatch ? projectRouteMatch[1] : null
+  const currentView = projectRouteMatch ? projectRouteMatch[2] || 'research' : null
+  const isProjectPage = !!projectId
 
   return (
     <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
@@ -24,6 +30,62 @@ export function AppShell() {
               ABCresearch
             </span>
           </button>
+
+          {/* Center: Project View Tabs (only show when on a project page) */}
+          {isProjectPage && (
+            <div className="flex rounded-lg bg-gray-100 p-1 gap-1">
+              <button
+                onClick={() => navigate(`/app/project/${projectId}/research`)}
+                className={`py-2 px-4 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
+                  currentView === 'research'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                Research
+              </button>
+              <button
+                onClick={() => navigate(`/app/project/${projectId}/pipeline`)}
+                className={`py-2 px-4 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
+                  currentView === 'pipeline'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                Asset Pipeline
+              </button>
+              <button
+                onClick={() => navigate(`/app/project/${projectId}/marketmap`)}
+                className={`py-2 px-4 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
+                  currentView === 'marketmap'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                Market Map
+              </button>
+              <button
+                onClick={() => navigate(`/app/project/${projectId}/extraction`)}
+                className={`py-2 px-4 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
+                  currentView === 'extraction'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                Data Extraction
+              </button>
+              <button
+                onClick={() => navigate(`/app/project/${projectId}/feed`)}
+                className={`py-2 px-4 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
+                  currentView === 'feed'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                Realtime Feed
+              </button>
+            </div>
+          )}
 
           {/* Right: User Menu */}
           <div className="flex items-center gap-3">
