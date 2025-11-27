@@ -10,7 +10,11 @@ import { NotificationService } from '@/services/notificationService'
 import { PaperAnalysisView } from './PaperAnalysisView'
 import { ExtractionHistory } from './ExtractionHistory'
 
-export function PDFExtraction() {
+interface PDFExtractionProps {
+  isVisible?: boolean;
+}
+
+export function PDFExtraction({ isVisible = true }: PDFExtractionProps = {}) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [extractionResult, setExtractionResult] = useState<PDFExtractionResult | null>(null)
@@ -704,7 +708,7 @@ export function PDFExtraction() {
 
         {/* Extraction History - Full width */}
         <div className="w-full">
-          <ExtractionHistory />
+          <ExtractionHistory isVisible={isVisible} />
         </div>
       </div>
     </div>

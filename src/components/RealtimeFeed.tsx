@@ -6,8 +6,13 @@ import { Input } from '@/components/ui/input';
 import { supabase } from '@/lib/supabase';
 import type { WatchedFeed, TimelineItem, TrialUpdate } from '@/types/rss-feed';
 import { ExternalLink, Plus, Trash2, RefreshCw, Calendar, AlertCircle } from 'lucide-react';
+import { InvestmentSignals } from '@/components/InvestmentSignals';
 
-export function RealtimeFeed() {
+interface RealtimeFeedProps {
+  isVisible?: boolean;
+}
+
+export function RealtimeFeed({ isVisible = true }: RealtimeFeedProps = {}) {
   const [feeds, setFeeds] = useState<WatchedFeed[]>([]);
   const [timeline, setTimeline] = useState<TimelineItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -25,11 +30,17 @@ export function RealtimeFeed() {
   const [enableEmailUpdates, setEnableEmailUpdates] = useState(false);
   const [emailAddress, setEmailAddress] = useState('');
   const [refreshProgress, setRefreshProgress] = useState<Record<number, { total: number; processed: number }>>({});
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
 
+  // Lazy load: only load data when view becomes visible for the first time
+  // Data is user-scoped (not project-scoped), so no reload on project change
   useEffect(() => {
-    loadFeeds();
-    loadUpdates();
-  }, []);
+    if (isVisible && !hasLoadedOnce) {
+      setHasLoadedOnce(true);
+      loadFeeds();
+      loadUpdates();
+    }
+  }, [isVisible, hasLoadedOnce]);
 
   useEffect(() => {
     // Set up Supabase real-time subscriptions
@@ -377,12 +388,33 @@ export function RealtimeFeed() {
 
       if (response.ok) {
         const data = await response.json();
-        setRefreshMessage('Refresh started in background');
+        setRefreshMessage(data.message || 'Refresh completed successfully');
         
-        // Real-time subscription will handle progress updates automatically
-        setRefreshingFeedId(feedId);
+        // Update the feed in local state if returned
+        if (data.feed) {
+          setFeeds(prev => prev.map(f => f.id === feedId ? data.feed : f));
+        }
+        
+        // Reload feeds and updates to show new data
+        await loadFeeds();
+        await loadUpdates(selectedFeed || undefined);
+        
+        // Clear refreshing state after completion
+        setRefreshingFeedId(null);
+        setRefreshProgress(prev => {
+          const updated = { ...prev };
+          delete updated[feedId];
+          return updated;
+        });
+        
+        // Clear success message after 3 seconds
+        setTimeout(() => {
+          setRefreshMessage('');
+        }, 3000);
       } else {
-        setRefreshMessage('Failed to refresh feed');
+        const errorData = await response.json();
+        setRefreshMessage(errorData.error || 'Failed to refresh feed');
+        setRefreshingFeedId(null);
         setTimeout(() => {
           setRefreshMessage('');
         }, 3000);
@@ -390,11 +422,10 @@ export function RealtimeFeed() {
     } catch (error) {
       console.error('Failed to refresh feed:', error);
       setRefreshMessage('Error refreshing feed');
+      setRefreshingFeedId(null);
       setTimeout(() => {
         setRefreshMessage('');
       }, 3000);
-    } finally {
-      // Don't clear refreshingFeedId immediately - let progress polling handle it
     }
   };
 
@@ -426,7 +457,7 @@ export function RealtimeFeed() {
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Realtime Feed</h1>
             <p className="text-sm text-gray-600 mt-1">
-              Monitor clinical trial updates from ClinicalTrials.gov
+              Monitor clinical trial updates from ClinicalTrials.gov. FDA Adverse Events Reporting coming soon...
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -449,8 +480,9 @@ export function RealtimeFeed() {
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-7xl mx-auto p-6">
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-            {/* Sidebar - Watched Feeds */}
-            <div className="lg:col-span-1">
+            {/* Sidebar - Watched Feeds + Investment Signals */}
+            <div className="lg:col-span-1 space-y-6">
+              {/* Watched Feeds */}
               <Card className="p-4">
                 <h2 className="font-semibold text-gray-900 mb-4">Watched Feeds</h2>
                 {feeds.length === 0 ? (
@@ -556,6 +588,9 @@ export function RealtimeFeed() {
                   </div>
                 )}
               </Card>
+
+              {/* Investment Signals Component */}
+              <InvestmentSignals isVisible={isVisible} />
             </div>
 
             {/* Main Content - Timeline */}
@@ -629,6 +664,15 @@ export function RealtimeFeed() {
                                 }`}
                               >
                                 <div className="space-y-3">
+                                  {/* Sponsor pill at the top */}
+                                  {update.sponsor && (
+                                    <div className="flex items-center gap-2">
+                                      <span className="inline-flex items-center px-3 py-1 text-xs font-medium text-purple-700 bg-purple-100 rounded-full">
+                                        🏢 {update.sponsor}
+                                      </span>
+                                    </div>
+                                  )}
+
                                   {/* Header with NCT ID and version/new badge */}
                                   <div className="flex items-center gap-2 flex-wrap">
                                     <a

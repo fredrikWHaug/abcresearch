@@ -23,18 +23,30 @@ import type { PDFExtractionJob } from '@/types/pdf-extraction-job'
 import type { PDFExtractionResult } from '@/types/extraction'
 import { PaperAnalysisView } from './PaperAnalysisView'
 
-export function ExtractionHistory() {
+interface ExtractionHistoryProps {
+  isVisible?: boolean;
+}
+
+export function ExtractionHistory({ isVisible = true }: ExtractionHistoryProps = {}) {
   const [jobs, setJobs] = useState<PDFExtractionJob[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null)
   const [selectedResult, setSelectedResult] = useState<PDFExtractionResult | null>(null)
   const [selectedFileName, setSelectedFileName] = useState<string>('')
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false)
 
+  // Lazy load: only load jobs when view becomes visible for the first time
   useEffect(() => {
-    loadJobs()
-    
-    // Set up polling for in-progress jobs
+    if (isVisible && !hasLoadedOnce) {
+      setHasLoadedOnce(true);
+      loadJobs()
+    }
+  }, [isVisible, hasLoadedOnce])
+
+  // Set up polling for in-progress jobs
+  useEffect(() => {
     const interval = setInterval(() => {
+      // Check if there are any in-progress jobs
       const inProgressJobs = jobs.filter(j => j.status === 'processing' || j.status === 'pending')
       if (inProgressJobs.length > 0) {
         loadJobs()
@@ -42,7 +54,7 @@ export function ExtractionHistory() {
     }, 5000)
 
     return () => clearInterval(interval)
-  }, [jobs])
+  }, [jobs]) // This only sets up polling, doesn't load on every jobs change
 
   const loadJobs = async () => {
     setIsLoading(true)

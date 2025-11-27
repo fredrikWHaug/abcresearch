@@ -1,31 +1,31 @@
- 
+
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
-import {
-  parseRssFeed,
-  isWithinDays,
-  extractNctId,
-  buildHistoryUrl,
-  buildComparisonUrl,
-  parseLatestTwoVersions,
-  extractDiffBlocks,
-  generateChangeSummary,
-  generateNewStudySummary,
-} from './utils/rss-feed-utils.js';
+import { processFeedUpdates } from './utils/rss-feed-utils.js';
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const geminiApiKey = process.env.GOOGLE_GEMINI_API_KEY!;
 
-// This runs daily via Vercel Cron
+/**
+ * Vercel Cron Job - Runs daily at 9am ET (14:00 UTC)
+ * 
+ * Checks all watched RSS feeds for clinical trial updates.
+ * The main ClinicalTrials.gov database is refreshed daily, Monday through Friday, typically by 9 a.m. ET.
+ * The feed can be configured to show new or modified records within the last 14 days.
+ */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  console.log('[CRON] Starting daily RSS feed check');
+  
   // Verify this is a cron request (Vercel sets this header)
   const authHeader = req.headers.authorization;
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    console.error('[CRON] Unauthorized request - invalid CRON_SECRET');
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
   if (!geminiApiKey) {
+    console.error('[CRON] GOOGLE_GEMINI_API_KEY not configured');
     return res.status(500).json({ error: 'GOOGLE_GEMINI_API_KEY not configured' });
   }
 
@@ -38,132 +38,71 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .select('*');
 
     if (feedsError) {
-      console.error('Failed to fetch watched feeds:', feedsError);
+      console.error('[CRON] Failed to fetch watched feeds:', feedsError);
       return res.status(500).json({ error: 'Failed to fetch feeds' });
     }
 
     if (!feeds || feeds.length === 0) {
+      console.log('[CRON] No feeds to check');
       return res.json({ message: 'No feeds to check', processed: 0 });
     }
 
-    let totalUpdates = 0;
+    console.log(`[CRON] Found ${feeds.length} feeds to check`);
 
-    // 2. Process each feed
+    let totalUpdates = 0;
+    const results: Array<{
+      feed_id: number;
+      label: string;
+      new_updates?: number;
+      processed?: number;
+      total?: number;
+      error?: string;
+    }> = [];
+
+    // 2. Process each feed using shared processing logic
     for (const feed of feeds) {
       try {
-        console.log(`Checking feed: ${feed.label} (${feed.feed_url})`);
+        console.log(`[CRON] Checking feed: ${feed.label} (${feed.feed_url})`);
         
-        // Parse RSS feed
-        const entries = await parseRssFeed(feed.feed_url);
-        const recentEntries = entries.filter((e) => isWithinDays(e.updated_dt, 14));
+        const result = await processFeedUpdates(
+          feed.id,
+          feed.feed_url,
+          geminiApiKey,
+          supabase,
+          false // Disable progress tracking for cron (no UI to update)
+        );
 
-        console.log(`Found ${recentEntries.length} recent entries for ${feed.label}`);
+        totalUpdates += result.newUpdates;
+        results.push({
+          feed_id: feed.id,
+          label: feed.label,
+          new_updates: result.newUpdates,
+          processed: result.processedItems,
+          total: result.totalItems,
+        });
 
-        // 3. Process each recent entry
-        for (const entry of recentEntries) {
-          const nctId = extractNctId(entry.link);
-          if (!nctId) continue;
-
-          // Check if we already have this update
-          const { data: existing } = await supabase
-            .from('trial_updates')
-            .select('id')
-            .eq('feed_id', feed.id)
-            .eq('nct_id', nctId)
-            .gte('last_update', entry.updated_dt?.toISOString() || new Date().toISOString())
-            .single();
-
-          if (existing) {
-            console.log(`Skipping ${nctId} - already processed`);
-            continue;
-          }
-
-          const studyUrl = `https://clinicaltrials.gov/study/${nctId}`;
-          let summary: string;
-          let historyUrl: string;
-          let comparisonUrl: string;
-          let versionA: number;
-          let versionB: number;
-          let diffBlocks: string[];
-
-          // Handle brand new studies differently
-          if (entry.isNew) {
-            console.log(`${nctId} is a NEW study - generating summary`);
-            
-            // For new studies, just generate a summary based on title
-            summary = await generateNewStudySummary(nctId, entry.title, geminiApiKey);
-            historyUrl = buildHistoryUrl(nctId);
-            comparisonUrl = '';
-            versionA = 1;
-            versionB = 1;
-            diffBlocks = ['NEW_STUDY'];
-          } else {
-            console.log(`${nctId} is an UPDATED study - comparing versions`);
-            
-            // 4. Get version history
-            historyUrl = buildHistoryUrl(nctId);
-            const versionPair = await parseLatestTwoVersions(historyUrl, geminiApiKey);
-
-            if (!versionPair) {
-              console.log(`No version pair found for ${nctId}`);
-              continue;
-            }
-
-            // 5. Get comparison and extract diffs
-            comparisonUrl = buildComparisonUrl(nctId, versionPair.a, versionPair.b);
-            diffBlocks = await extractDiffBlocks(comparisonUrl);
-
-            // 6. Generate LLM summary using Gemini
-            summary = await generateChangeSummary(nctId, entry.title, diffBlocks, geminiApiKey);
-            versionA = versionPair.a;
-            versionB = versionPair.b;
-          }
-
-          // 7. Save to database
-          const { error: insertError } = await supabase.from('trial_updates').insert({
-            feed_id: feed.id,
-            nct_id: nctId,
-            title: entry.title,
-            last_update: entry.updated_dt?.toISOString() || new Date().toISOString(),
-            study_url: studyUrl,
-            history_url: historyUrl,
-            comparison_url: comparisonUrl || null,
-            version_a: versionA,
-            version_b: versionB,
-            raw_diff_blocks: diffBlocks,
-            llm_summary: summary,
-          });
-
-          if (insertError) {
-            console.error(`Failed to insert update for ${nctId}:`, insertError);
-          } else {
-            totalUpdates++;
-            console.log(`Saved ${entry.isNew ? 'NEW' : 'updated'} study ${nctId}`);
-          }
-
-          // Polite delay
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-        }
-
-        // Update last_checked_at
-        await supabase
-          .from('watched_feeds')
-          .update({ last_checked_at: new Date().toISOString() })
-          .eq('id', feed.id);
+        console.log(`[CRON] ✅ Feed ${feed.label}: ${result.newUpdates} new updates`);
       } catch (error) {
-        console.error(`Error processing feed ${feed.id}:`, error);
-        // Continue with next feed
+        console.error(`[CRON] ❌ Error processing feed ${feed.id}:`, error);
+        results.push({
+          feed_id: feed.id,
+          label: feed.label,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
+        // Continue with next feed (error handling done in processFeedUpdates)
       }
     }
+
+    console.log(`[CRON] ✅ Complete: ${feeds.length} feeds processed, ${totalUpdates} total updates`);
 
     return res.json({
       message: 'Feeds checked successfully',
       feeds_processed: feeds.length,
       updates_found: totalUpdates,
+      results,
     });
   } catch (error) {
-    console.error('Cron job error:', error);
+    console.error('[CRON] Fatal error:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
 }
-
