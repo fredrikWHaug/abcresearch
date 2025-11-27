@@ -163,6 +163,21 @@ Keep the response concise (2-3 sentences) and natural. Don't use bullet points o
       });
 
       if (!searchResponse.ok) {
+        const searchErrorText = await searchResponse.text();
+        console.error('Search response API error:', searchResponse.status, searchErrorText);
+        
+        // HW11: Handle content filtering errors gracefully
+        if (searchErrorText.includes('content filtering policy') || searchErrorText.includes('content_filter')) {
+          return res.status(200).json({
+            success: true,
+            response: "I couldn't generate that response due to content guidelines. Could you try a different search query?",
+            shouldSearch: false,
+            searchSuggestions: [],
+            intent: 'search_request',
+            contentFiltered: true
+          });
+        }
+        
         throw new Error('Failed to generate search response');
       }
 
@@ -199,6 +214,19 @@ Keep the response concise (2-3 sentences) and natural. Don't use bullet points o
     if (!conversationalResponse.ok) {
       const errorText = await conversationalResponse.text();
       console.error('Conversational response API error:', conversationalResponse.status, errorText);
+      
+      // HW11: Handle content filtering errors gracefully
+      if (errorText.includes('content filtering policy') || errorText.includes('content_filter')) {
+        return res.status(200).json({
+          success: true,
+          response: "I couldn't generate that response due to content guidelines. Could you rephrase your question or ask something related to medical research instead?",
+          shouldSearch: false,
+          searchSuggestions: [],
+          intent: 'general_question',
+          contentFiltered: true
+        });
+      }
+      
       throw new Error(`Failed to generate conversational response: ${conversationalResponse.status} - ${errorText}`);
     }
 

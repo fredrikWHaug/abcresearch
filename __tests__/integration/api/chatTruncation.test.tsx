@@ -75,5 +75,48 @@ describe('Chat Response Truncation - Bug Detection', () => {
       expect(conversationalTokens).toBeGreaterThanOrEqual(1000)
     }
   })
+
+  it('should handle content filter errors gracefully', () => {
+    const fs = require('fs')
+    const path = require('path')
+    const apiFilePath = path.resolve(__dirname, '../../../api/generate-response.ts')
+    const apiContent = fs.readFileSync(apiFilePath, 'utf-8')
+    
+    // Check that we catch content filtering errors
+    const hasContentFilterHandler = apiContent.includes('content filtering') || 
+                                    apiContent.includes('content_filter') ||
+                                    apiContent.includes('blocked by content')
+    
+    console.log(`Content filter error handling: ${hasContentFilterHandler ? 'IMPLEMENTED' : 'MISSING'}`)
+    
+    if (!hasContentFilterHandler) {
+      console.warn('IMPROVEMENT NEEDED: Should catch and handle content filter errors gracefully')
+    }
+    
+    // After fix, should have graceful handling
+    expect(hasContentFilterHandler).toBe(true)
+  })
+
+  it('should verify graceful error message format', () => {
+    const fs = require('fs')
+    const path = require('path')
+    const apiFilePath = path.resolve(__dirname, '../../../api/generate-response.ts')
+    const apiContent = fs.readFileSync(apiFilePath, 'utf-8')
+    
+    // Check that the error message is user-friendly
+    const hasUserFriendlyMessage = apiContent.includes("couldn't generate that response") &&
+                                   apiContent.includes('content guidelines')
+    
+    console.log(`User-friendly error message: ${hasUserFriendlyMessage ? 'IMPLEMENTED' : 'MISSING'}`)
+    
+    expect(hasUserFriendlyMessage).toBe(true)
+    
+    // Verify we return 200 status (not 500) for graceful handling
+    const returns200ForFilter = apiContent.includes('content filtering') && 
+                                apiContent.match(/return res\.status\(200\)/)
+    
+    console.log(`Returns 200 for content filter: ${returns200ForFilter ? 'YES' : 'NO'}`)
+    expect(returns200ForFilter).toBeTruthy()
+  })
 })
 
