@@ -26,9 +26,11 @@ interface DashboardProps {
   projectName?: string;
   projectId?: number | null;
   showHeader?: boolean; // Whether to show Dashboard's own header (false when inside AppShell)
+  insideAppShell?: boolean; // Whether Dashboard is rendered inside AppShell (hides hamburger/sign-out, shows only tabs)
+  initialView?: string; // Initial view mode from URL routing (research, pipeline, marketmap, dataextraction, realtimefeed)
 }
 
-export function Dashboard({ initialShowSavedMaps = false, projectName = '', projectId = null, showHeader = true }: DashboardProps) {
+export function Dashboard({ initialShowSavedMaps = false, projectName = '', projectId = null, showHeader = true, insideAppShell = false, initialView = 'research' }: DashboardProps) {
   const { signOut, isGuest, exitGuestMode } = useAuth()
   
   const handleSignOut = async () => {
@@ -193,7 +195,17 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
   const [, setPressReleases] = useState<PressRelease[]>([])
   const [, setIRDecks] = useState<IRDeck[]>([])
   const [, setPapersLoading] = useState(false)
-  const [viewMode, setViewMode] = useState<'research' | 'pipeline' | 'marketmap' | 'dataextraction' | 'realtimefeed'>(initialShowSavedMaps ? 'marketmap' : 'research')
+  const [viewMode, setViewMode] = useState<'research' | 'pipeline' | 'marketmap' | 'dataextraction' | 'realtimefeed'>(
+    initialShowSavedMaps ? 'marketmap' : (initialView as any) || 'research'
+  )
+  
+  // Sync viewMode with URL changes when inside AppShell
+  useEffect(() => {
+    if (insideAppShell && initialView) {
+      setViewMode(initialView as any)
+    }
+  }, [initialView, insideAppShell])
+  
   const [slideData, setSlideData] = useState<SlideData | null>(null)
   const [generatingSlide, setGeneratingSlide] = useState(false)
   const [slideError, setSlideError] = useState<string | null>(null)
@@ -888,9 +900,11 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
   const Header = ({ currentProjectId }: { currentProjectId?: number | null } = {}) => (
     <div className="h-16 bg-white border-b border-gray-200 z-50 flex items-center relative">
       {/* Left Side - Hamburger Menu (only for authenticated users) + Guest Banner + Context Indicator */}
-      <div className="flex items-center gap-3 px-6">
-        {/* Hamburger Menu - Only show for authenticated users */}
-        {!isGuest && (
+      {/* Only show left side if NOT inside AppShell */}
+      {!insideAppShell && (
+        <div className="flex items-center gap-3 px-6">
+          {/* Hamburger Menu - Only show for authenticated users */}
+          {!isGuest && (
           <div className="relative menu-container">
             <button
               onClick={handleMenuToggle}
@@ -917,10 +931,11 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
         
         {/* Guest Mode Indicator */}
         <GuestModeIndicator />
-      </div>
+        </div>
+      )}
       
       {/* Toggle Buttons - Absolutely positioned center with equal widths */}
-      {(currentProjectId || hasSearched || viewMode === 'pipeline' || viewMode === 'marketmap' || viewMode === 'dataextraction' || viewMode === 'realtimefeed') && (
+      {(projectId !== null || currentProjectId || hasSearched || viewMode === 'pipeline' || viewMode === 'marketmap' || viewMode === 'dataextraction' || viewMode === 'realtimefeed') && (
         <div 
           className="absolute z-20"
           style={{ left: '50%', transform: 'translateX(-50%)' }}
