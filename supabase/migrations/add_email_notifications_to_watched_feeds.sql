@@ -29,3 +29,13 @@ CREATE INDEX IF NOT EXISTS idx_trial_updates_email_sent
 
 COMMENT ON COLUMN trial_updates.email_sent IS 'Tracks whether this update has been included in an email notification';
 
+-- Add sponsor column to trial_updates to store lead sponsor name
+ALTER TABLE trial_updates
+ADD COLUMN IF NOT EXISTS sponsor TEXT DEFAULT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_trial_updates_sponsor 
+  ON trial_updates(sponsor) 
+  WHERE sponsor IS NOT NULL;
+
+COMMENT ON COLUMN trial_updates.sponsor IS 'Lead sponsor name from ClinicalTrials.gov';
+

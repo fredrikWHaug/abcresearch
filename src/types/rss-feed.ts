@@ -36,6 +36,7 @@ export interface TrialUpdate {
   sponsor?: string;
   created_at: string;
   email_sent?: boolean;
+  sponsor?: string;
 }
 
 export interface TimelineItem {
