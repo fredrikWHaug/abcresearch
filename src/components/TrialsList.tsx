@@ -23,7 +23,8 @@ export function TrialsList({ trials, loading, query }: TrialsListProps) {
     );
   }
 
-  if (!query) {
+  // Show empty state only if there are no trials AND no query
+  if (trials.length === 0 && !query) {
     return (
       <div className="w-full h-full flex items-center justify-center">
         <div className="text-center text-gray-500">
@@ -34,7 +35,8 @@ export function TrialsList({ trials, loading, query }: TrialsListProps) {
     );
   }
 
-  if (trials.length === 0) {
+  // Show no results message if query exists but no trials found
+  if (trials.length === 0 && query) {
     return (
       <div className="w-full h-full flex items-center justify-center">
         <div className="text-center">
