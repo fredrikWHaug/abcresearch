@@ -185,19 +185,18 @@ export function ResearchChatView({
   onKeyPress,
   loading
 }: ResearchChatViewProps) {
-  const chatContainerRef = React.useRef<HTMLDivElement>(null)
+  const messagesEndRef = React.useRef<HTMLDivElement>(null)
 
-  // Auto-scroll to bottom when chat history changes
+  // Auto-scroll to bottom on new messages
   React.useEffect(() => {
-    if (chatContainerRef.current) {
-      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight
-    }
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [chatHistory])
 
   return (
-    <div className="h-full flex flex-col overflow-hidden">
-      <div className="flex-1 min-h-0 flex flex-col max-w-4xl mx-auto w-full px-6 py-8">
-        <div ref={chatContainerRef} className="flex-1 min-h-0 overflow-y-auto mb-6">
+    <div className="h-full flex flex-col overflow-hidden bg-gray-50">
+      {/* Scrollable messages area */}
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        <div className="max-w-4xl mx-auto w-full px-6 py-8">
           <div className="space-y-4">
             {chatHistory.map((item, index) => (
               <div
@@ -318,37 +317,44 @@ export function ResearchChatView({
                 )}
               </div>
             ))}
+            {/* Invisible element for auto-scroll */}
+            <div ref={messagesEndRef} />
           </div>
         </div>
+      </div>
 
-        <ContextSummary
-          selectedPapers={selectedPapers}
-          selectedPressReleases={selectedPressReleases}
-          showContextPanel={showContextPanel}
-          onToggleContextPanel={onToggleContextPanel}
-          onRemovePaper={onRemovePaper}
-          onRemovePressRelease={onRemovePressRelease}
-          onClearContext={onClearContext}
-        />
-
-        <div className="relative">
-          <input
-            type="text"
-            value={message}
-            onChange={(e) => onMessageChange(e.target.value)}
-            onKeyPress={onKeyPress}
-            placeholder="Respond to ABCresearch's agent..."
-            className="flex h-[60px] w-full rounded-md border border-gray-300 bg-white pl-4 pr-16 py-2 text-lg ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={loading}
-            autoFocus
+      {/* Fixed input area at bottom */}
+      <div className="flex-shrink-0 border-t border-gray-200 bg-white shadow-lg">
+        <div className="max-w-4xl mx-auto w-full px-6 py-4">
+          <ContextSummary
+            selectedPapers={selectedPapers}
+            selectedPressReleases={selectedPressReleases}
+            showContextPanel={showContextPanel}
+            onToggleContextPanel={onToggleContextPanel}
+            onRemovePaper={onRemovePaper}
+            onRemovePressRelease={onRemovePressRelease}
+            onClearContext={onClearContext}
           />
-          <button
-            onClick={onSendMessage}
-            disabled={!message.trim() || loading}
-            className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-gray-800 hover:bg-gray-900 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
-          >
-            <ArrowUp className="h-4 w-4 text-white" />
-          </button>
+
+          <div className="relative">
+            <input
+              type="text"
+              value={message}
+              onChange={(e) => onMessageChange(e.target.value)}
+              onKeyPress={onKeyPress}
+              placeholder="Respond to ABCresearch's agent..."
+              className="flex h-[60px] w-full rounded-md border border-gray-300 bg-white pl-4 pr-16 py-2 text-lg ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={loading}
+              autoFocus
+            />
+            <button
+              onClick={onSendMessage}
+              disabled={!message.trim() || loading}
+              className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-gray-800 hover:bg-gray-900 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
+            >
+              <ArrowUp className="h-4 w-4 text-white" />
+            </button>
+          </div>
         </div>
       </div>
     </div>

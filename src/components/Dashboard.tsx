@@ -1194,8 +1194,8 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
   }) => {
     if (variant === 'initial') {
     return (
-        <div className={showHeader ? "h-screen flex flex-col bg-background" : "flex flex-col"}>
-          <div className={showHeader ? "flex-1 overflow-auto flex items-center justify-center" : "overflow-auto flex items-center justify-center py-12"}>
+        <div className={showHeader ? "h-screen flex flex-col bg-gray-50" : "h-full flex flex-col bg-gray-50"}>
+          <div className={showHeader ? "flex-1 overflow-auto flex items-center justify-center" : "flex-1 overflow-auto flex items-center justify-center"}>
             {children}
           </div>
         {showHeader && (
@@ -1209,9 +1209,9 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
   }
 
     return (
-      <div className={showHeader ? "h-screen flex flex-col" : "flex flex-col"}>
+      <div className={showHeader ? "h-screen flex flex-col bg-gray-50" : "h-full flex flex-col bg-gray-50"}>
         {showHeader && <Header currentProjectId={currentProjectId} />}
-        <div className={showHeader ? "flex-1 min-h-0" : "flex-1"}>
+        <div className="flex-1 min-h-0">
           {children}
         </div>
         <ProjectModal />
