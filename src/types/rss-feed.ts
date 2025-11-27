@@ -16,6 +16,8 @@ export interface WatchedFeed {
   created_at: string;
   last_checked_at?: string;
   refresh_status?: RefreshStatus;
+  notification_email?: string;
+  last_email_sent_at?: string;
 }
 
 export interface TrialUpdate {
@@ -33,6 +35,7 @@ export interface TrialUpdate {
   llm_summary: string;
   sponsor?: string;
   created_at: string;
+  email_sent?: boolean;
 }
 
 export interface TimelineItem {
