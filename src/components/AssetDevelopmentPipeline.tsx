@@ -230,7 +230,7 @@ export function AssetDevelopmentPipeline({
             </div>
             <div className="flex items-center gap-3">
               {/* Drug Limit Input */}
-              {hasDrugData && !usedLLM && (
+              {hasDrugData && (
                 <div className="flex items-center gap-2">
                   <label htmlFor="drugLimit" className="text-sm font-medium text-gray-700">
                     # of drugs:
@@ -247,7 +247,7 @@ export function AssetDevelopmentPipeline({
                 </div>
               )}
               {/* AI Extraction Button */}
-              {hasDrugData && !usedLLM && (
+              {hasDrugData && (
                 <Button
                   onClick={handleLLMExtraction}
                   disabled={isExtracting}
@@ -261,7 +261,7 @@ export function AssetDevelopmentPipeline({
                   ) : (
                     <>
                       <Sparkles className="h-4 w-4" />
-                      AI Extract
+                      {usedLLM ? 'Re-Extract' : 'AI Extract'}
                     </>
                   )}
                 </Button>
