@@ -222,6 +222,14 @@ export function ResearchSplitView({
 }: ResearchSplitViewProps) {
   const isStageTwoInProgress = searchProgress.total > 0 && searchProgress.current < searchProgress.total
   const currentQuery = initialSearchQueries?.originalQuery || ''
+  const chatContainerRef = React.useRef<HTMLDivElement>(null)
+
+  // Auto-scroll to bottom when chat history changes
+  React.useEffect(() => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight
+    }
+  }, [chatHistory])
 
   return (
     <div className="h-full flex flex-col relative overflow-hidden">
@@ -229,7 +237,7 @@ export function ResearchSplitView({
 
       <div className="flex-1 min-h-0 flex overflow-hidden">
         <div className="w-1/2 bg-background flex flex-col min-h-0">
-          <div className="flex-1 min-h-0 overflow-y-auto p-6">
+          <div ref={chatContainerRef} className="flex-1 min-h-0 overflow-y-auto p-6">
             <div className="max-w-2xl mx-auto space-y-4">
               {chatHistory.map((item, index) => (
                 <div
