@@ -47,6 +47,8 @@ The documentation is organized sequentially for easy navigation:
 
 **[11. Testing](./11-testing.md)** - Test suite architecture, helpers, and CI/CD integration
 
+**[12. CI/CD & Production](./12-ci-cd-production.md)** - Pipeline implementation, deployment, and troubleshooting
+
 ## Reading Guide
 
 ### For First-Time Readers
@@ -66,7 +68,8 @@ The documentation is organized sequentially for easy navigation:
 - **Database changes**: Read 3 (Database) - note the project-centric design
 - **AI/LLM optimization**: Read 6 (LLM Strategy) and 7 (Model Options)
 - **UI components**: Read 8 (Design Scheme) and 1 (Components)
-- **Testing and CI/CD**: Read 11 (Testing) for test suite architecture and helpers
+- **Testing and CI/CD**: Read 11 (Testing) for test suite architecture and 12 (CI/CD) for deployment
+- **Troubleshooting deployments**: Read 12 (CI/CD) for common issues and solutions
 
 ## Key Concepts
 
@@ -86,5 +89,5 @@ All documentation follows these conventions:
 
 ---
 
-**Last Updated**: November 26, 2025
+**Last Updated**: November 27, 2025
 
