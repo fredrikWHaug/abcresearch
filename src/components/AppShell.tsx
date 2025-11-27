@@ -11,9 +11,9 @@ export function AppShell() {
   const isHomePage = location.pathname === '/app/home'
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
       {/* Top Navigation Bar */}
-      <nav className="border-b border-gray-200 bg-white shadow-sm sticky top-0 z-50 backdrop-blur-sm bg-white/95">
+      <nav className="flex-shrink-0 border-b border-gray-200 bg-white shadow-sm backdrop-blur-sm bg-white/95">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           {/* Left: Logo/Home Button */}
           <button
@@ -62,8 +62,8 @@ export function AppShell() {
         </div>
       </nav>
 
-      {/* Main Content Area */}
-      <main className="max-w-7xl mx-auto px-6 py-10">
+      {/* Main Content Area - fills remaining height */}
+      <main className="flex-1 min-h-0 overflow-hidden">
         <Outlet />
       </main>
     </div>
