@@ -185,10 +185,19 @@ export function ResearchChatView({
   onKeyPress,
   loading
 }: ResearchChatViewProps) {
+  const chatContainerRef = React.useRef<HTMLDivElement>(null)
+
+  // Auto-scroll to bottom when chat history changes
+  React.useEffect(() => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight
+    }
+  }, [chatHistory])
+
   return (
     <div className="h-full flex flex-col overflow-hidden">
       <div className="flex-1 min-h-0 flex flex-col max-w-4xl mx-auto w-full px-6 py-8">
-        <div className="flex-1 min-h-0 overflow-y-auto mb-6">
+        <div ref={chatContainerRef} className="flex-1 min-h-0 overflow-y-auto mb-6">
           <div className="space-y-4">
             {chatHistory.map((item, index) => (
               <div
