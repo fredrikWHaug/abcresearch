@@ -16,7 +16,7 @@
   "crons": [
     {
       "path": "/api/cron-check-rss-feeds",
-      "schedule": "0 0 * * *"
+      "schedule": "0 14 * * *"
     }
   ],
   "headers": [
