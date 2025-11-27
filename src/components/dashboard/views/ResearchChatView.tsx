@@ -186,10 +186,15 @@ export function ResearchChatView({
   loading
 }: ResearchChatViewProps) {
   const messagesEndRef = React.useRef<HTMLDivElement>(null)
+  const prevChatLengthRef = React.useRef(0)
 
-  // Auto-scroll to bottom on new messages
+  // Auto-scroll ONLY when new messages are added (not on content updates)
   React.useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    // Only scroll if a NEW message was added, not if existing messages were updated
+    if (chatHistory.length > prevChatLengthRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'auto' })
+      prevChatLengthRef.current = chatHistory.length
+    }
   }, [chatHistory])
 
   return (
