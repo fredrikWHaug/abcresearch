@@ -79,14 +79,43 @@ function ProjectRoute() {
   return <Dashboard projectId={numericProjectId} />
 }
 
+// Auth route wrapper - redirects if already authenticated
+function AuthRoute() {
+  const { user, loading, isGuest } = useAuth()
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-foreground mx-auto"></div>
+          <p className="mt-4 text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // If guest, redirect to Dashboard
+  if (isGuest) {
+    return <Navigate to="/app/project/null" replace />
+  }
+
+  // If authenticated, redirect to home
+  if (user) {
+    return <Navigate to="/app/home" replace />
+  }
+
+  // Not authenticated - show auth form
+  return <AuthForm />
+}
+
 function AppContent() {
   return (
     <Routes>
       {/* Root - redirect based on auth status */}
       <Route path="/" element={<RootRedirect />} />
 
-      {/* Auth route */}
-      <Route path="/auth" element={<AuthForm />} />
+      {/* Auth route - redirects if already authenticated */}
+      <Route path="/auth" element={<AuthRoute />} />
 
       {/* Protected app routes */}
       <Route
