@@ -108,7 +108,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       } else if (req.method === 'POST') {
         // Add new watched feed
         const body = req.body;
-        const { searchTerm, label, locStr, country, dateField } = body;
+        const { searchTerm, label, locStr, country, dateField, notificationEmail } = body;
 
         if (!searchTerm) {
           return res.status(400).json({ error: 'Search term is required' });
@@ -127,6 +127,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             user_id: user.id,
             feed_url: feedUrl,
             label: label || `${searchTerm} trials`,
+            notification_email: notificationEmail || null,
           })
           .select()
           .single();
@@ -155,7 +156,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.json({ feed: data });
       } else if (req.method === 'PUT') {
         // Update watched feed
-        const { feedId, feedUrl, label } = req.body;
+        const { feedId, feedUrl, label, notificationEmail } = req.body;
 
         if (!feedId || !feedUrl) {
           return res.status(400).json({ error: 'Feed ID and URL required' });
@@ -166,6 +167,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           .update({
             feed_url: feedUrl,
             label: label || 'Clinical Trials Feed',
+            notification_email: notificationEmail || null,
           })
           .eq('id', feedId)
           .eq('user_id', user.id)

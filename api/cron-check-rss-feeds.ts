@@ -2,6 +2,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 import { processFeedUpdates } from './utils/rss-feed-utils.js';
+import { sendTrialUpdateEmail } from './services/emailService.js';
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -82,6 +83,50 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         });
 
         console.log(`[CRON] ✅ Feed ${feed.label}: ${result.newUpdates} new updates`);
+
+        // 3. Send email notification if configured and there are new updates
+        if (feed.notification_email && result.newUpdates > 0 && result.updates && result.updates.length > 0) {
+          console.log(`[CRON] Sending email to ${feed.notification_email} for feed ${feed.id}`);
+          
+          try {
+            const emailSent = await sendTrialUpdateEmail({
+              feedLabel: feed.label,
+              updates: result.updates,
+              recipientEmail: feed.notification_email,
+            });
+
+            if (emailSent) {
+              console.log(`[CRON] ✅ Email sent successfully to ${feed.notification_email}`);
+              
+              // Update last_email_sent_at timestamp
+              await supabase
+                .from('watched_feeds')
+                .update({
+                  last_email_sent_at: new Date().toISOString(),
+                })
+                .eq('id', feed.id);
+
+              // Mark updates as emailed
+              const updateIds = result.updates.map(u => u.nctId);
+              if (updateIds.length > 0) {
+                await supabase
+                  .from('trial_updates')
+                  .update({ email_sent: true })
+                  .eq('feed_id', feed.id)
+                  .in('nct_id', updateIds);
+              }
+            } else {
+              console.log(`[CRON] ⚠️ Email sending failed for ${feed.notification_email}`);
+            }
+          } catch (emailError) {
+            console.error(`[CRON] ❌ Error sending email:`, emailError);
+            // Don't fail the entire cron job if email fails
+          }
+        } else if (feed.notification_email && result.newUpdates === 0) {
+          console.log(`[CRON] No new updates for feed ${feed.id}, skipping email`);
+        } else if (!feed.notification_email) {
+          console.log(`[CRON] No notification email configured for feed ${feed.id}`);
+        }
       } catch (error) {
         console.error(`[CRON] ❌ Error processing feed ${feed.id}:`, error);
         results.push({

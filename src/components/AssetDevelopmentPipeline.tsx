@@ -4,7 +4,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Search, Filter, Building2, FlaskConical, Calendar, AlertCircle, Sparkles, Loader2, Info, Users } from 'lucide-react';
+import { Search, Filter, Building2, FlaskConical, Calendar, AlertCircle, Sparkles, Loader2, Info, Users, Download } from 'lucide-react';
 import { DrugDetailModal } from '@/components/DrugDetailModal';
 import type { PipelineDrugCandidate, PipelineStage } from '@/types/pipeline';
 import type { ClinicalTrial } from '@/types/trials';
@@ -12,6 +12,7 @@ import type { DrugGroup } from '@/services/drugGroupingService';
 import type { PubMedArticle } from '@/types/papers';
 import { PipelineService } from '@/services/pipelineService';
 import { PipelineLLMService } from '@/services/pipelineLLMService';
+import { exportPipelineToPPT } from '@/services/pipelineExportService';
 
 interface AssetDevelopmentPipelineProps {
   candidates?: PipelineDrugCandidate[];
@@ -44,6 +45,7 @@ export function AssetDevelopmentPipeline({
   const [selectedDrug, setSelectedDrug] = useState<DrugGroup | null>(null);
   const [showDrugModal, setShowDrugModal] = useState(false);
   const [drugLimit, setDrugLimit] = useState<number>(10);
+  const [isExporting, setIsExporting] = useState(false);
 
   // Sync external candidates to local state when they change
   React.useEffect(() => {
@@ -88,6 +90,27 @@ export function AssetDevelopmentPipeline({
       setExtractionError(error instanceof Error ? error.message : 'Failed to extract pipeline data');
     } finally {
       setIsExtracting(false);
+    }
+  };
+
+  // Handle PowerPoint export
+  const handleExportPPT = async () => {
+    if (processedCandidates.length === 0) {
+      setExtractionError('No pipeline data to export. Please extract data first.');
+      return;
+    }
+
+    setIsExporting(true);
+    setExtractionError(null);
+
+    try {
+      await exportPipelineToPPT(processedCandidates, query);
+      console.log('[Pipeline] PowerPoint export successful');
+    } catch (error) {
+      console.error('PowerPoint export failed:', error);
+      setExtractionError(error instanceof Error ? error.message : 'Failed to export PowerPoint');
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -267,13 +290,32 @@ export function AssetDevelopmentPipeline({
                 </Button>
               )}
               {hasExtractedData && (
-                <button
-                  onClick={() => setShowFilters(!showFilters)}
-                  className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
-                >
-                  <Filter className="h-4 w-4" />
-                  <span className="text-sm font-medium">Filters</span>
-                </button>
+                <>
+                  <Button
+                    onClick={handleExportPPT}
+                    disabled={isExporting}
+                    className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white"
+                  >
+                    {isExporting ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Exporting...
+                      </>
+                    ) : (
+                      <>
+                        <Download className="h-4 w-4" />
+                        Export PPT
+                      </>
+                    )}
+                  </Button>
+                  <button
+                    onClick={() => setShowFilters(!showFilters)}
+                    className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                  >
+                    <Filter className="h-4 w-4" />
+                    <span className="text-sm font-medium">Filters</span>
+                  </button>
+                </>
               )}
             </div>
           </div>

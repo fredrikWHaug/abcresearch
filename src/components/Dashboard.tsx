@@ -335,12 +335,13 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
       // THEN: Load chat history and data for new project from database
       console.log('[Dashboard] 📥 Loading chat history for project', currentProjectId, 'from database...')
       
-      // Load chat history and search queries
-      import('@/services/projectService').then(async ({ loadChatHistory, loadSearchQueries }) => {
+      // Load chat history, search queries, and pipeline candidates
+      import('@/services/projectService').then(async ({ loadChatHistory, loadSearchQueries, loadPipelineCandidates }) => {
         try {
-          const [dbChat, searchQueries] = await Promise.all([
+          const [dbChat, searchQueries, pipelineCands] = await Promise.all([
             loadChatHistory(currentProjectId),
-            loadSearchQueries(currentProjectId)
+            loadSearchQueries(currentProjectId),
+            loadPipelineCandidates(currentProjectId)
           ])
           
           // Load search queries
@@ -349,6 +350,15 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
             setInitialSearchQueries(searchQueries)
           } else {
             setInitialSearchQueries(null)
+          }
+          
+          // Load pipeline candidates
+          if (pipelineCands && pipelineCands.length > 0) {
+            console.log('[Dashboard] ✅ Loaded', pipelineCands.length, 'pipeline candidates for project', currentProjectId)
+            setPipelineCandidates(pipelineCands)
+          } else {
+            console.log('[Dashboard] ✅ No pipeline candidates for project', currentProjectId)
+            setPipelineCandidates([])
           }
           
           // Load chat history
@@ -503,6 +513,18 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
       });
     }
   }, [viewMode, chatHistory, papers]);
+
+  // Auto-save pipeline candidates when they change
+  useEffect(() => {
+    if (currentProjectId && pipelineCandidates.length > 0) {
+      console.log('[Dashboard] Pipeline candidates changed, auto-saving to database...')
+      import('@/services/projectService').then(({ savePipelineCandidates }) => {
+        savePipelineCandidates(currentProjectId, pipelineCandidates).catch(error => {
+          console.error('[Dashboard] Failed to save pipeline candidates:', error)
+        })
+      })
+    }
+  }, [pipelineCandidates, currentProjectId])
 
   const handleSendMessage = async (overrideMessage?: string) => {
     const rawMessage = overrideMessage ?? message;

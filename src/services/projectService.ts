@@ -225,3 +225,53 @@ export async function loadSearchQueries(projectId: number): Promise<{
   return data?.search_queries || null
 }
 
+/**
+ * Save pipeline candidates for a project
+ */
+export async function savePipelineCandidates(
+  projectId: number, 
+  pipelineCandidates: any[]
+): Promise<void> {
+  console.log('[ProjectService] Saving pipeline candidates:', {
+    projectId,
+    candidatesCount: pipelineCandidates.length
+  })
+
+  const { error } = await supabase
+    .from('projects')
+    .update({
+      pipeline_candidates: pipelineCandidates,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', projectId)
+
+  if (error) {
+    console.error('[ProjectService] Error saving pipeline candidates:', error)
+    throw error
+  }
+
+  console.log('[ProjectService] Pipeline candidates saved successfully')
+}
+
+/**
+ * Load pipeline candidates for a project
+ */
+export async function loadPipelineCandidates(projectId: number): Promise<any[]> {
+  console.log('[ProjectService] Loading pipeline candidates for project:', projectId)
+
+  const { data, error } = await supabase
+    .from('projects')
+    .select('pipeline_candidates')
+    .eq('id', projectId)
+    .single()
+
+  if (error) {
+    console.error('[ProjectService] Error loading pipeline candidates:', error)
+    return []
+  }
+
+  const candidates = data?.pipeline_candidates || []
+  console.log('[ProjectService] Loaded pipeline candidates:', candidates.length)
+  return candidates
+}
+
