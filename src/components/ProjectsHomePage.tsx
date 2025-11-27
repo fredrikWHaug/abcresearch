@@ -86,9 +86,9 @@ export function ProjectsHomePage() {
 
   return (
     <div className="min-h-full px-6 py-10 max-w-7xl mx-auto">
-      {/* Sticky Header */}
-      <div className="sticky top-0 bg-gray-50 z-10 pb-6 mb-4 -mx-6 px-6">
-        <h1 className="text-4xl font-bold text-gray-900 mb-3 pt-4">
+      {/* Header */}
+      <div className="mb-10">
+        <h1 className="text-4xl font-bold text-gray-900 mb-3">
           Your Projects
         </h1>
         <p className="text-gray-600 text-lg">
