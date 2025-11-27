@@ -76,7 +76,8 @@ function ProjectRoute() {
   // Convert string projectId to number, or null if not provided or "null" string
   const numericProjectId = projectId && projectId !== 'null' ? parseInt(projectId, 10) : null
 
-  return <Dashboard projectId={numericProjectId} />
+  // showHeader={false} because AppShell provides the navigation
+  return <Dashboard projectId={numericProjectId} showHeader={false} />
 }
 
 // Auth route wrapper - redirects if already authenticated

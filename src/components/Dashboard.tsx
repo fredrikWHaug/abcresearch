@@ -25,10 +25,10 @@ interface DashboardProps {
   initialShowSavedMaps?: boolean;
   projectName?: string;
   projectId?: number | null;
+  showHeader?: boolean; // Whether to show Dashboard's own header (false when inside AppShell)
 }
 
-
-export function Dashboard({ initialShowSavedMaps = false, projectName = '', projectId = null }: DashboardProps) {
+export function Dashboard({ initialShowSavedMaps = false, projectName = '', projectId = null, showHeader = true }: DashboardProps) {
   const { signOut, isGuest, exitGuestMode } = useAuth()
   
   const handleSignOut = async () => {
@@ -335,13 +335,12 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
       // THEN: Load chat history and data for new project from database
       console.log('[Dashboard] 📥 Loading chat history for project', currentProjectId, 'from database...')
       
-      // Load chat history, search queries, and pipeline candidates
-      import('@/services/projectService').then(async ({ loadChatHistory, loadSearchQueries, loadPipelineCandidates }) => {
+      // Load chat history and search queries
+      import('@/services/projectService').then(async ({ loadChatHistory, loadSearchQueries }) => {
         try {
-          const [dbChat, searchQueries, pipelineCands] = await Promise.all([
+          const [dbChat, searchQueries] = await Promise.all([
             loadChatHistory(currentProjectId),
-            loadSearchQueries(currentProjectId),
-            loadPipelineCandidates(currentProjectId)
+            loadSearchQueries(currentProjectId)
           ])
           
           // Load search queries
@@ -350,15 +349,6 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
             setInitialSearchQueries(searchQueries)
           } else {
             setInitialSearchQueries(null)
-          }
-          
-          // Load pipeline candidates
-          if (pipelineCands && pipelineCands.length > 0) {
-            console.log('[Dashboard] ✅ Loaded', pipelineCands.length, 'pipeline candidates for project', currentProjectId)
-            setPipelineCandidates(pipelineCands)
-          } else {
-            console.log('[Dashboard] ✅ No pipeline candidates for project', currentProjectId)
-            setPipelineCandidates([])
           }
           
           // Load chat history
@@ -514,18 +504,6 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
     }
   }, [viewMode, chatHistory, papers]);
 
-  // Auto-save pipeline candidates when they change
-  useEffect(() => {
-    if (currentProjectId && pipelineCandidates.length > 0) {
-      console.log('[Dashboard] Pipeline candidates changed, auto-saving to database...')
-      import('@/services/projectService').then(({ savePipelineCandidates }) => {
-        savePipelineCandidates(currentProjectId, pipelineCandidates).catch(error => {
-          console.error('[Dashboard] Failed to save pipeline candidates:', error)
-        })
-      })
-    }
-  }, [pipelineCandidates, currentProjectId])
-
   const handleSendMessage = async (overrideMessage?: string) => {
     const rawMessage = overrideMessage ?? message;
     if (!rawMessage.trim()) return;
@@ -666,36 +644,24 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
         normalizedName: drugName.toLowerCase(),
         papers: sortedPapers,
         trials: sortedTrials,
-        pressReleases: result.pressReleases || [],
+        pressReleases: [],
         irDecks: result.irDecks || [],
-        totalResults: sortedPapers.length + sortedTrials.length + (result.pressReleases?.length || 0) + (result.irDecks?.length || 0)
+        totalResults: sortedPapers.length + sortedTrials.length + (result.irDecks?.length || 0)
       };
       
       // Update drugGroups to include this updated drug or add it if new
-      let updatedDrugGroups: DrugGroup[] = [];
       setDrugGroups(prev => {
         const existing = prev.find(g => g.normalizedName === drugName.toLowerCase());
         if (existing) {
           // Update existing drug
-          updatedDrugGroups = prev.map(g => 
+          return prev.map(g => 
             g.normalizedName === drugName.toLowerCase() ? updatedDrugGroup : g
           ).sort((a, b) => b.totalResults - a.totalResults);
         } else {
           // Add new drug
-          updatedDrugGroups = [...prev, updatedDrugGroup].sort((a, b) => b.totalResults - a.totalResults);
+          return [...prev, updatedDrugGroup].sort((a, b) => b.totalResults - a.totalResults);
         }
-        return updatedDrugGroups;
       });
-      
-      // Save drug groups to database (background task)
-      if (currentProjectId) {
-        console.log('[Dashboard] Deep Dive: Saving updated drug groups to database...');
-        import('@/services/drugAssociationService').then(({ saveDrugGroups }) => {
-          saveDrugGroups(currentProjectId, updatedDrugGroups).catch(error => {
-            console.error('[Dashboard] Deep Dive: Failed to save drug groups:', error);
-          });
-        });
-      }
       
       // Open the drug modal to show results
       setSelectedDrug(updatedDrugGroup);
@@ -703,21 +669,14 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
       // Notify success (remove progress messages)
       setChatHistory(prev => {
         const filtered = prev.filter(item => !item.message.startsWith('progress:'));
-        const parts = [`${sortedTrials.length} trials`, `${sortedPapers.length} papers`];
-        if (result.pressReleases && result.pressReleases.length > 0) {
-          parts.push(`${result.pressReleases.length} press releases`);
-        }
-        if (result.irDecks && result.irDecks.length > 0) {
-          parts.push(`${result.irDecks.length} IR decks`);
-        }
         return [...filtered, {
           type: 'system' as const,
-          message: `Found ${parts.join(', ')} for "${drugName}" (sorted by recency and size)`,
+          message: `Found ${sortedTrials.length} trials and ${sortedPapers.length} papers for "${drugName}" (sorted by recency and size)`,
           searchSuggestions: []
         }];
       });
       
-      console.log(`✅ Deep Dive complete: ${sortedTrials.length} trials, ${sortedPapers.length} papers, ${result.pressReleases?.length || 0} press releases, ${result.irDecks?.length || 0} IR decks`);
+      console.log(`✅ Deep Dive complete: ${sortedTrials.length} trials, ${sortedPapers.length} papers`);
     } catch (error) {
       console.error('Error in drug-specific search:', error);
       setChatHistory(prev => [...prev, {
@@ -1222,23 +1181,48 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
     />
   );
 
-  // Determine which view to show
-  const showInitialSearch = !hasSearched && viewMode !== 'pipeline' && viewMode !== 'marketmap' && viewMode !== 'realtimefeed' && viewMode !== 'dataextraction';
-  const showMarketMap = viewMode === 'marketmap';
-  const showPipeline = viewMode === 'pipeline';
-  const showDataExtraction = viewMode === 'dataextraction';
-  const showRealtimeFeed = viewMode === 'realtimefeed';
-  const showResearchSplit = hasSearched && (drugGroups.length > 0 || searchProgress.total > 0) && !showMarketMap && !showPipeline && !showDataExtraction && !showRealtimeFeed;
-  const showResearchChat = !showInitialSearch && !showMarketMap && !showPipeline && !showDataExtraction && !showRealtimeFeed && !showResearchSplit;
+  type ViewVariant = 'initial' | 'default';
 
-  // Render all views but only show the active one
-  // This prevents unmounting/remounting and preserves component state
-  
-  // Use inline layout structure to avoid recreating wrapper component
-  const layoutContent = (
-    <>
-      {/* Initial Research View */}
-      <div key="initial-research-view" className={showInitialSearch ? 'flex items-center justify-center' : 'hidden'}>
+  const DashboardLayout = ({
+    variant = 'default',
+    currentProjectId,
+    children
+  }: {
+    variant?: ViewVariant;
+    currentProjectId: number | null;
+    children: React.ReactNode;
+  }) => {
+    if (variant === 'initial') {
+    return (
+        <div className={showHeader ? "h-screen flex flex-col bg-background" : "flex flex-col"}>
+          <div className={showHeader ? "flex-1 overflow-auto flex items-center justify-center" : "overflow-auto flex items-center justify-center py-12"}>
+            {children}
+          </div>
+        {showHeader && (
+          <div className="fixed top-0 left-0 right-0 z-50">
+            <Header currentProjectId={currentProjectId} />
+          </div>
+        )}
+          <ProjectModal />
+      </div>
+      )
+  }
+
+    return (
+      <div className={showHeader ? "h-screen flex flex-col" : "flex flex-col"}>
+        {showHeader && <Header currentProjectId={currentProjectId} />}
+        <div className={showHeader ? "flex-1 min-h-0" : "flex-1"}>
+          {children}
+        </div>
+        <ProjectModal />
+      </div>
+    )
+  }
+
+  if (!hasSearched && viewMode !== 'pipeline' && viewMode !== 'marketmap' && viewMode !== 'realtimefeed') {
+    console.log('Rendering initial centered search. hasSearched:', hasSearched, 'viewMode:', viewMode);
+    return (
+      <DashboardLayout variant="initial" currentProjectId={currentProjectId}>
         <InitialResearchView
           selectedPapers={selectedPapers}
           selectedPressReleases={selectedPressReleases}
@@ -1250,58 +1234,82 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
           message={message}
           onMessageChange={(value) => setMessage(value)}
           onSendMessage={handleSendMessage}
-          onKeyPress={handleKeyPress}
+              onKeyPress={handleKeyPress}
           loading={loading}
           hasSearched={hasSearched}
         />
-      </div>
+      </DashboardLayout>
+    );
+  }
 
-      {/* Market Map View */}
-      <div key="market-map-view" className={showMarketMap ? 'block h-full' : 'hidden'}>
+  // Show combined market map view (includes saved maps)
+  if (viewMode === 'marketmap') {
+    return (
+      <DashboardLayout currentProjectId={currentProjectId}>
         <MarketMapCombinedView
-          trials={trials} 
-          loading={loading} 
-          query={lastQuery}
-          slideData={slideData}
-          setSlideData={setSlideData}
-          generatingSlide={generatingSlide}
-          setGeneratingSlide={setGeneratingSlide}
-          slideError={slideError}
-          setSlideError={setSlideError}
-          chatHistory={chatHistory}
-          papers={papers}
-          currentProjectId={currentProjectId}
-          onNavigateToResearch={() => setViewMode('research')}
-          onLoadMap={handleLoadSavedMap}
-          onDeleteMap={handleDeleteSavedMap}
-        />
-      </div>
+            trials={trials} 
+            loading={loading} 
+            query={lastQuery}
+            slideData={slideData}
+            setSlideData={setSlideData}
+            generatingSlide={generatingSlide}
+            setGeneratingSlide={setGeneratingSlide}
+            slideError={slideError}
+            setSlideError={setSlideError}
+            chatHistory={chatHistory}
+            papers={papers}
+            currentProjectId={currentProjectId}
+            onNavigateToResearch={() => setViewMode('research')}
+            onLoadMap={handleLoadSavedMap}
+            onDeleteMap={handleDeleteSavedMap}
+          />
+      </DashboardLayout>
+    );
+  }
 
-      {/* Pipeline View */}
-      <div key="pipeline-view" className={showPipeline ? 'block h-full' : 'hidden'}>
+
+  // Asset Development Pipeline mode
+  if (viewMode === 'pipeline') {
+    return (
+      <DashboardLayout currentProjectId={currentProjectId}>
         <PipelineView
-          trials={trials} 
-          drugGroups={drugGroups}
-          query={lastQuery}
-          onAddPaperToContext={handleAddPaperToContext}
-          isPaperInContext={isPaperInContext}
-          pipelineCandidates={pipelineCandidates}
-          setPipelineCandidates={setPipelineCandidates}
-        />
-      </div>
+            trials={trials} 
+            drugGroups={drugGroups}
+            query={lastQuery}
+            onAddPaperToContext={handleAddPaperToContext}
+            isPaperInContext={isPaperInContext}
+            pipelineCandidates={pipelineCandidates}
+            setPipelineCandidates={setPipelineCandidates}
+          />
+      </DashboardLayout>
+    );
+  }
 
-      {/* Data Extraction View */}
-      <div key="data-extraction-view" className={showDataExtraction ? 'block h-full' : 'hidden'}>
-        <DataExtractionView isVisible={showDataExtraction} />
-      </div>
+  // Data Extraction mode
+  if (viewMode === 'dataextraction') {
+    return (
+      <DashboardLayout currentProjectId={currentProjectId}>
+        <DataExtractionView />
+      </DashboardLayout>
+    );
+  }
 
-      {/* Realtime Feed View */}
-      <div key="realtime-feed-view" className={showRealtimeFeed ? 'block h-full' : 'hidden'}>
-        <RealtimeFeedView isVisible={showRealtimeFeed} />
-      </div>
 
-      {/* Research Split View */}
-      <div key="research-split-view" className={showResearchSplit ? 'block h-full' : 'hidden'}>
+  // Realtime Feed mode
+  if (viewMode === 'realtimefeed') {
+    return (
+      <DashboardLayout currentProjectId={currentProjectId}>
+        <RealtimeFeedView />
+      </DashboardLayout>
+    );
+  }
+
+  // Research mode - split view layout (only when hasSearched is true and we have search results)
+  console.log('Checking split screen condition. hasSearched:', hasSearched, 'trials:', trials.length, 'papers:', papers.length);
+  if (hasSearched && (drugGroups.length > 0 || searchProgress.total > 0)) {
+    console.log('Rendering split screen');
+    return (
+      <DashboardLayout currentProjectId={currentProjectId}>
         <ResearchSplitView
           chatHistory={chatHistory}
           selectedPapers={selectedPapers}
@@ -1313,16 +1321,16 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
           onClearContext={handleClearContext}
           onMessageChange={(value) => setMessage(value)}
           onSendMessage={handleSendMessage}
-          onKeyPress={handleKeyPress}
+                  onKeyPress={handleKeyPress}
           handleSearchSuggestion={handleSearchSuggestion}
           message={message}
           loading={loading}
           selectedDrug={selectedDrug}
           setSelectedDrug={setSelectedDrug}
-          drugGroups={drugGroups}
+              drugGroups={drugGroups}
           searchProgress={searchProgress}
           handleDrugSpecificSearch={handleDrugSpecificSearch}
-          initialSearchQueries={initialSearchQueries}
+              initialSearchQueries={initialSearchQueries}
           showDrugModal={showDrugModal}
           setShowDrugModal={setShowDrugModal}
           handleAddPaperToContext={handleAddPaperToContext}
@@ -1330,52 +1338,30 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
           handleAddPressReleaseToContext={handleAddPressReleaseToContext}
           isPressReleaseInContext={isPressReleaseInContext}
         />
-      </div>
-
-      {/* Research Chat View */}
-      <div key="research-chat-view" className={showResearchChat ? 'block h-full' : 'hidden'}>
-        <ResearchChatView
-          chatHistory={chatHistory}
-          selectedPapers={selectedPapers}
-          selectedPressReleases={selectedPressReleases}
-          showContextPanel={showContextPanel}
-          onToggleContextPanel={() => setShowContextPanel(prev => !prev)}
-          onRemovePaper={handleRemovePaperFromContext}
-          onRemovePressRelease={handleRemovePressReleaseFromContext}
-          onClearContext={handleClearContext}
-          handleSearchSuggestion={handleSearchSuggestion}
-          message={message}
-          onMessageChange={(value) => setMessage(value)}
-          onSendMessage={handleSendMessage}
-          onKeyPress={handleKeyPress}
-          loading={loading}
-        />
-      </div>
-    </>
-  );
-
-  // Render with appropriate layout variant
-  if (showInitialSearch) {
-    return (
-      <div className="h-screen flex flex-col bg-background">
-        <div className="flex-1 overflow-auto flex items-center justify-center">
-          {layoutContent}
-        </div>
-        <div className="fixed top-0 left-0 right-0 z-50">
-          <Header currentProjectId={currentProjectId} />
-        </div>
-        <ProjectModal />
-      </div>
+      </DashboardLayout>
     );
   }
 
+  // Wide screen chat interface - when hasSearched is true but no search results yet
+  console.log('Rendering wide screen chat interface. hasSearched:', hasSearched, 'trials:', trials.length, 'papers:', papers.length);
   return (
-    <div className="h-screen flex flex-col">
-      <Header currentProjectId={currentProjectId} />
-      <div className="flex-1 min-h-0">
-        {layoutContent}
-      </div>
-      <ProjectModal />
-    </div>
-  );
+    <DashboardLayout currentProjectId={currentProjectId}>
+      <ResearchChatView
+        chatHistory={chatHistory}
+        selectedPapers={selectedPapers}
+        selectedPressReleases={selectedPressReleases}
+        showContextPanel={showContextPanel}
+        onToggleContextPanel={() => setShowContextPanel(prev => !prev)}
+        onRemovePaper={handleRemovePaperFromContext}
+        onRemovePressRelease={handleRemovePressReleaseFromContext}
+        onClearContext={handleClearContext}
+        handleSearchSuggestion={handleSearchSuggestion}
+        message={message}
+        onMessageChange={(value) => setMessage(value)}
+        onSendMessage={handleSendMessage}
+              onKeyPress={handleKeyPress}
+        loading={loading}
+      />
+    </DashboardLayout>
+  )
 }
