@@ -149,6 +149,9 @@ function AppContent() {
   )
 }
 
+// Export AppContent for testing (without BrowserRouter wrapper)
+export { AppContent }
+
 function App() {
   return (
     <AuthProvider>
