@@ -646,7 +646,23 @@ export async function processFeedUpdates(
   geminiApiKey: string,
   supabaseClient: any,
   enableProgressTracking: boolean = false
-): Promise<{ newUpdates: number; processedItems: number; totalItems: number }> {
+): Promise<{
+  newUpdates: number;
+  processedItems: number;
+  totalItems: number;
+  updates: Array<{
+    nctId: string;
+    title: string;
+    isNew: boolean;
+    summary: string;
+    studyUrl: string;
+    historyUrl: string;
+    comparisonUrl: string | null;
+    versionA: number;
+    versionB: number;
+    lastUpdate: string;
+  }>;
+}> {
   console.log(`[PROCESS_FEED] Starting for feed ${feedId}: ${feedUrl}`);
   
   try {
@@ -720,6 +736,18 @@ export async function processFeedUpdates(
     // Step 5: Save results to database
     console.log(`[PROCESS_FEED] Step 4: Saving ${processedEntries.length} results to database...`);
     let newUpdates = 0;
+    const updates: Array<{
+      nctId: string;
+      title: string;
+      isNew: boolean;
+      summary: string;
+      studyUrl: string;
+      historyUrl: string;
+      comparisonUrl: string | null;
+      versionA: number;
+      versionB: number;
+      lastUpdate: string;
+    }> = [];
     
     for (const data of processedEntries) {
       const { error: insertError } = await supabaseClient.from('trial_updates').insert({
@@ -742,6 +770,20 @@ export async function processFeedUpdates(
       } else {
         newUpdates++;
         console.log(`✅ Saved ${data.entry.isNew ? 'NEW' : 'updated'} study ${data.nctId}`);
+        
+        // Add to updates array for email notifications
+        updates.push({
+          nctId: data.nctId,
+          title: data.entry.title,
+          isNew: data.entry.isNew,
+          summary: data.summary,
+          studyUrl: data.studyUrl,
+          historyUrl: data.historyUrl,
+          comparisonUrl: data.comparisonUrl || null,
+          versionA: data.versionA,
+          versionB: data.versionB,
+          lastUpdate: data.entry.updated_dt?.toISOString() || new Date().toISOString(),
+        });
       }
       
       processedItems++;
@@ -804,7 +846,7 @@ export async function processFeedUpdates(
     }
 
     console.log(`[PROCESS_FEED] ✅ Complete: ${newUpdates} new updates found`);
-    return { newUpdates, processedItems, totalItems };
+    return { newUpdates, processedItems, totalItems, updates };
   } catch (error) {
     console.error(`[PROCESS_FEED] ❌ Error processing feed ${feedId}:`, error);
     

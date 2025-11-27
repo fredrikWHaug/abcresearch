@@ -262,6 +262,7 @@ export function RealtimeFeed({ isVisible = true }: RealtimeFeedProps = {}) {
           locStr: 'USA',
           country: 'US',
           dateField: 'LastUpdatePostDate',
+          notificationEmail: enableEmailUpdates && emailAddress ? emailAddress.trim() : null,
         }),
       });
 
@@ -295,6 +296,8 @@ export function RealtimeFeed({ isVisible = true }: RealtimeFeedProps = {}) {
     const searchTerm = url.searchParams.get('intr') || '';
     setEditSearchTerm(searchTerm);
     setEditLabel(feed.label);
+    setEnableEmailUpdates(!!feed.notification_email);
+    setEmailAddress(feed.notification_email || '');
   };
 
   const handleSaveEdit = async () => {
@@ -317,6 +320,7 @@ export function RealtimeFeed({ isVisible = true }: RealtimeFeedProps = {}) {
           feedId: editingFeed.id,
           feedUrl: newFeedUrl,
           label: editLabel || `${editSearchTerm.trim()} trials`,
+          notificationEmail: enableEmailUpdates && emailAddress ? emailAddress.trim() : null,
         }),
       });
 
@@ -339,6 +343,8 @@ export function RealtimeFeed({ isVisible = true }: RealtimeFeedProps = {}) {
     setEditingFeed(null);
     setEditSearchTerm('');
     setEditLabel('');
+    setEnableEmailUpdates(false);
+    setEmailAddress('');
   };
 
   const handleDeleteFeed = async (feedId: number) => {
@@ -848,11 +854,9 @@ export function RealtimeFeed({ isVisible = true }: RealtimeFeedProps = {}) {
                       value={emailAddress}
                       onChange={(e) => setEmailAddress(e.target.value)}
                       placeholder="your.email@example.com"
-                      disabled={true}
-                      className="bg-gray-50"
                     />
-                    <p className="text-xs text-gray-500 mt-1 italic">
-                      Coming Soon
+                    <p className="text-xs text-gray-500 mt-1">
+                      You'll receive a daily summary of new updates
                     </p>
                   </div>
                 )}
@@ -946,6 +950,48 @@ export function RealtimeFeed({ isVisible = true }: RealtimeFeedProps = {}) {
                   placeholder={`${editSearchTerm || 'Search term'} trials`}
                 />
               </div>
+              
+              {/* Email Updates Toggle in Edit Modal */}
+              <div className="border-t pt-4">
+                <div className="flex items-center justify-between mb-3">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Send daily email updates
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setEnableEmailUpdates(!enableEmailUpdates)}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                      enableEmailUpdates ? 'bg-blue-600' : 'bg-gray-300'
+                    }`}
+                    role="switch"
+                    aria-checked={enableEmailUpdates}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        enableEmailUpdates ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+                
+                {enableEmailUpdates && (
+                  <div className="mt-3">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Email Address
+                    </label>
+                    <Input
+                      type="email"
+                      value={emailAddress}
+                      onChange={(e) => setEmailAddress(e.target.value)}
+                      placeholder="your.email@example.com"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      You'll receive a daily summary of new updates
+                    </p>
+                  </div>
+                )}
+              </div>
+              
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
                 <p className="text-xs text-amber-800">
                   <strong>Note:</strong> Changing the search term will create a new RSS feed URL.
