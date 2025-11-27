@@ -62,8 +62,8 @@ export function AppShell() {
         </div>
       </nav>
 
-      {/* Main Content Area - fills remaining height */}
-      <main className="flex-1 min-h-0 overflow-hidden">
+      {/* Main Content Area - fills remaining height and allows scrolling */}
+      <main className="flex-1 min-h-0 overflow-y-auto">
         <Outlet />
       </main>
     </div>
