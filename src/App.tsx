@@ -1,31 +1,15 @@
-import React, { useState } from 'react'
+import React from 'react'
+import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom'
 import { AuthProvider, useAuth } from '@/contexts/AuthContext'
 import { AuthForm } from '@/components/auth/AuthForm'
 import { Dashboard } from '@/components/Dashboard'
-import { EntryChoice } from '@/components/EntryChoice'
-import { CreateProjectModal } from '@/components/CreateProjectModal'
-import { createProject } from '@/services/projectService'
+import { AppShell } from '@/components/AppShell'
+import { ProjectsHomePage } from '@/components/ProjectsHomePage'
 import '@/utils/runMigration' // Makes window.runMigration() available in console
 
-function AppContent() {
+// Protected route wrapper for authenticated users
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading, isGuest } = useAuth()
-  const [hasChosenEntry, setHasChosenEntry] = useState(false)
-  const [showSavedMaps, setShowSavedMaps] = useState(false)
-  const [showCreateModal, setShowCreateModal] = useState(false)
-  const [projectName, setProjectName] = useState('')
-  const [projectId, setProjectId] = useState<number | null>(null)
-
-  // Reset entry choice when user logs out
-  React.useEffect(() => {
-    if (!user && !isGuest) {
-      setHasChosenEntry(false)
-      setShowSavedMaps(false)
-      setProjectName('')
-    }
-  }, [user, isGuest])
-
-  // Debug logging
-  console.log('App render:', { user: !!user, loading, isGuest, shouldShowDashboard: !!(user || isGuest) })
 
   if (loading) {
     return (
@@ -38,85 +22,110 @@ function AppContent() {
     )
   }
 
-  // If not authenticated, show auth form
   if (!user && !isGuest) {
-    return <AuthForm />
+    return <Navigate to="/auth" replace />
   }
 
-  // Guest users bypass EntryChoice and go directly to Dashboard
-  // They can explore without creating a project (projectId will be null)
+  return <>{children}</>
+}
+
+// Guest redirect - guests shouldn't access home page, send them to Dashboard
+function GuestRedirect({ children }: { children: React.ReactNode }) {
+  const { isGuest } = useAuth()
+  
   if (isGuest) {
-    return <Dashboard />
+    return <Navigate to="/app/project/null" replace />
   }
+  
+  return <>{children}</>
+}
 
-  // If authenticated but hasn't chosen entry, show entry choice
-  if (!hasChosenEntry) {
+// Root redirect - sends to appropriate page based on auth status
+function RootRedirect() {
+  const { user, loading, isGuest } = useAuth()
+
+  if (loading) {
     return (
-      <>
-        <EntryChoice
-          onOpenExisting={() => {
-            setShowSavedMaps(true)
-            setHasChosenEntry(true)
-          }}
-          onStartNew={() => {
-            setShowCreateModal(true)
-          }}
-        />
-        
-        <CreateProjectModal
-          isOpen={showCreateModal}
-          onClose={() => setShowCreateModal(false)}
-          onConfirm={async (name) => {
-            console.log('🟢 [App] CreateProjectModal onConfirm called with name:', name)
-            console.log('🟢 [App] Current user state:', { user: !!user, isGuest })
-            
-            // Block guest users from creating projects
-            if (isGuest) {
-              console.warn('⚠️ [App] Guest users cannot create projects')
-              alert('Guest users cannot create projects. Please sign up or sign in to create projects.')
-              return
-            }
-            
-            try {
-              console.log('🟢 [App] Calling createProject service...')
-              
-              // Save project to database
-              const project = await createProject(name)
-              
-              console.log('✅ [App] Project created successfully:', project)
-              
-              // Set project state
-              setProjectName(project.name)
-              setProjectId(project.id)
-              setShowCreateModal(false)
-              setShowSavedMaps(false)
-              setHasChosenEntry(true)
-            } catch (error) {
-              console.error('❌ [App] Error creating project:', error)
-              
-              const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-              alert(`Failed to create project: ${errorMessage}\n\nPlease check the browser console for more details.`)
-            }
-          }}
-        />
-      </>
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-foreground mx-auto"></div>
+          <p className="mt-4 text-muted-foreground">Loading...</p>
+        </div>
+      </div>
     )
   }
 
-  // Show dashboard with saved maps preference and project ID
+  // Guest users go directly to Dashboard (original fix - bypass project selection)
+  if (isGuest) {
+    return <Navigate to="/app/project/null" replace />
+  }
+
+  // Authenticated users go to home page (project cards)
+  if (user) {
+    return <Navigate to="/app/home" replace />
+  }
+
+  // Not authenticated - show auth form
+  return <Navigate to="/auth" replace />
+}
+
+// Project route wrapper - passes project ID to Dashboard
+function ProjectRoute() {
+  const { projectId } = useParams<{ projectId: string }>()
+  
+  // Convert string projectId to number, or null if not provided or "null" string
+  const numericProjectId = projectId && projectId !== 'null' ? parseInt(projectId, 10) : null
+
+  return <Dashboard projectId={numericProjectId} />
+}
+
+function AppContent() {
   return (
-    <Dashboard 
-      initialShowSavedMaps={showSavedMaps} 
-      projectName={projectName}
-      projectId={projectId}
-    />
+    <Routes>
+      {/* Root - redirect based on auth status */}
+      <Route path="/" element={<RootRedirect />} />
+
+      {/* Auth route */}
+      <Route path="/auth" element={<AuthForm />} />
+
+      {/* Protected app routes */}
+      <Route
+        path="/app"
+        element={
+          <ProtectedRoute>
+            <AppShell />
+          </ProtectedRoute>
+        }
+      >
+        {/* Projects home page - redirect guests to Dashboard */}
+        <Route 
+          path="home" 
+          element={
+            <GuestRedirect>
+              <ProjectsHomePage />
+            </GuestRedirect>
+          } 
+        />
+
+        {/* Individual project view */}
+        <Route path="project/:projectId" element={<ProjectRoute />} />
+
+        {/* Redirect /app to /app/home */}
+        <Route index element={<Navigate to="/app/home" replace />} />
+      </Route>
+
+      {/* Catch-all redirect */}
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   )
 }
 
 function App() {
   return (
     <AuthProvider>
-      <AppContent />
+      <BrowserRouter>
+        <AppContent />
+      </BrowserRouter>
     </AuthProvider>
   )
 }
