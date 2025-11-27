@@ -145,8 +145,8 @@ export function ProjectsHomePage() {
               >
                 <CardHeader className="h-48 flex flex-col justify-between p-6 relative z-10">
                   <div>
-                    <div className="rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 p-3 w-fit mb-4 group-hover:from-blue-100 group-hover:to-indigo-100 transition-all duration-200">
-                      <FolderOpen className="h-6 w-6 text-blue-600" />
+                    <div className="rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 p-2 w-fit mb-4 group-hover:from-blue-100 group-hover:to-indigo-100 transition-all duration-200">
+                      <FolderOpen className="h-5 w-5 text-blue-600" />
                     </div>
                     <CardTitle className="text-lg font-semibold text-gray-900 line-clamp-2 mb-2 group-hover:text-blue-600 transition-colors">
                       {project.name}
