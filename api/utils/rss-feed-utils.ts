@@ -523,6 +523,330 @@ export async function extractDiffBlocks(comparisonUrl: string): Promise<string[]
 }
 
 // ============================================================================
+// FEED PROCESSING - SHARED LOGIC
+// ============================================================================
+
+interface ProcessedEntry {
+  nctId: string;
+  entry: RSSEntry;
+  studyUrl: string;
+  historyUrl: string;
+  comparisonUrl: string;
+  versionA: number;
+  versionB: number;
+  diffBlocks: string[];
+  summary: string;
+  sponsor: string | null;
+}
+
+/**
+ * Process a single RSS entry - fetch sponsor, generate summary, etc.
+ */
+export async function processSingleEntry(
+  entry: RSSEntry,
+  geminiApiKey: string
+): Promise<ProcessedEntry> {
+  const nctId = extractNctId(entry.link);
+  if (!nctId) throw new Error('No NCT ID found');
+
+  const studyUrl = `https://clinicaltrials.gov/study/${nctId}`;
+  let summary: string;
+  let historyUrl: string;
+  let comparisonUrl: string;
+  let versionA: number;
+  let versionB: number;
+  let diffBlocks: string[];
+
+  // Fetch sponsor information
+  const sponsor = await fetchSponsorInfo(nctId);
+
+  // Handle brand new studies differently
+  if (entry.isNew) {
+    console.log(`${nctId} is a NEW study - generating summary`);
+    summary = await generateNewStudySummary(nctId, entry.title, geminiApiKey);
+    historyUrl = buildHistoryUrl(nctId);
+    comparisonUrl = '';
+    versionA = 1;
+    versionB = 1;
+    diffBlocks = ['NEW_STUDY'];
+  } else {
+    console.log(`${nctId} is an UPDATED study - comparing versions`);
+    historyUrl = buildHistoryUrl(nctId);
+    const versionPair = await parseLatestTwoVersions(historyUrl, geminiApiKey);
+
+    if (!versionPair) {
+      throw new Error(`No version pair found for ${nctId}`);
+    }
+
+    comparisonUrl = buildComparisonUrl(nctId, versionPair.a, versionPair.b);
+    diffBlocks = await extractDiffBlocks(comparisonUrl);
+    summary = await generateChangeSummary(nctId, entry.title, diffBlocks, geminiApiKey);
+    versionA = versionPair.a;
+    versionB = versionPair.b;
+  }
+
+  return {
+    nctId,
+    entry,
+    studyUrl,
+    historyUrl,
+    comparisonUrl,
+    versionA,
+    versionB,
+    diffBlocks,
+    summary,
+    sponsor,
+  };
+}
+
+/**
+ * Process entries in batches with parallel execution
+ */
+export async function processEntriesInBatches(
+  entries: RSSEntry[],
+  geminiApiKey: string,
+  batchSize: number = 5
+): Promise<ProcessedEntry[]> {
+  const results: ProcessedEntry[] = [];
+  
+  for (let i = 0; i < entries.length; i += batchSize) {
+    const batch = entries.slice(i, i + batchSize);
+    console.log(`Processing batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(entries.length / batchSize)} (${batch.length} studies)`);
+
+    // Process batch in parallel
+    const batchResults = await Promise.allSettled(
+      batch.map((entry) => processSingleEntry(entry, geminiApiKey))
+    );
+
+    // Collect successful results
+    for (const result of batchResults) {
+      if (result.status === 'fulfilled') {
+        results.push(result.value);
+        console.log(`✅ Processed ${result.value.entry.isNew ? 'NEW' : 'updated'} study ${result.value.nctId}`);
+      } else {
+        console.error(`❌ Failed to process study:`, result.reason);
+      }
+    }
+
+    // Small delay between batches
+    if (i + batchSize < entries.length) {
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+    }
+  }
+
+  return results;
+}
+
+/**
+ * Process all updates for a feed (high-level orchestration)
+ */
+export async function processFeedUpdates(
+  feedId: number,
+  feedUrl: string,
+  geminiApiKey: string,
+  supabaseClient: any,
+  enableProgressTracking: boolean = false
+): Promise<{ newUpdates: number; processedItems: number; totalItems: number }> {
+  console.log(`[PROCESS_FEED] Starting for feed ${feedId}: ${feedUrl}`);
+  
+  try {
+    // Step 1: Parse RSS feed
+    console.log(`[PROCESS_FEED] Step 1: Parsing RSS feed...`);
+    const entries = await parseRssFeed(feedUrl);
+    const recentEntries = entries.filter((e) => isWithinDays(e.updated_dt, 14));
+    console.log(`[PROCESS_FEED] Found ${recentEntries.length} recent entries (last 14 days)`);
+
+    const totalItems = recentEntries.length;
+    let processedItems = 0;
+
+    // Step 2: Initialize progress tracking (if enabled)
+    if (enableProgressTracking) {
+      try {
+        await supabaseClient
+          .from('watched_feeds')
+          .update({
+            refresh_status: {
+              total: totalItems,
+              processed: 0,
+              in_progress: true,
+              started_at: new Date().toISOString(),
+            },
+          })
+          .eq('id', feedId);
+        console.log(`[PROCESS_FEED] Progress tracking initialized`);
+      } catch (error: any) {
+        if (error?.message?.includes('does not exist') || error?.code === '42703') {
+          console.warn('[PROCESS_FEED] refresh_status column not found, skipping progress tracking');
+        } else {
+          throw error;
+        }
+      }
+    }
+
+    // Step 3: Filter entries that need processing
+    console.log(`[PROCESS_FEED] Step 2: Filtering entries that need processing...`);
+    const entriesToProcess: typeof recentEntries = [];
+    
+    for (const entry of recentEntries) {
+      const nctId = extractNctId(entry.link);
+      if (!nctId) {
+        processedItems++;
+        continue;
+      }
+
+      // Check if we already have this update
+      const { data: existing } = await supabaseClient
+        .from('trial_updates')
+        .select('id')
+        .eq('feed_id', feedId)
+        .eq('nct_id', nctId)
+        .gte('last_update', entry.updated_dt?.toISOString() || new Date().toISOString())
+        .single();
+
+      if (existing) {
+        console.log(`Skipping ${nctId} - already processed`);
+        processedItems++;
+      } else {
+        entriesToProcess.push(entry);
+      }
+    }
+
+    console.log(`[PROCESS_FEED] ${entriesToProcess.length} entries need processing`);
+
+    // Step 4: Process entries in batches
+    console.log(`[PROCESS_FEED] Step 3: Processing entries in batches...`);
+    const processedEntries = await processEntriesInBatches(entriesToProcess, geminiApiKey);
+    
+    // Step 5: Save results to database
+    console.log(`[PROCESS_FEED] Step 4: Saving ${processedEntries.length} results to database...`);
+    let newUpdates = 0;
+    
+    for (const data of processedEntries) {
+      const { error: insertError } = await supabaseClient.from('trial_updates').insert({
+        feed_id: feedId,
+        nct_id: data.nctId,
+        title: data.entry.title,
+        last_update: data.entry.updated_dt?.toISOString() || new Date().toISOString(),
+        study_url: data.studyUrl,
+        history_url: data.historyUrl,
+        comparison_url: data.comparisonUrl || null,
+        version_a: data.versionA,
+        version_b: data.versionB,
+        raw_diff_blocks: data.diffBlocks,
+        llm_summary: data.summary,
+        sponsor: data.sponsor || null,
+      });
+
+      if (insertError) {
+        console.error(`Failed to insert update for ${data.nctId}:`, insertError);
+      } else {
+        newUpdates++;
+        console.log(`✅ Saved ${data.entry.isNew ? 'NEW' : 'updated'} study ${data.nctId}`);
+      }
+      
+      processedItems++;
+      
+      // Update progress after each save (if enabled)
+      if (enableProgressTracking) {
+        try {
+          await supabaseClient
+            .from('watched_feeds')
+            .update({
+              refresh_status: {
+                total: totalItems,
+                processed: processedItems,
+                in_progress: true,
+              },
+            })
+            .eq('id', feedId);
+        } catch (err: any) {
+          if (!err?.message?.includes('does not exist') && err?.code !== '42703') {
+            console.error('[PROCESS_FEED] Failed to update progress:', err);
+          }
+        }
+      }
+    }
+
+    // Step 6: Mark refresh as complete
+    console.log(`[PROCESS_FEED] Step 5: Marking feed as complete...`);
+    if (enableProgressTracking) {
+      try {
+        await supabaseClient
+          .from('watched_feeds')
+          .update({
+            last_checked_at: new Date().toISOString(),
+            refresh_status: {
+              total: totalItems,
+              processed: processedItems,
+              in_progress: false,
+              completed_at: new Date().toISOString(),
+              new_updates: newUpdates,
+            },
+          })
+          .eq('id', feedId);
+      } catch (err: any) {
+        // Fallback: update last_checked_at only
+        if (err?.message?.includes('does not exist') || err?.code === '42703') {
+          await supabaseClient
+            .from('watched_feeds')
+            .update({ last_checked_at: new Date().toISOString() })
+            .eq('id', feedId);
+        } else {
+          throw err;
+        }
+      }
+    } else {
+      // Just update last_checked_at without progress tracking
+      await supabaseClient
+        .from('watched_feeds')
+        .update({ last_checked_at: new Date().toISOString() })
+        .eq('id', feedId);
+    }
+
+    console.log(`[PROCESS_FEED] ✅ Complete: ${newUpdates} new updates found`);
+    return { newUpdates, processedItems, totalItems };
+  } catch (error) {
+    console.error(`[PROCESS_FEED] ❌ Error processing feed ${feedId}:`, error);
+    
+    // ALWAYS update last_checked_at even on error
+    try {
+      if (enableProgressTracking) {
+        await supabaseClient
+          .from('watched_feeds')
+          .update({
+            last_checked_at: new Date().toISOString(),
+            refresh_status: {
+              in_progress: false,
+              error: error instanceof Error ? error.message : 'Unknown error',
+              completed_at: new Date().toISOString(),
+            },
+          })
+          .eq('id', feedId);
+      } else {
+        await supabaseClient
+          .from('watched_feeds')
+          .update({ last_checked_at: new Date().toISOString() })
+          .eq('id', feedId);
+      }
+    } catch (updateError: any) {
+      // Last resort: try to update last_checked_at only
+      if (updateError?.message?.includes('does not exist') || updateError?.code === '42703') {
+        try {
+          await supabaseClient
+            .from('watched_feeds')
+            .update({ last_checked_at: new Date().toISOString() })
+            .eq('id', feedId);
+        } catch (finalError) {
+          console.error('[PROCESS_FEED] Failed to update last_checked_at:', finalError);
+        }
+      }
+    }
+    
+    throw error;
+  }
+}
+
+// ============================================================================
 // LLM SUMMARIES
 // ============================================================================
 

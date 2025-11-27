@@ -13,18 +13,7 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
-import {
-  parseRssFeed,
-  isWithinDays,
-  extractNctId,
-  buildHistoryUrl,
-  buildComparisonUrl,
-  parseLatestTwoVersions,
-  extractDiffBlocks,
-  generateChangeSummary,
-  generateNewStudySummary,
-  fetchSponsorInfo,
-} from './utils/rss-feed-utils.js';
+import { processFeedUpdates } from './utils/rss-feed-utils.js';
 
 // Simple helper function - doesn't need heavy dependencies
 function buildRssUrl(
@@ -44,324 +33,10 @@ function buildRssUrl(
   return `${base}?${params.toString()}`;
 }
 
-// Background refresh function that updates progress as it processes
-async function refreshFeedInBackground(
-  feedId: number,
-  feedUrl: string,
-  geminiApiKey: string,
-  supabase: any,
-  userId?: string,
-  accessToken?: string
-) {
-  console.log(`[REFRESH] ========================================`);
-  console.log(`[REFRESH] Starting background refresh for feed ${feedId}`);
-  console.log(`[REFRESH] Feed URL: ${feedUrl}`);
-  console.log(`[REFRESH] Gemini API key present: ${!!geminiApiKey}`);
-  console.log(`[REFRESH] Supabase client present: ${!!supabase}`);
-  console.log(`[REFRESH] User ID: ${userId || 'not provided'}`);
-  console.log(`[REFRESH] Access token present: ${!!accessToken}`);
-  
-  // Ensure we have a valid Supabase client
-  let client = supabase;
-  if (!client && userId && accessToken) {
-    console.log(`[REFRESH] Creating new Supabase client for background operation`);
-    client = createBackgroundSupabaseClient(userId, accessToken);
-  }
-  
-  if (!client) {
-    throw new Error('No Supabase client available for background refresh');
-  }
-  
-  if (!geminiApiKey) {
-    throw new Error('Gemini API key is required for background refresh');
-  }
-  
-  try {
-    console.log(`[REFRESH] Step 1: Parsing RSS feed...`);
-    let entries: any[];
-    try {
-      entries = await parseRssFeed(feedUrl);
-      console.log(`[REFRESH] Step 1 complete: Found ${entries.length} total entries`);
-    } catch (parseError: any) {
-      console.error(`[REFRESH] ❌ RSS feed parsing failed:`, parseError.message);
-      throw new Error(`Failed to parse RSS feed: ${parseError.message}`);
-    }
-    
-    console.log(`[REFRESH] Step 2: Filtering recent entries...`);
-    const recentEntries = entries.filter((e) => isWithinDays(e.updated_dt, 14));
-    console.log(`[REFRESH] Step 2 complete: Found ${recentEntries.length} recent entries for feed ${feedId}`);
-
-    // Initialize progress tracking
-    const totalItems = recentEntries.length;
-    let processedItems = 0;
-    
-    // Try to update refresh_status, but don't fail if column doesn't exist yet
-    console.log(`[REFRESH] Step 3: Updating refresh status in database...`);
-    try {
-      const { error: updateError } = await client
-        .from('watched_feeds')
-        .update({
-          refresh_status: {
-            total: totalItems,
-            processed: 0,
-            in_progress: true,
-            started_at: new Date().toISOString(),
-          },
-        })
-        .eq('id', feedId);
-      
-      if (updateError) {
-        throw updateError;
-      }
-      console.log(`[REFRESH] Step 3 complete: Refresh status updated`);
-    } catch (error: any) {
-      // If column doesn't exist, log but continue processing
-      if (error?.message?.includes('does not exist') || error?.code === '42703') {
-        console.warn('[REFRESH] refresh_status column not found, skipping progress tracking. Run migration to add it.');
-      } else {
-        console.error('[REFRESH] Failed to update refresh status:', error);
-        throw error;
-      }
-    }
-
-    let newUpdates = 0;
-
-    // Step 1: Filter out entries that need processing (check for existing updates)
-    console.log(`[REFRESH] Step 4: Checking which entries need processing...`);
-    const entriesToProcess: typeof recentEntries = [];
-    
-    for (const entry of recentEntries) {
-      const nctId = extractNctId(entry.link);
-      if (!nctId) {
-        processedItems++;
-        continue;
-      }
-
-      const { data: existing } = await client
-        .from('trial_updates')
-        .select('id')
-        .eq('feed_id', feedId)
-        .eq('nct_id', nctId)
-        .gte('last_update', entry.updated_dt?.toISOString() || new Date().toISOString())
-        .single();
-
-      if (existing) {
-        console.log(`Skipping ${nctId} - already processed`);
-        processedItems++;
-      } else {
-        entriesToProcess.push(entry);
-      }
-    }
-
-    console.log(`[REFRESH] Found ${entriesToProcess.length} entries to process`);
-
-    // Step 2: Process entries in batches of 5 (for parallel Puppeteer operations)
-    const BATCH_SIZE = 5;
-    for (let i = 0; i < entriesToProcess.length; i += BATCH_SIZE) {
-      const batch = entriesToProcess.slice(i, i + BATCH_SIZE);
-      const batchNumber = Math.floor(i / BATCH_SIZE) + 1;
-      const totalBatches = Math.ceil(entriesToProcess.length / BATCH_SIZE);
-      
-      console.log(`\n[REFRESH] Processing batch ${batchNumber}/${totalBatches} (${batch.length} studies)`);
-      
-      // Process batch in parallel
-      const batchResults = await Promise.allSettled(
-        batch.map(async (entry) => {
-          const nctId = extractNctId(entry.link);
-          if (!nctId) throw new Error('No NCT ID found');
-
-          const studyUrl = `https://clinicaltrials.gov/study/${nctId}`;
-          let summary: string;
-          let historyUrl: string;
-          let comparisonUrl: string;
-          let versionA: number;
-          let versionB: number;
-          let diffBlocks: string[];
-
-          // Fetch sponsor information
-          const sponsor = await fetchSponsorInfo(nctId);
-
-          if (entry.isNew) {
-            console.log(`${nctId} is a NEW study - generating summary`);
-            summary = await generateNewStudySummary(nctId, entry.title, geminiApiKey);
-            historyUrl = buildHistoryUrl(nctId);
-            comparisonUrl = '';
-            versionA = 1;
-            versionB = 1;
-            diffBlocks = ['NEW_STUDY'];
-          } else {
-            console.log(`${nctId} is an UPDATED study - comparing versions`);
-            historyUrl = buildHistoryUrl(nctId);
-            const versionPair = await parseLatestTwoVersions(historyUrl, geminiApiKey);
-
-            if (!versionPair) {
-              throw new Error(`No version pair found for ${nctId}`);
-            }
-
-            comparisonUrl = buildComparisonUrl(nctId, versionPair.a, versionPair.b);
-            diffBlocks = await extractDiffBlocks(comparisonUrl);
-            summary = await generateChangeSummary(nctId, entry.title, diffBlocks, geminiApiKey);
-            versionA = versionPair.a;
-            versionB = versionPair.b;
-          }
-
-          return {
-            nctId,
-            entry,
-            studyUrl,
-            historyUrl,
-            comparisonUrl,
-            versionA,
-            versionB,
-            diffBlocks,
-            summary,
-            sponsor,
-          };
-        })
-      );
-
-      // Step 3: Save results from batch
-      for (let j = 0; j < batchResults.length; j++) {
-        const result = batchResults[j];
-        
-        if (result.status === 'fulfilled') {
-          const data = result.value;
-          const { error: insertError } = await client.from('trial_updates').insert({
-            feed_id: feedId,
-            nct_id: data.nctId,
-            title: data.entry.title,
-            last_update: data.entry.updated_dt?.toISOString() || new Date().toISOString(),
-            study_url: data.studyUrl,
-            history_url: data.historyUrl,
-            comparison_url: data.comparisonUrl || null,
-            version_a: data.versionA,
-            version_b: data.versionB,
-            raw_diff_blocks: data.diffBlocks,
-            llm_summary: data.summary,
-            sponsor: data.sponsor || null,
-          });
-
-          if (insertError) {
-            console.error(`Failed to insert update for ${data.nctId}:`, insertError);
-          } else {
-            newUpdates++;
-            console.log(`✅ Saved ${data.entry.isNew ? 'NEW' : 'updated'} study ${data.nctId}`);
-          }
-        } else {
-          console.error(`❌ Failed to process study:`, result.reason);
-        }
-        
-        processedItems++;
-      }
-
-      // Step 4: Update progress after each batch
-      try {
-        await client
-          .from('watched_feeds')
-          .update({
-            refresh_status: {
-              total: totalItems,
-              processed: processedItems,
-              in_progress: true,
-            },
-          })
-          .eq('id', feedId);
-        console.log(`[REFRESH] Progress: ${processedItems}/${totalItems} complete`);
-      } catch (err: any) {
-        if (!err?.message?.includes('does not exist') && err?.code !== '42703') {
-          console.error('[REFRESH] Failed to update progress:', err);
-        }
-      }
-
-      // Small delay between batches to avoid overwhelming the server
-      if (i + BATCH_SIZE < entriesToProcess.length) {
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-      }
-    }
-
-    // Mark refresh as complete (silently fail if column doesn't exist)
-    console.log(`[REFRESH] Step 4: Marking refresh as complete...`);
-    try {
-      await client
-        .from('watched_feeds')
-        .update({
-          last_checked_at: new Date().toISOString(),
-          refresh_status: {
-            total: totalItems,
-            processed: processedItems,
-            in_progress: false,
-            completed_at: new Date().toISOString(),
-            new_updates: newUpdates,
-          },
-        })
-        .eq('id', feedId);
-      console.log(`[REFRESH] Step 4 complete: Refresh marked as complete`);
-    } catch (err: any) {
-      // Update last_checked_at even if refresh_status column doesn't exist
-      if (err?.message?.includes('does not exist') || err?.code === '42703') {
-        console.log(`[REFRESH] refresh_status column missing, updating last_checked_at only`);
-        await client
-          .from('watched_feeds')
-          .update({
-            last_checked_at: new Date().toISOString(),
-          })
-          .eq('id', feedId);
-      } else {
-        console.error('[REFRESH] Failed to update refresh status:', err);
-      }
-    }
-
-    console.log(`[REFRESH] ✅ Auto-refresh complete: ${newUpdates} new updates found`);
-  } catch (refreshError) {
-    console.error(`[REFRESH] ❌ Error during auto-refresh for feed ${feedId}:`, refreshError);
-    console.error(`[REFRESH] Error stack:`, refreshError instanceof Error ? refreshError.stack : 'No stack trace');
-    console.error(`[REFRESH] Error details:`, JSON.stringify(refreshError, Object.getOwnPropertyNames(refreshError)));
-    
-    // ALWAYS update last_checked_at even on error (so we don't retry immediately)
-    try {
-      await client
-        .from('watched_feeds')
-        .update({
-          last_checked_at: new Date().toISOString(),
-          refresh_status: {
-            in_progress: false,
-            error: refreshError instanceof Error ? refreshError.message : 'Unknown error',
-            completed_at: new Date().toISOString(),
-          },
-        })
-        .eq('id', feedId);
-    } catch (err: any) {
-      // Fallback: update last_checked_at even if refresh_status column doesn't exist
-      if (err?.message?.includes('does not exist') || err?.code === '42703') {
-        console.log(`[REFRESH] refresh_status column missing, updating last_checked_at only`);
-        await client
-          .from('watched_feeds')
-          .update({
-            last_checked_at: new Date().toISOString(),
-          })
-          .eq('id', feedId);
-      } else {
-        console.error('[REFRESH] Failed to update error status:', err);
-      }
-    }
-  }
-  console.log(`[REFRESH] ========================================`);
-}
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL!;
 const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY!;
 const geminiApiKey = process.env.GOOGLE_GEMINI_API_KEY!;
-
-// Helper to create a Supabase client for background operations
-function createBackgroundSupabaseClient(userId: string, accessToken: string) {
-  return createClient(supabaseUrl, supabaseAnonKey, {
-    global: {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    },
-  });
-}
 
 // Helper to get authenticated user
 async function getAuthenticatedUser(req: VercelRequest) {
@@ -464,11 +139,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // NOTE: In serverless, we MUST await or the execution context will freeze and kill timers
         if (data && geminiApiKey) {
           console.log(`[API] Starting initial refresh for newly created feed ${data.id}`);
-          const accessToken = req.headers.authorization?.replace('Bearer ', '') || '';
           
           // MUST AWAIT - serverless will freeze execution context if we don't
           try {
-            await refreshFeedInBackground(data.id, data.feed_url, geminiApiKey, supabase, user.id, accessToken);
+            await processFeedUpdates(data.id, data.feed_url, geminiApiKey, supabase, true);
             console.log(`[API] Initial refresh completed for feed ${data.id}`);
           } catch (refreshError: any) {
             // Feed was created successfully, but refresh failed - that's OK
@@ -668,12 +342,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       // Perform refresh synchronously (serverless functions can't do true background work)
       console.log(`[API] Starting refresh for feed ${feed.id}`);
-      // Get access token from request headers for background operation
-      const accessToken = req.headers.authorization?.replace('Bearer ', '') || '';
       
       // MUST AWAIT in serverless - otherwise execution context freezes and kills timers
       try {
-        await refreshFeedInBackground(feed.id, feed.feed_url, geminiApiKey, supabase, user.id, accessToken);
+        await processFeedUpdates(feed.id, feed.feed_url, geminiApiKey, supabase, true);
         console.log(`[API] Refresh completed successfully for feed ${feed.id}`);
         
         // Get updated feed data with new last_checked_at
