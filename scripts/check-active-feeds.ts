@@ -1,4 +1,6 @@
 #!/usr/bin/env ts-node
+import type { WatchedFeed } from '../src/types/rss-feed';
+
 /**
  * Script to check and kill active RSS feed processing operations
  * 
@@ -80,7 +82,7 @@ async function checkActiveFeeds() {
     }
 
     console.log('📋 Active Feeds:');
-    data.active_feeds.forEach((feed: any) => {
+    data.active_feeds.forEach((feed: WatchedFeed) => {
       console.log(`   - Feed ID: ${feed.id}`);
       console.log(`     Label: ${feed.label}`);
       console.log(`     URL: ${feed.feed_url}`);
@@ -89,7 +91,7 @@ async function checkActiveFeeds() {
     });
 
     // Show any feed IDs that don't have details (deleted feeds still processing)
-    const detailedIds = new Set(data.active_feeds.map((f: any) => f.id));
+    const detailedIds = new Set(data.active_feeds.map((f: WatchedFeed) => f.id));
     const orphanedIds = data.active_feed_ids.filter((id: number) => !detailedIds.has(id));
     
     if (orphanedIds.length > 0) {
@@ -190,7 +192,7 @@ const command = args[0];
       await checkActiveFeeds();
       break;
     
-    case 'cancel':
+    case 'cancel': {
       const feedId = parseInt(args[1], 10);
       if (isNaN(feedId)) {
         console.error('❌ Invalid feed ID. Usage: cancel <feedId>');
@@ -198,6 +200,7 @@ const command = args[0];
       }
       await cancelFeed(feedId);
       break;
+    }
     
     case 'cancel-all':
       await cancelAllFeeds();

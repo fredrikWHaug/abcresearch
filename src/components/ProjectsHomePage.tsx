@@ -32,7 +32,7 @@ function ProjectCardSkeleton() {
 
 export function ProjectsHomePage() {
   const navigate = useNavigate()
-  const { user, isGuest } = useAuth()
+  const { isGuest } = useAuth()
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
   const [showCreateModal, setShowCreateModal] = useState(false)
