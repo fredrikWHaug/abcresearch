@@ -7,7 +7,7 @@ import { Home, LogOut } from 'lucide-react'
 export function AppShell() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { user, signOut } = useAuth()
+  const { user, signOut, isGuest, exitGuestMode } = useAuth()
   const isHomePage = location.pathname === '/app/home'
   
   // Detect if we're on a project route
@@ -89,7 +89,7 @@ export function AppShell() {
 
           {/* Right: User Menu */}
           <div className="flex items-center gap-3">
-            {!isHomePage && (
+            {!isHomePage && !isGuest && (
               <Button
                 variant="ghost"
                 size="sm"
@@ -101,7 +101,31 @@ export function AppShell() {
               </Button>
             )}
 
-            {user && (
+            {/* Guest Mode: Show Sign Up button */}
+            {isGuest && (
+              <>
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-lg">
+                  <div className="h-2 w-2 bg-amber-500 rounded-full" />
+                  <span className="text-sm text-amber-700 font-medium">
+                    Guest Mode
+                  </span>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    exitGuestMode()
+                    navigate('/auth')
+                  }}
+                  className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 font-medium"
+                >
+                  <span>Sign Up</span>
+                </Button>
+              </>
+            )}
+
+            {/* Authenticated User: Show email and Sign Out */}
+            {user && !isGuest && (
               <>
                 <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-gray-100 rounded-lg">
                   <div className="h-2 w-2 bg-green-500 rounded-full" />
