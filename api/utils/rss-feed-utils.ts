@@ -45,10 +45,11 @@ export function cancelFeedProcessing(feedId: number): boolean {
 
 /**
  * Unregister a feed processing operation (called when complete or error)
+ * This only removes it from the active processing tracking map - the feed itself remains in the database
  */
 export function unregisterFeedProcessing(feedId: number): void {
   activeFeedProcessing.delete(feedId);
-  console.log(`[CANCELLATION] Unregistered feed ${feedId}`);
+  console.log(`[CANCELLATION] Processing complete for feed ${feedId} - removed from active tracking`);
 }
 
 /**
@@ -1136,7 +1137,7 @@ Focus on substantive changes:
 - Enrollment numbers
 - Study status (recruiting, active, completed, terminated)
 - Study phase
-- Primary/secondary outcomes - this is very important to include
+- Primary/secondary outcomes - this is very important to include. An example of how to explain this is: The primary outcome measure changed from "Change from baseline in fasting plasma glucose (FPG) at Week 26" to now "Week 52". 
 - Inclusion/exclusion criteria
 - Study locations
 - Intervention details (drugs, dosages)
@@ -1147,7 +1148,7 @@ TRIAL: ${nctId} – ${title}
 VERSION COMPARISON HTML:
 ${comparisonHtml.substring(0, 15000)}
 
-Provide a brief, clear summary of all the changes in PLAIN TEXT. Do not return markdown.`;
+Format: Do not add any preamble. Provide a brief, clear summary of up to 3 most significant changes in bullet points (newline for each change) and PLAIN TEXT. Do not return markdown.`;
 
     const response = await axios.post(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${geminiApiKey}`,
