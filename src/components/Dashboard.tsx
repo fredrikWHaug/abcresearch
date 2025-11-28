@@ -1238,7 +1238,7 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
   const layoutContent = (
     <>
       {/* Initial Research View */}
-      <div key="initial-research-view" className={showInitialSearch ? 'block h-full' : 'hidden'}>
+      <div key="initial-research-view" className={showInitialSearch ? 'flex items-center justify-center' : 'hidden'}>
         <InitialResearchView
           selectedPapers={selectedPapers}
           selectedPressReleases={selectedPressReleases}

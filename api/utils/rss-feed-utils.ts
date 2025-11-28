@@ -15,6 +15,83 @@ const puppeteer = isProduction ? puppeteerCore : puppeteerFull;
 // INTERFACES & CONSTANTS
 // ============================================================================
 
+// Global map to track active feed processing operations for cancellation
+const activeFeedProcessing = new Map<number, AbortController>();
+
+/**
+ * Register a feed processing operation so it can be cancelled
+ */
+export function registerFeedProcessing(feedId: number): AbortController {
+  const controller = new AbortController();
+  activeFeedProcessing.set(feedId, controller);
+  console.log(`[CANCELLATION] Registered feed ${feedId} for processing`);
+  return controller;
+}
+
+/**
+ * Cancel an active feed processing operation
+ */
+export function cancelFeedProcessing(feedId: number): boolean {
+  const controller = activeFeedProcessing.get(feedId);
+  if (controller) {
+    console.log(`[CANCELLATION] Aborting processing for feed ${feedId}`);
+    controller.abort();
+    activeFeedProcessing.delete(feedId);
+    return true;
+  }
+  console.log(`[CANCELLATION] No active processing found for feed ${feedId}`);
+  return false;
+}
+
+/**
+ * Unregister a feed processing operation (called when complete or error)
+ */
+export function unregisterFeedProcessing(feedId: number): void {
+  activeFeedProcessing.delete(feedId);
+  console.log(`[CANCELLATION] Unregistered feed ${feedId}`);
+}
+
+/**
+ * Get all currently active feed processing operations
+ */
+export function getActiveFeedProcessing(): number[] {
+  return Array.from(activeFeedProcessing.keys());
+}
+
+/**
+ * Cancel all active feed processing operations
+ */
+export function cancelAllFeedProcessing(): { cancelled: number[]; count: number } {
+  const feedIds = Array.from(activeFeedProcessing.keys());
+  console.log(`[CANCELLATION] Cancelling all active processing: ${feedIds.length} feeds`);
+  
+  feedIds.forEach((feedId) => {
+    const controller = activeFeedProcessing.get(feedId);
+    if (controller) {
+      console.log(`[CANCELLATION] Aborting feed ${feedId}`);
+      controller.abort();
+    }
+  });
+  
+  activeFeedProcessing.clear();
+  
+  return {
+    cancelled: feedIds,
+    count: feedIds.length,
+  };
+}
+
+/**
+ * Check if processing should be cancelled
+ */
+function checkCancellation(signal?: AbortSignal, feedId?: number): void {
+  if (signal?.aborted) {
+    const message = `Processing cancelled for feed ${feedId || 'unknown'}`;
+    console.log(`[CANCELLATION] ${message}`);
+    throw new Error(message);
+  }
+}
+
 interface RSSEntry {
   title: string;
   link: string;
@@ -35,9 +112,9 @@ const DEFAULT_HEADERS = {
 
 const BASE_STUDY_URL = 'https://clinicaltrials.gov/study/';
 const BASE_API_URL = 'https://clinicaltrials.gov/api/v2';
-const FETCH_TIMEOUT_MS = 8000; // 8 seconds (aggressive for serverless - socket level)
-const MAX_RETRIES = 3; // Retry up to 3 times
-const RETRY_DELAY_MS = 1000; // Start with 1 second delay
+const FETCH_TIMEOUT_MS = 20000; // 20 seconds (government servers can be slow)
+const MAX_RETRIES = 2; // Retry twice (3 total attempts)
+const RETRY_DELAY_MS = 2000; // Start with 2 second delay between retries
 
 // ============================================================================
 // HELPER FUNCTIONS
@@ -158,90 +235,136 @@ async function retryWithBackoff<T>(
 }
 
 /**
- * Fetch with axios + socket-level timeout (catches DNS/connection hangs)
+ * Fetch with axios + AbortController for reliable timeout handling
+ * Uses Promise.race to ensure absolute timeout even if all other mechanisms fail
  */
 async function fetchWithAxios(
   url: string,
   headers: Record<string, string>,
   timeoutMs: number
 ): Promise<string> {
-  console.log(`🏁 Starting axios request with socket timeout (${timeoutMs}ms)`);
+  console.log(`🏁 Using native HTTPS with ${timeoutMs}ms timeout`);
+  console.log(`📡 [${new Date().toISOString()}] URL: ${url}`);
   
-  try {
-    // Create HTTP/HTTPS agents with socket-level timeout
-    const httpAgent = new http.Agent({
-      timeout: timeoutMs, // Socket timeout
-      keepAlive: false,
-    });
+  return new Promise((resolve, reject) => {
+    const startTime = Date.now();
+    let completed = false;
+    let timeoutHandle: NodeJS.Timeout | null = null;
     
-    const httpsAgent = new https.Agent({
-      timeout: timeoutMs, // Socket timeout
-      keepAlive: false,
-    });
+    // Absolute master timeout that WILL fire
+    timeoutHandle = setTimeout(() => {
+      if (completed) return;
+      completed = true;
+      
+      const elapsed = Date.now() - startTime;
+      console.error(`⏰ MASTER TIMEOUT fired after ${elapsed}ms`);
+      reject(new Error(`Request timeout after ${timeoutMs}ms`));
+    }, timeoutMs);
     
-    // Set up socket timeout handler
-    const setupSocketTimeout = (agent: http.Agent | https.Agent) => {
-      agent.on('socket', (socket) => {
-        console.log(`🔌 Socket created, setting ${timeoutMs}ms timeout`);
-        socket.setTimeout(timeoutMs);
-        socket.on('timeout', () => {
-          console.error(`⏰ SOCKET TIMEOUT after ${timeoutMs}ms`);
-          socket.destroy();
+    try {
+      const urlObj = new URL(url);
+      const options = {
+        hostname: urlObj.hostname,
+        port: urlObj.port || 443,
+        path: urlObj.pathname + urlObj.search,
+        method: 'GET',
+        headers: {
+          ...headers,
+          'Connection': 'close',
+        },
+        timeout: Math.floor(timeoutMs * 0.8), // Socket timeout at 80%
+      };
+      
+      console.log(`🔌 Connecting to ${options.hostname}:${options.port}${options.path}`);
+      
+      const req = https.request(options, (res) => {
+        if (completed) {
+          console.log(`⚠️  Response received after completion flag set`);
+          return;
+        }
+        
+        console.log(`📥 HTTP ${res.statusCode} - receiving data...`);
+        
+        if (!res.statusCode || res.statusCode < 200 || res.statusCode >= 300) {
+          if (timeoutHandle) clearTimeout(timeoutHandle);
+          completed = true;
+          reject(new Error(`HTTP ${res.statusCode}: ${res.statusMessage}`));
+          return;
+        }
+        
+        const chunks: Buffer[] = [];
+        
+        res.on('data', (chunk) => {
+          if (completed) return;
+          chunks.push(chunk);
+        });
+        
+        res.on('end', () => {
+          if (completed) return;
+          if (timeoutHandle) clearTimeout(timeoutHandle);
+          completed = true;
+          
+          const data = Buffer.concat(chunks).toString('utf8');
+          const elapsed = Date.now() - startTime;
+          
+          console.log(`✅ Success in ${elapsed}ms (${(data.length / 1024).toFixed(2)} KB)`);
+          
+          if (!data || data.length === 0) {
+            reject(new Error('Empty response body'));
+          } else {
+            resolve(data);
+          }
+        });
+        
+        res.on('error', (err) => {
+          if (completed) return;
+          if (timeoutHandle) clearTimeout(timeoutHandle);
+          completed = true;
+          console.error(`❌ Response error: ${err.message}`);
+          reject(err);
         });
       });
-    };
-    
-    setupSocketTimeout(httpAgent);
-    setupSocketTimeout(httpsAgent);
-    
-    const config: AxiosRequestConfig = {
-      method: 'GET',
-      url: url,
-      headers: {
-        ...headers,
-        'Connection': 'close', // Don't reuse connections
-      },
-      timeout: timeoutMs, // Request timeout (backup)
-      validateStatus: (status) => status >= 200 && status < 300,
-      maxRedirects: 5,
-      responseType: 'text',
-      httpAgent: httpAgent,
-      httpsAgent: httpsAgent,
-    };
-    
-    const startTime = Date.now();
-    const response = await axios(config);
-    const duration = Date.now() - startTime;
-    
-    console.log(`✅ Axios request completed in ${duration}ms, status: ${response.status}`);
-    console.log(`   Content-Type: ${response.headers['content-type'] || 'N/A'}`);
-    console.log(`   Content length: ${response.data?.length || 0} bytes`);
-    
-    if (!response.data || response.data.length === 0) {
-      throw new Error('Response body is empty');
+      
+      req.on('timeout', () => {
+        if (completed) return;
+        if (timeoutHandle) clearTimeout(timeoutHandle);
+        completed = true;
+        
+        console.error(`⏰ Socket timeout`);
+        req.destroy();
+        reject(new Error(`Socket timeout after ${timeoutMs}ms`));
+      });
+      
+      req.on('error', (err: any) => {
+        if (completed) return;
+        if (timeoutHandle) clearTimeout(timeoutHandle);
+        completed = true;
+        
+        const elapsed = Date.now() - startTime;
+        console.error(`❌ Request error after ${elapsed}ms: ${err.code} - ${err.message}`);
+        
+        if (err.code === 'ETIMEDOUT' || err.code === 'ESOCKETTIMEDOUT') {
+          reject(new Error(`Timeout after ${timeoutMs}ms`));
+        } else if (err.code === 'ECONNRESET') {
+          reject(new Error('Connection reset'));
+        } else if (err.code === 'ENOTFOUND') {
+          reject(new Error('DNS lookup failed'));
+        } else {
+          reject(err);
+        }
+      });
+      
+      req.end();
+      
+    } catch (error: any) {
+      if (timeoutHandle) clearTimeout(timeoutHandle);
+      if (completed) return;
+      completed = true;
+      
+      console.error(`❌ Setup error: ${error.message}`);
+      reject(error);
     }
-    
-    return response.data;
-  } catch (error: any) {
-    if (error.code === 'ECONNABORTED') {
-      console.error(`⏰ Axios request timeout after ${timeoutMs}ms`);
-      throw new Error(`Request timeout after ${timeoutMs}ms`);
-    }
-    if (error.code === 'ETIMEDOUT' || error.code === 'ESOCKETTIMEDOUT') {
-      console.error(`⏰ Socket/Connection timeout: ${error.code}`);
-      throw new Error(`Socket timeout after ${timeoutMs}ms`);
-    }
-    if (error.code === 'ECONNRESET') {
-      console.error(`🔌 Connection reset by peer`);
-      throw new Error(`Connection reset`);
-    }
-    if (error.response) {
-      console.error(`❌ HTTP error: ${error.response.status} ${error.response.statusText}`);
-      throw new Error(`HTTP ${error.response.status}: ${error.response.statusText}`);
-    }
-    console.error(`💥 Axios error: ${error.code || 'UNKNOWN'} - ${error.message}`);
-    throw error;
-  }
+  });
 }
 
 /**
@@ -274,15 +397,20 @@ export async function fetchSponsorInfo(nctId: string): Promise<string | null> {
 }
 
 /**
- * Parse RSS feed and return entries (with retry logic + axios)
+ * Parse RSS feed and return entries (with retry logic + timeout)
  */
 export async function parseRssFeed(rssUrl: string): Promise<RSSEntry[]> {
-  console.log(`📡 Starting RSS feed fetch with axios: ${rssUrl}`);
+  console.log(`📡 Starting RSS feed fetch: ${rssUrl}`);
+  console.log(`   Timeout: ${FETCH_TIMEOUT_MS}ms per attempt, Retries: ${MAX_RETRIES}`);
+  console.log(`   Maximum total time: ${FETCH_TIMEOUT_MS * MAX_RETRIES}ms`);
   
-  return retryWithBackoff(async () => {
+  // Absolute timeout for the entire operation (all retries)
+  const absoluteTimeoutMs = FETCH_TIMEOUT_MS * MAX_RETRIES + 5000; // Extra 5s buffer
+  
+  const fetchPromise = retryWithBackoff(async () => {
     const startTime = Date.now();
     
-    console.log(`🌐 Initiating axios request...`);
+    console.log(`🌐 [${new Date().toISOString()}] Initiating fetch request...`);
     
     // Fetch with axios (has proven timeout handling)
     const xmlText = await fetchWithAxios(
@@ -292,7 +420,7 @@ export async function parseRssFeed(rssUrl: string): Promise<RSSEntry[]> {
     );
     
     const fetchDuration = Date.now() - startTime;
-    console.log(`✅ Axios fetch completed in ${fetchDuration}ms`);
+    console.log(`✅ Fetch completed in ${fetchDuration}ms (${(fetchDuration / 1000).toFixed(1)}s)`);
     console.log(`   Response size: ${(xmlText.length / 1024).toFixed(2)} KB`);
     
     // Parse XML with cheerio
@@ -359,6 +487,18 @@ export async function parseRssFeed(rssUrl: string): Promise<RSSEntry[]> {
     
     return entries;
   }, MAX_RETRIES, RETRY_DELAY_MS, 'RSS feed fetch');
+  
+  // Absolute timeout wrapper - if retries hang, this will kill it
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    setTimeout(() => {
+      console.error(`⏰ ABSOLUTE TIMEOUT for parseRssFeed after ${absoluteTimeoutMs}ms`);
+      console.error(`   This means all ${MAX_RETRIES} retry attempts failed to complete`);
+      reject(new Error(`RSS feed fetch timeout after ${absoluteTimeoutMs}ms (${MAX_RETRIES} retries)`));
+    }, absoluteTimeoutMs);
+  });
+  
+  // Race between fetch+retries and absolute timeout
+  return Promise.race([fetchPromise, timeoutPromise]);
 }
 
 // ============================================================================
@@ -605,11 +745,16 @@ export async function processSingleEntry(
 export async function processEntriesInBatches(
   entries: RSSEntry[],
   geminiApiKey: string,
-  batchSize: number = 5
+  batchSize: number = 5,
+  signal?: AbortSignal,
+  feedId?: number
 ): Promise<ProcessedEntry[]> {
   const results: ProcessedEntry[] = [];
   
   for (let i = 0; i < entries.length; i += batchSize) {
+    // Check for cancellation before each batch
+    checkCancellation(signal, feedId);
+    
     const batch = entries.slice(i, i + batchSize);
     console.log(`Processing batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(entries.length / batchSize)} (${batch.length} studies)`);
 
@@ -617,6 +762,9 @@ export async function processEntriesInBatches(
     const batchResults = await Promise.allSettled(
       batch.map((entry) => processSingleEntry(entry, geminiApiKey))
     );
+
+    // Check for cancellation after batch completes
+    checkCancellation(signal, feedId);
 
     // Collect successful results
     for (const result of batchResults) {
@@ -628,9 +776,10 @@ export async function processEntriesInBatches(
       }
     }
 
-    // Small delay between batches
+    // Small delay between batches (with cancellation check)
     if (i + batchSize < entries.length) {
       await new Promise((resolve) => setTimeout(resolve, 2000));
+      checkCancellation(signal, feedId);
     }
   }
 
@@ -645,7 +794,8 @@ export async function processFeedUpdates(
   feedUrl: string,
   geminiApiKey: string,
   supabaseClient: any,
-  enableProgressTracking: boolean = false
+  enableProgressTracking: boolean = false,
+  signal?: AbortSignal
 ): Promise<{
   newUpdates: number;
   processedItems: number;
@@ -666,13 +816,23 @@ export async function processFeedUpdates(
   console.log(`[PROCESS_FEED] Starting for feed ${feedId}: ${feedUrl}`);
   
   try {
+    // Check if cancelled before starting
+    checkCancellation(signal, feedId);
+    
     // Step 1: Parse RSS feed
     console.log(`[PROCESS_FEED] Step 1: Parsing RSS feed...`);
     const entries = await parseRssFeed(feedUrl);
+    
+    // Check if cancelled after RSS parse (can take a while)
+    checkCancellation(signal, feedId);
+    
     const recentEntries = entries.filter((e) => isWithinDays(e.updated_dt, 14));
-    console.log(`[PROCESS_FEED] Found ${recentEntries.length} recent entries (last 14 days)`);
+    
+    // Limit to 10 most recent entries (RSS feeds are already sorted by date, newest first)
+    const limitedEntries = recentEntries.slice(0, 10);
+    console.log(`[PROCESS_FEED] Found ${recentEntries.length} recent entries (last 14 days), limiting to ${limitedEntries.length} most recent`);
 
-    const totalItems = recentEntries.length;
+    const totalItems = limitedEntries.length;
     let processedItems = 0;
 
     // Step 2: Initialize progress tracking (if enabled)
@@ -701,9 +861,12 @@ export async function processFeedUpdates(
 
     // Step 3: Filter entries that need processing
     console.log(`[PROCESS_FEED] Step 2: Filtering entries that need processing...`);
-    const entriesToProcess: typeof recentEntries = [];
+    const entriesToProcess: typeof limitedEntries = [];
     
-    for (const entry of recentEntries) {
+    for (const entry of limitedEntries) {
+      // Check for cancellation periodically
+      checkCancellation(signal, feedId);
+      
       const nctId = extractNctId(entry.link);
       if (!nctId) {
         processedItems++;
@@ -728,10 +891,13 @@ export async function processFeedUpdates(
     }
 
     console.log(`[PROCESS_FEED] ${entriesToProcess.length} entries need processing`);
+    
+    // Check for cancellation before heavy processing
+    checkCancellation(signal, feedId);
 
     // Step 4: Process entries in batches
     console.log(`[PROCESS_FEED] Step 3: Processing entries in batches...`);
-    const processedEntries = await processEntriesInBatches(entriesToProcess, geminiApiKey);
+    const processedEntries = await processEntriesInBatches(entriesToProcess, geminiApiKey, 5, signal, feedId);
     
     // Step 5: Save results to database
     console.log(`[PROCESS_FEED] Step 4: Saving ${processedEntries.length} results to database...`);
@@ -750,6 +916,9 @@ export async function processFeedUpdates(
     }> = [];
     
     for (const data of processedEntries) {
+      // Check for cancellation before each database write
+      checkCancellation(signal, feedId);
+      
       const { error: insertError } = await supabaseClient.from('trial_updates').insert({
         feed_id: feedId,
         nct_id: data.nctId,
@@ -848,38 +1017,47 @@ export async function processFeedUpdates(
     console.log(`[PROCESS_FEED] ✅ Complete: ${newUpdates} new updates found`);
     return { newUpdates, processedItems, totalItems, updates };
   } catch (error) {
-    console.error(`[PROCESS_FEED] ❌ Error processing feed ${feedId}:`, error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const isCancelled = errorMessage.includes('Processing cancelled');
     
-    // ALWAYS update last_checked_at even on error
-    try {
-      if (enableProgressTracking) {
-        await supabaseClient
-          .from('watched_feeds')
-          .update({
-            last_checked_at: new Date().toISOString(),
-            refresh_status: {
-              in_progress: false,
-              error: error instanceof Error ? error.message : 'Unknown error',
-              completed_at: new Date().toISOString(),
-            },
-          })
-          .eq('id', feedId);
-      } else {
-        await supabaseClient
-          .from('watched_feeds')
-          .update({ last_checked_at: new Date().toISOString() })
-          .eq('id', feedId);
-      }
-    } catch (updateError: any) {
-      // Last resort: try to update last_checked_at only
-      if (updateError?.message?.includes('does not exist') || updateError?.code === '42703') {
-        try {
+    if (isCancelled) {
+      console.log(`[PROCESS_FEED] 🛑 Processing cancelled for feed ${feedId}`);
+    } else {
+      console.error(`[PROCESS_FEED] ❌ Error processing feed ${feedId}:`, error);
+    }
+    
+    // ALWAYS update last_checked_at even on error (but not if cancelled - feed might be deleted)
+    if (!isCancelled) {
+      try {
+        if (enableProgressTracking) {
+          await supabaseClient
+            .from('watched_feeds')
+            .update({
+              last_checked_at: new Date().toISOString(),
+              refresh_status: {
+                in_progress: false,
+                error: errorMessage,
+                completed_at: new Date().toISOString(),
+              },
+            })
+            .eq('id', feedId);
+        } else {
           await supabaseClient
             .from('watched_feeds')
             .update({ last_checked_at: new Date().toISOString() })
             .eq('id', feedId);
-        } catch (finalError) {
-          console.error('[PROCESS_FEED] Failed to update last_checked_at:', finalError);
+        }
+      } catch (updateError: any) {
+        // Last resort: try to update last_checked_at only
+        if (updateError?.message?.includes('does not exist') || updateError?.code === '42703') {
+          try {
+            await supabaseClient
+              .from('watched_feeds')
+              .update({ last_checked_at: new Date().toISOString() })
+              .eq('id', feedId);
+          } catch (finalError) {
+            console.error('[PROCESS_FEED] Failed to update last_checked_at:', finalError);
+          }
         }
       }
     }
@@ -958,7 +1136,7 @@ Focus on substantive changes:
 - Enrollment numbers
 - Study status (recruiting, active, completed, terminated)
 - Study phase
-- Primary/secondary outcomes
+- Primary/secondary outcomes - this is very important to include
 - Inclusion/exclusion criteria
 - Study locations
 - Intervention details (drugs, dosages)
@@ -969,7 +1147,7 @@ TRIAL: ${nctId} – ${title}
 VERSION COMPARISON HTML:
 ${comparisonHtml.substring(0, 15000)}
 
-Provide a brief, clear summary (2-3 sentences max). Ignore minor formatting changes.`;
+Provide a brief, clear summary of all the changes in PLAIN TEXT. Do not return markdown.`;
 
     const response = await axios.post(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${geminiApiKey}`,
