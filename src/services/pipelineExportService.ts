@@ -96,7 +96,9 @@ export async function exportPipelineToPPT(
     }
 
     // Table headers
-    const tableData: any[] = [
+    type TableCell = { text: string; options?: { bold?: boolean; color?: string; fill?: string; fontSize?: number } };
+    type TableRow = TableCell[];
+    const tableData: TableRow[] = [
       [
         { text: '#', options: { bold: true, color: 'FFFFFF', fill: '1F2937', fontSize: 10 } },
         { text: 'Drug Candidate', options: { bold: true, color: 'FFFFFF', fill: '1F2937', fontSize: 10 } },
