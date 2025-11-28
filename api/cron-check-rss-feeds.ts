@@ -1,9 +1,12 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
-import { processFeedUpdates } from './utils/rss-feed-utils.js';
+import { 
+  processFeedUpdates, 
+  registerFeedProcessing, 
+  unregisterFeedProcessing 
+} from './utils/rss-feed-utils.js';
 import { sendTrialUpdateEmail } from './services/emailService.js';
-
 const supabaseUrl = process.env.VITE_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const geminiApiKey = process.env.GOOGLE_GEMINI_API_KEY!;
@@ -62,6 +65,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // 2. Process each feed using shared processing logic
     for (const feed of feeds) {
+      // Register processing for this feed
+      const controller = registerFeedProcessing(feed.id);
+      
       try {
         console.log(`[CRON] Checking feed: ${feed.label} (${feed.feed_url})`);
         
@@ -70,7 +76,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           feed.feed_url,
           geminiApiKey,
           supabase,
-          false // Disable progress tracking for cron (no UI to update)
+          false, // Disable progress tracking for cron (no UI to update)
+          controller.signal // Pass cancellation signal
         );
 
         totalUpdates += result.newUpdates;
@@ -128,13 +135,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           console.log(`[CRON] No notification email configured for feed ${feed.id}`);
         }
       } catch (error) {
-        console.error(`[CRON] ❌ Error processing feed ${feed.id}:`, error);
-        results.push({
-          feed_id: feed.id,
-          label: feed.label,
-          error: error instanceof Error ? error.message : 'Unknown error',
-        });
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        const isCancelled = errorMessage.includes('Processing cancelled');
+        
+        if (isCancelled) {
+          console.log(`[CRON] 🛑 Processing cancelled for feed ${feed.id} (feed was deleted)`);
+          results.push({
+            feed_id: feed.id,
+            label: feed.label,
+            error: 'Cancelled - feed deleted',
+          });
+        } else {
+          console.error(`[CRON] ❌ Error processing feed ${feed.id}:`, error);
+          results.push({
+            feed_id: feed.id,
+            label: feed.label,
+            error: errorMessage,
+          });
+        }
         // Continue with next feed (error handling done in processFeedUpdates)
+      } finally {
+        // Always unregister when processing completes or errors
+        unregisterFeedProcessing(feed.id);
       }
     }
 

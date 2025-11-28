@@ -1,19 +1,28 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Consolidated RSS Feed API
- * TODO: Fetching RSS feed and parsing isn't working after I tried to handle multiple feeds.
  * Handles all RSS feed operations:
  * - GET /api/rss-feeds?action=watch - Get watched feeds
  * - POST /api/rss-feeds?action=watch - Add watched feed
  * - PUT /api/rss-feeds?action=watch - Update watched feed
- * - DELETE /api/rss-feeds?action=watch - Remove watched feed
+ * - DELETE /api/rss-feeds?action=watch - Remove watched feed (cancels active processing)
  * - GET /api/rss-feeds?action=updates&feedId=xxx&days=30 - Get trial updates
  * - POST /api/rss-feeds?action=refresh - Manually refresh a feed
+ * - GET /api/rss-feeds?action=admin - Get list of currently processing feeds
+ * - POST /api/rss-feeds?action=admin&feedId=xxx - Cancel processing for specific feed
+ * - POST /api/rss-feeds?action=admin&cancelAll=true - Cancel all active processing
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
-import { processFeedUpdates } from './utils/rss-feed-utils.js';
+import { 
+  processFeedUpdates, 
+  registerFeedProcessing, 
+  unregisterFeedProcessing, 
+  cancelFeedProcessing,
+  getActiveFeedProcessing,
+  cancelAllFeedProcessing
+} from './utils/rss-feed-utils.js';
 
 // Simple helper function - doesn't need heavy dependencies
 function buildRssUrl(
@@ -136,24 +145,54 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return res.status(500).json({ error: error.message });
         }
 
-        // Automatically refresh the feed after creation
-        // NOTE: In serverless, we MUST await or the execution context will freeze and kill timers
+        // IMPORTANT: In serverless, we must process BEFORE sending response
+        // Otherwise execution context freezes and timers don't fire
         if (data && geminiApiKey) {
-          console.log(`[API] Starting initial refresh for newly created feed ${data.id}`);
+          console.log(`[API] Starting initial processing for newly created feed ${data.id}`);
+          console.log(`[API] NOTE: Processing happens BEFORE response to avoid serverless freeze`);
           
-          // MUST AWAIT - serverless will freeze execution context if we don't
+          // Register the processing operation so it can be cancelled if user deletes the feed
+          const controller = registerFeedProcessing(data.id);
+          
+          // Process synchronously BEFORE sending response
+          // This keeps the function alive and prevents execution context freeze
           try {
-            await processFeedUpdates(data.id, data.feed_url, geminiApiKey, supabase, true);
-            console.log(`[API] Initial refresh completed for feed ${data.id}`);
+            await processFeedUpdates(data.id, data.feed_url, geminiApiKey, supabase, true, controller.signal);
+            console.log(`[API] Initial processing completed for feed ${data.id}`);
+            
+            // Return success with the feed
+            return res.json({ 
+              feed: data,
+              processing_complete: true,
+            });
           } catch (refreshError: any) {
-            // Feed was created successfully, but refresh failed - that's OK
-            console.error('[API] Initial refresh failed (feed still created):', refreshError.message);
+            const isCancelled = refreshError.message?.includes('Processing cancelled');
+            
+            if (isCancelled) {
+              console.log(`[API] Processing cancelled for feed ${data.id}`);
+              // Feed exists but processing was cancelled
+              return res.json({
+                feed: data,
+                processing_complete: false,
+                cancelled: true,
+              });
+            } else {
+              // Feed was created successfully, but processing failed
+              console.error('[API] Initial processing failed (feed still created):', refreshError.message);
+              return res.json({
+                feed: data,
+                processing_complete: false,
+                error: refreshError.message,
+              });
+            }
+          } finally {
+            // Always unregister when processing completes or errors
+            unregisterFeedProcessing(data.id);
           }
         } else {
           console.log(`[API] Skipping auto-refresh: data=${!!data}, geminiApiKey=${!!geminiApiKey}`);
+          return res.json({ feed: data });
         }
-
-        return res.json({ feed: data });
       } else if (req.method === 'PUT') {
         // Update watched feed
         const { feedId, feedUrl, label, notificationEmail } = req.body;
@@ -187,6 +226,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return res.status(400).json({ error: 'Feed ID required' });
         }
 
+        // Cancel any active processing for this feed BEFORE deleting
+        const wasCancelled = cancelFeedProcessing(feedId);
+        if (wasCancelled) {
+          console.log(`[API] Cancelled active processing for feed ${feedId} before deletion`);
+        }
+
         const { error } = await supabase
           .from('watched_feeds')
           .delete()
@@ -197,7 +242,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return res.status(500).json({ error: error.message });
         }
 
-        return res.json({ message: 'Feed removed successfully' });
+        return res.json({ 
+          message: 'Feed removed successfully',
+          cancelled: wasCancelled 
+        });
       } else {
         return res.status(405).json({ error: 'Method not allowed' });
       }
@@ -345,9 +393,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // Perform refresh synchronously (serverless functions can't do true background work)
       console.log(`[API] Starting refresh for feed ${feed.id}`);
       
+      // Register the processing operation so it can be cancelled if user deletes the feed
+      const controller = registerFeedProcessing(feed.id);
+      
       // MUST AWAIT in serverless - otherwise execution context freezes and kills timers
       try {
-        await processFeedUpdates(feed.id, feed.feed_url, geminiApiKey, supabase, true);
+        await processFeedUpdates(feed.id, feed.feed_url, geminiApiKey, supabase, true, controller.signal);
         console.log(`[API] Refresh completed successfully for feed ${feed.id}`);
         
         // Get updated feed data with new last_checked_at
@@ -369,15 +420,89 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           feed: updatedFeed || null,
         });
       } catch (refreshError: any) {
-        console.error('[API] Refresh failed:', refreshError);
-        return res.status(500).json({
-          success: false,
-          error: refreshError.message || 'Refresh failed',
-          feed_id: feedId,
+        const isCancelled = refreshError.message?.includes('Processing cancelled');
+        
+        if (isCancelled) {
+          console.log(`[API] Refresh cancelled for feed ${feed.id}`);
+          return res.status(200).json({
+            success: false,
+            message: 'Refresh cancelled',
+            cancelled: true,
+            feed_id: feedId,
+          });
+        } else {
+          console.error('[API] Refresh failed:', refreshError);
+          return res.status(500).json({
+            success: false,
+            error: refreshError.message || 'Refresh failed',
+            feed_id: feedId,
+          });
+        }
+      } finally {
+        // Always unregister when processing completes or errors
+        unregisterFeedProcessing(feed.id);
+      }
+    } else if (action === 'admin') {
+      // Admin actions for managing active processing
+      if (req.method === 'GET') {
+        // Get list of currently active feed processing operations
+        const activeFeedIds = getActiveFeedProcessing();
+        
+        // Get feed details for active feeds (if they still exist)
+        let activeFeeds: any[] = [];
+        if (activeFeedIds.length > 0) {
+          const { data: feeds } = await supabase
+            .from('watched_feeds')
+            .select('id, label, feed_url, created_at')
+            .in('id', activeFeedIds);
+          
+          activeFeeds = feeds || [];
+        }
+        
+        return res.json({
+          active_count: activeFeedIds.length,
+          active_feed_ids: activeFeedIds,
+          active_feeds: activeFeeds,
+          timestamp: new Date().toISOString(),
         });
+      } else if (req.method === 'POST') {
+        // Cancel active processing
+        const { feedId, cancelAll } = req.body;
+        
+        if (cancelAll) {
+          // Cancel all active processing
+          console.log('[API] Admin action: Cancel all active processing');
+          const result = cancelAllFeedProcessing();
+          
+          return res.json({
+            success: true,
+            message: `Cancelled ${result.count} active feed processing operations`,
+            cancelled_feed_ids: result.cancelled,
+            count: result.count,
+          });
+        } else if (feedId) {
+          // Cancel specific feed processing
+          console.log(`[API] Admin action: Cancel processing for feed ${feedId}`);
+          const wasCancelled = cancelFeedProcessing(feedId);
+          
+          return res.json({
+            success: true,
+            message: wasCancelled 
+              ? `Cancelled processing for feed ${feedId}` 
+              : `No active processing found for feed ${feedId}`,
+            cancelled: wasCancelled,
+            feed_id: feedId,
+          });
+        } else {
+          return res.status(400).json({ 
+            error: 'Either feedId or cancelAll=true is required' 
+          });
+        }
+      } else {
+        return res.status(405).json({ error: 'Method not allowed' });
       }
     } else {
-      return res.status(400).json({ error: 'Invalid action parameter. Use: watch, updates, progress, or refresh' });
+      return res.status(400).json({ error: 'Invalid action parameter. Use: watch, updates, progress, refresh, or admin' });
     }
   } catch (error) {
     console.error('RSS feeds API error:', error);
