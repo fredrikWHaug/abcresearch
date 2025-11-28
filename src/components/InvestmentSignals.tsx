@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { RefreshCw, TrendingUp, AlertCircle, TrendingDown, Minus } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 

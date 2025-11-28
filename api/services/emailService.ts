@@ -297,10 +297,10 @@ export async function sendTrialUpdateEmail(data: EmailNotificationData): Promise
     await sgMail.send(msg);
     console.log(`[EMAIL] ✅ Email sent successfully to ${data.recipientEmail}`);
     return true;
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[EMAIL] ❌ Failed to send email:', error);
-    if (error.response) {
-      console.error('[EMAIL] SendGrid error response:', error.response.body);
+    if (error && typeof error === 'object' && 'response' in error) {
+      console.error('[EMAIL] SendGrid error response:', (error as { response: { body: unknown } }).response.body);
     }
     return false;
   }

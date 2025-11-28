@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
+import type { User, Session } from '@supabase/supabase-js'
 import { AppContent } from '@/App'
 import * as AuthContextModule from '@/contexts/AuthContext'
 
@@ -23,11 +24,11 @@ describe('Auth Redirect - Regression Prevention', () => {
 
   it('CRITICAL: authenticated user on /auth must redirect to /app/home', async () => {
     // Mock an authenticated user
-    const mockUser = { id: 'user-123', email: 'test@example.com' } as any
+    const mockUser = { id: 'user-123', email: 'test@example.com' } as User
 
     vi.spyOn(AuthContextModule, 'useAuth').mockReturnValue({
       user: mockUser,
-      session: {} as any,
+      session: {} as Session,
       loading: false,
       isGuest: false,
       signUp: vi.fn(),
@@ -151,10 +152,10 @@ describe('Auth Redirect - Regression Prevention', () => {
     expect(screen.queryByText(/ABCresearch Portal/i)).toBeInTheDocument()
 
     // Simulate successful sign in (auth state changes)
-    const mockUser = { id: 'user-123', email: 'test@example.com' } as any
+    const mockUser = { id: 'user-123', email: 'test@example.com' } as User
     mockAuthHook.mockReturnValue({
       user: mockUser,
-      session: {} as any,
+      session: {} as Session,
       loading: false,
       isGuest: false,
       signUp: vi.fn(),
