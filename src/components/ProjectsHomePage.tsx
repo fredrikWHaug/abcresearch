@@ -85,39 +85,71 @@ export function ProjectsHomePage() {
   }
 
   return (
-    <div className="min-h-full px-6 py-10 max-w-7xl mx-auto">
-      {/* Header */}
-      <div className="mb-10">
-        <h1 className="text-4xl font-bold text-gray-900 mb-3">
-          Your Projects
-        </h1>
-        <p className="text-gray-600 text-lg">
-          {loading ? (
-            'Loading...'
-          ) : projects.length === 0 ? (
-            'Get started by creating your first research project'
-          ) : (
-            `${projects.length} project${projects.length === 1 ? '' : 's'}`
-          )}
-        </p>
-      </div>
-
-      {/* Loading State - Skeleton Grid */}
-      {loading && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          <ProjectCardSkeleton />
-          <ProjectCardSkeleton />
-          <ProjectCardSkeleton />
-          <ProjectCardSkeleton />
+    <div className="h-full flex flex-col">
+      {/* Empty State - Centered when no projects */}
+      {!loading && projects.length === 0 && (
+        <div className="flex-1 flex items-center justify-center px-6">
+          <div className="text-center">
+            <div className="relative inline-block mb-8">
+              <div className="absolute inset-0 bg-blue-100 rounded-full blur-3xl opacity-30" />
+              <div className="relative rounded-full bg-gradient-to-br from-blue-50 to-indigo-50 p-8 w-fit mx-auto">
+                <FolderOpen className="h-16 w-16 text-blue-500" />
+              </div>
+            </div>
+            <h3 className="text-2xl font-semibold text-gray-900 mb-3">
+              {isGuest ? 'Welcome, Guest!' : 'No projects yet'}
+            </h3>
+            <p className="text-gray-500 text-lg mb-8 max-w-md mx-auto">
+              {isGuest 
+                ? 'Sign up to create projects and save your research for later' 
+                : 'Create your first project to start researching clinical trials and academic papers'}
+            </p>
+            {!isGuest && (
+              <Button 
+                onClick={() => setShowCreateModal(true)} 
+                size="lg"
+                className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm hover:shadow-md transition-all"
+              >
+                <Plus className="h-5 w-5 mr-2" />
+                Create Your First Project
+              </Button>
+            )}
+          </div>
         </div>
       )}
 
-      {/* Projects Grid */}
-      {!loading && (
-        <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {/* Create New Project Card */}
-            <Card
+      {/* Projects Grid - Only show when we have projects OR loading */}
+      {(loading || projects.length > 0) && (
+        <div className="px-6 py-10 max-w-7xl mx-auto w-full">
+          {/* Header */}
+          <div className="mb-10">
+            <h1 className="text-4xl font-bold text-gray-900 mb-3">
+              Your Projects
+            </h1>
+            <p className="text-gray-600 text-lg">
+              {loading ? (
+                'Loading...'
+              ) : (
+                `${projects.length} project${projects.length === 1 ? '' : 's'}`
+              )}
+            </p>
+          </div>
+
+          {/* Loading State - Skeleton Grid */}
+          {loading && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              <ProjectCardSkeleton />
+              <ProjectCardSkeleton />
+              <ProjectCardSkeleton />
+              <ProjectCardSkeleton />
+            </div>
+          )}
+
+          {/* Projects Grid */}
+          {!loading && projects.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {/* Create New Project Card */}
+              <Card
               className="border-2 border-dashed border-gray-300 hover:border-blue-500 hover:shadow-md bg-white transition-all duration-200 cursor-pointer group relative overflow-hidden"
               onClick={() => setShowCreateModal(true)}
             >
@@ -171,38 +203,9 @@ export function ProjectsHomePage() {
                 <div className="absolute inset-0 bg-gradient-to-br from-blue-50/0 to-indigo-50/0 group-hover:from-blue-50/20 group-hover:to-indigo-50/20 transition-all duration-300 pointer-events-none" />
               </Card>
             ))}
-          </div>
-
-          {/* Empty State */}
-          {projects.length === 0 && (
-            <div className="text-center py-20">
-              <div className="relative inline-block mb-8">
-                <div className="absolute inset-0 bg-blue-100 rounded-full blur-3xl opacity-30" />
-                <div className="relative rounded-full bg-gradient-to-br from-blue-50 to-indigo-50 p-8 w-fit mx-auto">
-                  <FolderOpen className="h-16 w-16 text-blue-500" />
-                </div>
-              </div>
-              <h3 className="text-2xl font-semibold text-gray-900 mb-3">
-                {isGuest ? 'Welcome, Guest!' : 'No projects yet'}
-              </h3>
-              <p className="text-gray-500 text-lg mb-8 max-w-md mx-auto">
-                {isGuest 
-                  ? 'Sign up to create projects and save your research for later' 
-                  : 'Create your first project to start researching clinical trials and academic papers'}
-              </p>
-              {!isGuest && (
-                <Button 
-                  onClick={() => setShowCreateModal(true)} 
-                  size="lg"
-                  className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm hover:shadow-md transition-all"
-                >
-                  <Plus className="h-5 w-5 mr-2" />
-                  Create Your First Project
-                </Button>
-              )}
             </div>
           )}
-        </>
+        </div>
       )}
 
       {/* Create Project Modal */}
