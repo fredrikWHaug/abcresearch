@@ -197,35 +197,6 @@ export function RealtimeFeed({ isVisible = true }: RealtimeFeedProps = {}) {
     }
   };
 
-  const validateRssFeed = async (searchTerm: string): Promise<{ valid: boolean; error?: string; count?: number }> => {
-    try {
-      // Build RSS URL
-      const rssUrl = `https://clinicaltrials.gov/api/rss?intr=${encodeURIComponent(searchTerm)}&locStr=USA&country=US&dateField=LastUpdatePostDate`;
-      
-      // Test fetch the RSS feed
-      const response = await fetch(rssUrl);
-      if (!response.ok) {
-        return { valid: false, error: 'Failed to fetch RSS feed from ClinicalTrials.gov' };
-      }
-
-      const xmlText = await response.text();
-      
-      // Basic XML validation - check if it contains RSS/feed structure
-      if (!xmlText.includes('<rss') && !xmlText.includes('<feed')) {
-        return { valid: false, error: 'Invalid RSS feed format' };
-      }
-
-      // Count items to give feedback
-      const itemMatches = xmlText.match(/<item>/g);
-      const count = itemMatches ? itemMatches.length : 0;
-
-      return { valid: true, count };
-    } catch (error) {
-      console.error('RSS validation error:', error);
-      return { valid: false, error: 'Failed to validate RSS feed. Please try again.' };
-    }
-  };
-
   const handleAddFeed = async () => {
     if (!newSearchTerm.trim()) return;
 
@@ -233,20 +204,6 @@ export function RealtimeFeed({ isVisible = true }: RealtimeFeedProps = {}) {
     setValidatingFeed(true);
 
     try {
-      // Validate RSS feed first
-      const validation = await validateRssFeed(newSearchTerm.trim());
-      
-      if (!validation.valid) {
-        setValidationError(validation.error || 'Invalid RSS feed');
-        setValidatingFeed(false);
-        return;
-      }
-
-      // Show success feedback
-      if (validation.count === 0) {
-        setValidationError('⚠️ Feed is valid but currently has no trials. You can still add it.');
-      }
-
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
 
@@ -268,23 +225,38 @@ export function RealtimeFeed({ isVisible = true }: RealtimeFeedProps = {}) {
 
       if (response.ok) {
         const data = await response.json();
+        
+        // Close modal and reset form
         setNewSearchTerm('');
         setNewFeedLabel('');
         setValidationError('');
         setEnableEmailUpdates(false);
         setEmailAddress('');
         setShowAddModal(false);
+        setValidatingFeed(false);
+        
+        // Load feeds to show the new feed in the list
         await loadFeeds();
         
-        // Real-time subscription will handle progress updates automatically
-        if (data.feed?.id) {
-          setRefreshingFeedId(data.feed.id);
+        // If processing completed, show success message
+        if (data.processing_complete) {
+          setRefreshMessage('Feed added and processed successfully!');
+          setTimeout(() => setRefreshMessage(''), 3000);
+        } else if (data.cancelled) {
+          setRefreshMessage('Feed added but processing was cancelled');
+          setTimeout(() => setRefreshMessage(''), 3000);
+        } else if (data.error) {
+          setRefreshMessage(`Feed added but processing failed: ${data.error}`);
+          setTimeout(() => setRefreshMessage(''), 5000);
         }
+      } else {
+        const errorData = await response.json();
+        setValidationError(errorData.error || 'Failed to add feed. Please try again.');
+        setValidatingFeed(false);
       }
     } catch (error) {
       console.error('Failed to add feed:', error);
       setValidationError('Failed to add feed. Please try again.');
-    } finally {
       setValidatingFeed(false);
     }
   };
@@ -543,20 +515,29 @@ export function RealtimeFeed({ isVisible = true }: RealtimeFeedProps = {}) {
                             </div>
                           )}
                           {/* Progress indicator */}
-                          {refreshProgress[feed.id] && refreshProgress[feed.id].total > 0 && (
+                          {refreshingFeedId === feed.id && (
                             <div className="mt-2">
-                              <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
-                                <span>Processing studies...</span>
-                                <span>{refreshProgress[feed.id].processed} / {refreshProgress[feed.id].total}</span>
-                              </div>
-                              <div className="w-full bg-gray-200 rounded-full h-1.5">
-                                <div
-                                  className="bg-blue-600 h-1.5 rounded-full transition-all duration-300"
-                                  style={{
-                                    width: `${(refreshProgress[feed.id].processed / refreshProgress[feed.id].total) * 100}%`,
-                                  }}
-                                />
-                              </div>
+                              {refreshProgress[feed.id] && refreshProgress[feed.id].total > 0 ? (
+                                <>
+                                  <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
+                                    <span>Processing studies...</span>
+                                    <span>{refreshProgress[feed.id].processed} / {refreshProgress[feed.id].total}</span>
+                                  </div>
+                                  <div className="w-full bg-gray-200 rounded-full h-1.5">
+                                    <div
+                                      className="bg-blue-600 h-1.5 rounded-full transition-all duration-300"
+                                      style={{
+                                        width: `${(refreshProgress[feed.id].processed / refreshProgress[feed.id].total) * 100}%`,
+                                      }}
+                                    />
+                                  </div>
+                                </>
+                              ) : (
+                                <div className="flex items-center gap-2 text-xs text-blue-600">
+                                  <RefreshCw className="w-3 h-3 animate-spin" />
+                                  <span>Fetching RSS feed...</span>
+                                </div>
+                              )}
                             </div>
                           )}
                         </button>
@@ -870,8 +851,12 @@ export function RealtimeFeed({ isVisible = true }: RealtimeFeedProps = {}) {
                   <br />
                   • Location: USA
                   <br />
-                  • Updates from the last 14 days
-                  <br />• Daily checks for changes
+                  • Up to 10 most recent updates from the last 14 days
+                  <br />
+                  • Daily checks for changes
+                </p>
+                <p className="text-xs text-blue-700 mt-2">
+                  <strong>⏱️ Note:</strong> Initial processing may take 30-60 seconds as we fetch and analyze the feed.
                 </p>
               </div>
               {validationError && (
@@ -906,7 +891,7 @@ export function RealtimeFeed({ isVisible = true }: RealtimeFeedProps = {}) {
                   {validatingFeed ? (
                     <>
                       <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                      Validating...
+                      Processing feed... (may take 30-60s)
                     </>
                   ) : (
                     'Start Watching'
