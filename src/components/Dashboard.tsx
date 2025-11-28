@@ -347,12 +347,13 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
       // THEN: Load chat history and data for new project from database
       console.log('[Dashboard] 📥 Loading chat history for project', currentProjectId, 'from database...')
       
-      // Load chat history and search queries
-      import('@/services/projectService').then(async ({ loadChatHistory, loadSearchQueries }) => {
+      // Load chat history, search queries, and pipeline candidates
+      import('@/services/projectService').then(async ({ loadChatHistory, loadSearchQueries, loadPipelineCandidates }) => {
         try {
-          const [dbChat, searchQueries] = await Promise.all([
+          const [dbChat, searchQueries, pipelineCands] = await Promise.all([
             loadChatHistory(currentProjectId),
-            loadSearchQueries(currentProjectId)
+            loadSearchQueries(currentProjectId),
+            loadPipelineCandidates(currentProjectId)
           ])
           
           // Load search queries
@@ -361,6 +362,15 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
             setInitialSearchQueries(searchQueries)
           } else {
             setInitialSearchQueries(null)
+          }
+          
+          // Load pipeline candidates
+          if (pipelineCands && pipelineCands.length > 0) {
+            console.log('[Dashboard] ✅ Loaded', pipelineCands.length, 'pipeline candidates for project', currentProjectId)
+            setPipelineCandidates(pipelineCands)
+          } else {
+            console.log('[Dashboard] ✅ No pipeline candidates for project', currentProjectId)
+            setPipelineCandidates([])
           }
           
           // Load chat history
@@ -459,6 +469,18 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
     // Update previous project ref
     previousProjectIdRef.current = currentProjectId
   }, [currentProjectId])
+
+  // Auto-save pipeline candidates when they change
+  useEffect(() => {
+    if (currentProjectId && pipelineCandidates.length > 0) {
+      console.log('[Dashboard] Pipeline candidates changed, auto-saving to database...')
+      import('@/services/projectService').then(({ savePipelineCandidates }) => {
+        savePipelineCandidates(currentProjectId, pipelineCandidates).catch(error => {
+          console.error('[Dashboard] Failed to save pipeline candidates:', error)
+        })
+      })
+    }
+  }, [pipelineCandidates, currentProjectId])
   
   // Drug grouping state
   const [drugGroups, setDrugGroups] = useState<DrugGroup[]>([])
@@ -656,24 +678,36 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
         normalizedName: drugName.toLowerCase(),
         papers: sortedPapers,
         trials: sortedTrials,
-        pressReleases: [],
+        pressReleases: result.pressReleases || [],
         irDecks: result.irDecks || [],
-        totalResults: sortedPapers.length + sortedTrials.length + (result.irDecks?.length || 0)
+        totalResults: sortedPapers.length + sortedTrials.length + (result.pressReleases?.length || 0) + (result.irDecks?.length || 0)
       };
       
       // Update drugGroups to include this updated drug or add it if new
+      let updatedDrugGroups: DrugGroup[] = [];
       setDrugGroups(prev => {
         const existing = prev.find(g => g.normalizedName === drugName.toLowerCase());
         if (existing) {
           // Update existing drug
-          return prev.map(g => 
+          updatedDrugGroups = prev.map(g => 
             g.normalizedName === drugName.toLowerCase() ? updatedDrugGroup : g
           ).sort((a, b) => b.totalResults - a.totalResults);
         } else {
           // Add new drug
-          return [...prev, updatedDrugGroup].sort((a, b) => b.totalResults - a.totalResults);
+          updatedDrugGroups = [...prev, updatedDrugGroup].sort((a, b) => b.totalResults - a.totalResults);
         }
+        return updatedDrugGroups;
       });
+      
+      // Save drug groups to database (background task)
+      if (currentProjectId) {
+        console.log('[Dashboard] Deep Dive: Saving updated drug groups to database...');
+        import('@/services/drugAssociationService').then(({ saveDrugGroups }) => {
+          saveDrugGroups(currentProjectId, updatedDrugGroups).catch(error => {
+            console.error('[Dashboard] Deep Dive: Failed to save drug groups:', error);
+          });
+        });
+      }
       
       // Open the drug modal to show results
       setSelectedDrug(updatedDrugGroup);
@@ -681,14 +715,21 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
       // Notify success (remove progress messages)
       setChatHistory(prev => {
         const filtered = prev.filter(item => !item.message.startsWith('progress:'));
+        const parts = [`${sortedTrials.length} trials`, `${sortedPapers.length} papers`];
+        if (result.pressReleases && result.pressReleases.length > 0) {
+          parts.push(`${result.pressReleases.length} press releases`);
+        }
+        if (result.irDecks && result.irDecks.length > 0) {
+          parts.push(`${result.irDecks.length} IR decks`);
+        }
         return [...filtered, {
           type: 'system' as const,
-          message: `Found ${sortedTrials.length} trials and ${sortedPapers.length} papers for "${drugName}" (sorted by recency and size)`,
+          message: `Found ${parts.join(', ')} for "${drugName}" (sorted by recency and size)`,
           searchSuggestions: []
         }];
       });
       
-      console.log(`✅ Deep Dive complete: ${sortedTrials.length} trials, ${sortedPapers.length} papers`);
+      console.log(`✅ Deep Dive complete: ${sortedTrials.length} trials, ${sortedPapers.length} papers, ${result.pressReleases?.length || 0} press releases, ${result.irDecks?.length || 0} IR decks`);
     } catch (error) {
       console.error('Error in drug-specific search:', error);
       setChatHistory(prev => [...prev, {
