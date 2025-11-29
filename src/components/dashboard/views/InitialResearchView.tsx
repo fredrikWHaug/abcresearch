@@ -12,15 +12,12 @@ interface InitialResearchViewProps {
   onRemovePaper: (pmid: string) => void;
   onRemovePressRelease: (id: string) => void;
   onClearContext: () => void;
-  message: string;
-  onMessageChange: (value: string) => void;
-  onSendMessage: (messageOverride?: string) => void;
-  onKeyPress: (e: React.KeyboardEvent) => void;
+  onSendMessage: (message: string) => void;
   loading: boolean;
   hasSearched: boolean;
 }
 
-export function InitialResearchView({
+export const InitialResearchView = React.memo(function InitialResearchView({
   selectedPapers,
   selectedPressReleases,
   showContextPanel,
@@ -28,13 +25,35 @@ export function InitialResearchView({
   onRemovePaper,
   onRemovePressRelease,
   onClearContext,
-  message,
-  onMessageChange,
   onSendMessage,
-  onKeyPress,
   loading,
   hasSearched
 }: InitialResearchViewProps) {
+  const [message, setMessage] = React.useState('')
+  const inputRef = React.useRef<HTMLInputElement>(null)
+  const hasAutoFocusedRef = React.useRef(false)
+
+  // Auto-focus input only once on initial mount
+  React.useEffect(() => {
+    if (!hasAutoFocusedRef.current && inputRef.current) {
+      inputRef.current.focus()
+      hasAutoFocusedRef.current = true
+    }
+  }, [])
+
+  const handleSend = () => {
+    if (!message.trim() || loading) return
+    onSendMessage(message)
+    setMessage('')
+  }
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleSend()
+    }
+  }
+
   const quickSearches = [
     {
       id: 'glp1',
@@ -52,7 +71,6 @@ export function InitialResearchView({
 
   const handleQuickSearch = (query: string) => {
     if (loading) return
-    onMessageChange(query)
     onSendMessage(query)
   }
 
@@ -202,18 +220,18 @@ export function InitialResearchView({
 
       <div className="relative">
         <input
+          ref={inputRef}
           type="text"
           value={message}
-          onChange={(e) => onMessageChange(e.target.value)}
-          onKeyPress={onKeyPress}
+          onChange={(e) => setMessage(e.target.value)}
+          onKeyPress={handleKeyPress}
           placeholder={hasSearched ? "Respond to ABCresearch's agent..." : "How can I help you today?"}
           className="flex h-[60px] w-full rounded-md border border-gray-300 bg-white pl-4 pr-16 py-2 text-lg ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50"
           disabled={loading}
-          autoFocus
         />
         <button
           type="button"
-          onClick={() => onSendMessage()}
+          onClick={handleSend}
           disabled={!message.trim() || loading}
           className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-gray-800 hover:bg-gray-900 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
         >
@@ -241,5 +259,5 @@ export function InitialResearchView({
       )}
     </div>
   )
-}
+})
 
