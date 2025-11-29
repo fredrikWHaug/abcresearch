@@ -10,14 +10,14 @@
 
 import React from 'react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { BrowserRouter } from 'react-router-dom'
 import { Dashboard } from '@/components/Dashboard'
 import { ExtractionHistory } from '@/components/ExtractionHistory'
-import { PDFExtraction } from '@/components/PDFExtraction'
 import { AuthProvider } from '@/contexts/AuthContext'
 import type { PDFExtractionJob } from '@/types/pdf-extraction-job'
+import type { PDFExtractionResult } from '@/types/extraction'
 
 // Mock Supabase auth
 vi.mock('@/lib/supabase', () => ({
@@ -79,6 +79,10 @@ const renderWithRouter = (component: React.ReactElement) => {
     </AuthProvider>
   )
 }
+
+const TEST_PROJECT_ID = 123
+const TEST_CACHE_KEY = `extraction_history_cache:project_${TEST_PROJECT_ID}`
+const TEST_CACHE_TS_KEY = `extraction_history_cache_ts:project_${TEST_PROJECT_ID}`
 
 describe('Bug 1: Data Extraction Tab Accessibility', () => {
   beforeEach(() => {
@@ -222,11 +226,11 @@ describe('Bug 2: Extraction History Loading Performance', () => {
     const listJobsMock = vi.mocked(PDFExtractionJobService.listJobs)
     
     // Given: Jobs are cached in sessionStorage
-    sessionStorage.setItem('extraction_history_cache', JSON.stringify(mockJobs))
-    sessionStorage.setItem('extraction_history_cache_ts', String(Date.now()))
+    sessionStorage.setItem(TEST_CACHE_KEY, JSON.stringify(mockJobs))
+    sessionStorage.setItem(TEST_CACHE_TS_KEY, String(Date.now()))
 
     // When: Component mounts
-    const { container } = render(<ExtractionHistory isVisible={true} />)
+    const { container } = render(<ExtractionHistory currentProjectId={TEST_PROJECT_ID} isVisible={true} />)
 
     // Then: Jobs should appear immediately without waiting for API call
     // (No skeleton loading should be shown)
@@ -241,7 +245,7 @@ describe('Bug 2: Extraction History Loading Performance', () => {
 
     // And: API should still be called to refresh data in background
     await waitFor(() => {
-      expect(listJobsMock).toHaveBeenCalledWith({ limit: 50 })
+      expect(listJobsMock).toHaveBeenCalledWith({ limit: 50, projectId: TEST_PROJECT_ID })
     }, { timeout: 1000 })
   })
 
@@ -260,7 +264,7 @@ describe('Bug 2: Extraction History Loading Performance', () => {
     )
 
     // When: Component mounts
-    const { container } = render(<ExtractionHistory isVisible={true} />)
+    const { container } = render(<ExtractionHistory currentProjectId={TEST_PROJECT_ID} isVisible={true} />)
 
     // Then: Skeleton loading should be shown
     const skeletons = container.querySelectorAll('.animate-pulse')
@@ -277,13 +281,13 @@ describe('Bug 2: Extraction History Loading Performance', () => {
     const listJobsMock = vi.mocked(PDFExtractionJobService.listJobs)
     
     // Given: Cache exists with jobs
-    sessionStorage.setItem('extraction_history_cache', JSON.stringify(mockJobs))
-    sessionStorage.setItem('extraction_history_cache_ts', String(Date.now()))
+    sessionStorage.setItem(TEST_CACHE_KEY, JSON.stringify(mockJobs))
+    sessionStorage.setItem(TEST_CACHE_TS_KEY, String(Date.now()))
     
     listJobsMock.mockResolvedValue({ success: true, jobs: mockJobs })
 
     // When: Component mounts
-    const { container } = render(<ExtractionHistory isVisible={true} />)
+    const { container } = render(<ExtractionHistory currentProjectId={TEST_PROJECT_ID} isVisible={true} />)
     
     // Then: Jobs should appear from cache immediately
     await waitFor(() => {
@@ -309,11 +313,11 @@ describe('Bug 2: Extraction History Loading Performance', () => {
     listJobsMock.mockResolvedValue({ success: true, jobs: mockJobs })
 
     // When: Component loads jobs
-    render(<ExtractionHistory isVisible={true} />)
+    render(<ExtractionHistory currentProjectId={TEST_PROJECT_ID} isVisible={true} />)
 
     // Then: Jobs should be cached in sessionStorage
     await waitFor(() => {
-      const cached = sessionStorage.getItem('extraction_history_cache')
+      const cached = sessionStorage.getItem(TEST_CACHE_KEY)
       expect(cached).toBeTruthy()
       
       const cachedJobs = JSON.parse(cached!)
@@ -322,7 +326,7 @@ describe('Bug 2: Extraction History Loading Performance', () => {
     })
 
     // And: Timestamp should be set
-    const timestamp = sessionStorage.getItem('extraction_history_cache_ts')
+    const timestamp = sessionStorage.getItem(TEST_CACHE_TS_KEY)
     expect(timestamp).toBeTruthy()
     expect(Date.now() - parseInt(timestamp!, 10)).toBeLessThan(1000) // Within 1 second
   })
@@ -380,7 +384,7 @@ describe('Bug 3: Progressive Loading (Partial Results)', () => {
 
     // Manually set the extraction result to simulate partial state
     const PartialTestComponent = () => {
-      const [extractionResult, setExtractionResult] = React.useState<any>(null)
+      const [extractionResult, setExtractionResult] = React.useState<PDFExtractionResult | null>(null)
       const [isPartialResult, setIsPartialResult] = React.useState(false)
 
       React.useEffect(() => {
@@ -472,7 +476,7 @@ describe('Bug 3: Progressive Loading (Partial Results)', () => {
     listJobsMock.mockResolvedValue({ success: true, jobs: [partialJob] })
 
     // When: ExtractionHistory renders with a partial job
-    render(<ExtractionHistory isVisible={true} />)
+    render(<ExtractionHistory currentProjectId={TEST_PROJECT_ID} isVisible={true} />)
 
     // Then: Should show the job with partial status styling
     await waitFor(() => {
@@ -513,7 +517,7 @@ describe('Bug 3: Progressive Loading (Partial Results)', () => {
     listJobsMock.mockResolvedValue({ success: true, jobs: [partialJob] })
 
     // When: Component mounts with partial job
-    render(<ExtractionHistory isVisible={true} />)
+    render(<ExtractionHistory currentProjectId={TEST_PROJECT_ID} isVisible={true} />)
 
     await waitFor(() => {
       expect(screen.getByText('analyzing.pdf')).toBeInTheDocument()
@@ -571,7 +575,7 @@ describe('Bug 3 Fix Verification: Backend Sets Partial Status', () => {
     listJobsMock.mockResolvedValue({ success: true, jobs })
 
     // When: Rendering history with partial job
-    render(<ExtractionHistory isVisible={true} />)
+    render(<ExtractionHistory currentProjectId={TEST_PROJECT_ID} isVisible={true} />)
 
     // Then: Should show amber styling (not blue for processing)
     await waitFor(() => {

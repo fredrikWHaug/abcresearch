@@ -33,7 +33,7 @@ describe('PDFExtraction Component - Enhanced with Content Extraction', () => {
 
   describe('1. Component Rendering', () => {
     it('should render the component with all initial UI elements', () => {
-      render(<PDFExtraction />)
+      render(<PDFExtraction currentProjectId={1} />)
 
       // Check for title
       expect(screen.getByText('PDF Table Extraction')).toBeInTheDocument()
@@ -55,7 +55,7 @@ describe('PDFExtraction Component - Enhanced with Content Extraction', () => {
     })
 
     it('should display the component in a card layout with proper styling', () => {
-      const { container } = render(<PDFExtraction />)
+      const { container } = render(<PDFExtraction currentProjectId={1} />)
       
       // Check for card structure
       const card = container.querySelector('.rounded-lg.border')
@@ -65,14 +65,14 @@ describe('PDFExtraction Component - Enhanced with Content Extraction', () => {
 
   describe('2. File Selection', () => {
     it('should only accept PDF files', () => {
-      render(<PDFExtraction />)
+      render(<PDFExtraction currentProjectId={1} />)
       
       const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
       expect(fileInput.accept).toBe('.pdf')
     })
 
     it('should display selected PDF file name and size', async () => {
-      render(<PDFExtraction />)
+      render(<PDFExtraction currentProjectId={1} />)
       
       const file = new File(['dummy content'], 'test-document.pdf', { type: 'application/pdf' })
       Object.defineProperty(file, 'size', { value: 1024 * 1024 * 2.5 }) // 2.5 MB
@@ -97,7 +97,7 @@ describe('PDFExtraction Component - Enhanced with Content Extraction', () => {
       ]
 
       for (const testCase of testCases) {
-        const { unmount } = render(<PDFExtraction />)
+        const { unmount } = render(<PDFExtraction currentProjectId={1} />)
         
         const file = new File(['content'], 'test.pdf', { type: 'application/pdf' })
         Object.defineProperty(file, 'size', { value: testCase.size })
@@ -112,7 +112,7 @@ describe('PDFExtraction Component - Enhanced with Content Extraction', () => {
     })
 
     it('should enable Extract Content button when file is selected', async () => {
-      render(<PDFExtraction />)
+      render(<PDFExtraction currentProjectId={1} />)
       
       const file = new File(['content'], 'test.pdf', { type: 'application/pdf' })
       const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
@@ -124,7 +124,7 @@ describe('PDFExtraction Component - Enhanced with Content Extraction', () => {
     })
 
     it('should show remove button when file is selected', async () => {
-      render(<PDFExtraction />)
+      render(<PDFExtraction currentProjectId={1} />)
       
       const file = new File(['content'], 'test.pdf', { type: 'application/pdf' })
       const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
@@ -144,7 +144,7 @@ describe('PDFExtraction Component - Enhanced with Content Extraction', () => {
         stats: { imagesFound: 0, graphsDetected: 0, processingTimeMs: 1000 }
       })
 
-      render(<PDFExtraction />)
+      render(<PDFExtraction currentProjectId={1} />)
       
       // Select and process first file
       const file1 = new File(['content'], 'first.pdf', { type: 'application/pdf' })
@@ -176,7 +176,7 @@ describe('PDFExtraction Component - Enhanced with Content Extraction', () => {
         stats: { imagesFound: 0, graphsDetected: 0, processingTimeMs: 1000 }
       })
 
-      render(<PDFExtraction />)
+      render(<PDFExtraction currentProjectId={1} />)
       
       const file = new File(['content'], 'test.pdf', { type: 'application/pdf' })
       const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
@@ -203,7 +203,7 @@ describe('PDFExtraction Component - Enhanced with Content Extraction', () => {
         }), 100))
       )
 
-      render(<PDFExtraction />)
+      render(<PDFExtraction currentProjectId={1} />)
       
       const file = new File(['content'], 'test.pdf', { type: 'application/pdf' })
       const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
@@ -234,7 +234,7 @@ describe('PDFExtraction Component - Enhanced with Content Extraction', () => {
         }), 100))
       )
 
-      render(<PDFExtraction />)
+      render(<PDFExtraction currentProjectId={1} />)
       
       const file = new File(['content'], 'test.pdf', { type: 'application/pdf' })
       const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
@@ -269,7 +269,7 @@ describe('PDFExtraction Component - Enhanced with Content Extraction', () => {
         message: 'Successfully extracted content from PDF'
       })
 
-      render(<PDFExtraction />)
+      render(<PDFExtraction currentProjectId={1} />)
       
       const file = new File(['content'], 'test.pdf', { type: 'application/pdf' })
       const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
@@ -295,7 +295,7 @@ describe('PDFExtraction Component - Enhanced with Content Extraction', () => {
         }
       })
 
-      render(<PDFExtraction />)
+      render(<PDFExtraction currentProjectId={1} />)
       
       const file = new File(['content'], 'test.pdf', { type: 'application/pdf' })
       const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
@@ -318,7 +318,7 @@ describe('PDFExtraction Component - Enhanced with Content Extraction', () => {
         stats: { imagesFound: 0, graphsDetected: 0, processingTimeMs: 1000 }
       })
 
-      render(<PDFExtraction />)
+      render(<PDFExtraction currentProjectId={1} />)
       
       const file = new File(['content'], 'test.pdf', { type: 'application/pdf' })
       const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
@@ -342,7 +342,7 @@ describe('PDFExtraction Component - Enhanced with Content Extraction', () => {
         stats: { imagesFound: 5, graphsDetected: 0, processingTimeMs: 3000 }
       })
 
-      render(<PDFExtraction />)
+      render(<PDFExtraction currentProjectId={1} />)
       
       const file = new File(['content'], 'test.pdf', { type: 'application/pdf' })
       const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
@@ -365,7 +365,7 @@ describe('PDFExtraction Component - Enhanced with Content Extraction', () => {
         message: errorMessage,
       })
 
-      render(<PDFExtraction />)
+      render(<PDFExtraction currentProjectId={1} />)
       
       const file = new File(['content'], 'test.pdf', { type: 'application/pdf' })
       const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
@@ -385,7 +385,7 @@ describe('PDFExtraction Component - Enhanced with Content Extraction', () => {
         success: false,
       })
 
-      render(<PDFExtraction />)
+      render(<PDFExtraction currentProjectId={1} />)
       
       const file = new File(['content'], 'test.pdf', { type: 'application/pdf' })
       const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
@@ -403,7 +403,7 @@ describe('PDFExtraction Component - Enhanced with Content Extraction', () => {
       const errorMessage = 'Network error: Failed to fetch'
       mockExtractContent.mockRejectedValue(new Error(errorMessage))
 
-      render(<PDFExtraction />)
+      render(<PDFExtraction currentProjectId={1} />)
       
       const file = new File(['content'], 'test.pdf', { type: 'application/pdf' })
       const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
@@ -424,7 +424,7 @@ describe('PDFExtraction Component - Enhanced with Content Extraction', () => {
         message: 'Error',
       })
 
-      render(<PDFExtraction />)
+      render(<PDFExtraction currentProjectId={1} />)
       
       const file = new File(['content'], 'test.pdf', { type: 'application/pdf' })
       const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
@@ -453,7 +453,7 @@ describe('PDFExtraction Component - Enhanced with Content Extraction', () => {
         stats: { imagesFound: 0, graphsDetected: 0, processingTimeMs: 1000 }
       })
 
-      render(<PDFExtraction />)
+      render(<PDFExtraction currentProjectId={1} />)
       
       const file = new File(['content'], 'test.pdf', { type: 'application/pdf' })
       const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
@@ -484,7 +484,7 @@ describe('PDFExtraction Component - Enhanced with Content Extraction', () => {
         stats: { imagesFound: 0, graphsDetected: 0, processingTimeMs: 1000 }
       })
 
-      render(<PDFExtraction />)
+      render(<PDFExtraction currentProjectId={1} />)
       
       const file = new File(['content'], 'my-document.pdf', { type: 'application/pdf' })
       const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
@@ -514,7 +514,7 @@ describe('PDFExtraction Component - Enhanced with Content Extraction', () => {
         stats: { imagesFound: 0, graphsDetected: 0, processingTimeMs: 1000 }
       })
 
-      render(<PDFExtraction />)
+      render(<PDFExtraction currentProjectId={1} />)
       
       const file = new File(['content'], 'test.pdf', { type: 'application/pdf' })
       const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
@@ -537,7 +537,7 @@ describe('PDFExtraction Component - Enhanced with Content Extraction', () => {
 
   describe('7. Reset Functionality', () => {
     it('should clear file selection when remove button is clicked', async () => {
-      render(<PDFExtraction />)
+      render(<PDFExtraction currentProjectId={1} />)
       
       const file = new File(['content'], 'test.pdf', { type: 'application/pdf' })
       const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
@@ -565,7 +565,7 @@ describe('PDFExtraction Component - Enhanced with Content Extraction', () => {
         stats: { imagesFound: 0, graphsDetected: 0, processingTimeMs: 1000 }
       })
 
-      render(<PDFExtraction />)
+      render(<PDFExtraction currentProjectId={1} />)
       
       const file = new File(['content'], 'test.pdf', { type: 'application/pdf' })
       const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
@@ -591,7 +591,7 @@ describe('PDFExtraction Component - Enhanced with Content Extraction', () => {
     })
 
     it('should reset file input value when clearing', async () => {
-      render(<PDFExtraction />)
+      render(<PDFExtraction currentProjectId={1} />)
       
       const file = new File(['content'], 'test.pdf', { type: 'application/pdf' })
       const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
@@ -620,7 +620,7 @@ describe('PDFExtraction Component - Enhanced with Content Extraction', () => {
         stats: { imagesFound: 0, graphsDetected: 0, processingTimeMs: 1000 }
       })
 
-      render(<PDFExtraction />)
+      render(<PDFExtraction currentProjectId={1} />)
       
       // First file
       const file1 = new File(['content'], 'first.pdf', { type: 'application/pdf' })
@@ -649,7 +649,7 @@ describe('PDFExtraction Component - Enhanced with Content Extraction', () => {
 
   describe('8. Edge Cases and Additional Tests', () => {
     it('should handle zero-byte files', async () => {
-      render(<PDFExtraction />)
+      render(<PDFExtraction currentProjectId={1} />)
       
       const file = new File([], 'empty.pdf', { type: 'application/pdf' })
       Object.defineProperty(file, 'size', { value: 0 })
@@ -662,7 +662,7 @@ describe('PDFExtraction Component - Enhanced with Content Extraction', () => {
     })
 
     it('should handle very large files', async () => {
-      render(<PDFExtraction />)
+      render(<PDFExtraction currentProjectId={1} />)
       
       const file = new File(['x'.repeat(1000)], 'large.pdf', { type: 'application/pdf' })
       Object.defineProperty(file, 'size', { value: 1024 * 1024 * 1024 * 2.5 }) // 2.5 GB
@@ -675,7 +675,7 @@ describe('PDFExtraction Component - Enhanced with Content Extraction', () => {
     })
 
     it('should handle long file names gracefully', async () => {
-      render(<PDFExtraction />)
+      render(<PDFExtraction currentProjectId={1} />)
       
       const longFileName = 'this-is-a-very-long-file-name-that-should-be-displayed-properly-in-the-ui-component.pdf'
       const file = new File(['content'], longFileName, { type: 'application/pdf' })
@@ -687,7 +687,7 @@ describe('PDFExtraction Component - Enhanced with Content Extraction', () => {
     })
 
     it('should not allow extraction without a file', () => {
-      render(<PDFExtraction />)
+      render(<PDFExtraction currentProjectId={1} />)
       
       const extractButton = screen.getByRole('button', { name: /Extract Content/i })
       expect(extractButton).toBeDisabled()
@@ -706,7 +706,7 @@ describe('PDFExtraction Component - Enhanced with Content Extraction', () => {
         message: 'Successfully extracted content from PDF'
       })
 
-      render(<PDFExtraction />)
+      render(<PDFExtraction currentProjectId={1} />)
       
       const file = new File(['content'], 'text-only.pdf', { type: 'application/pdf' })
       const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
@@ -733,7 +733,7 @@ describe('PDFExtraction Component - Enhanced with Content Extraction', () => {
         }), 200))
       )
 
-      render(<PDFExtraction />)
+      render(<PDFExtraction currentProjectId={1} />)
       
       const file = new File(['content'], 'test.pdf', { type: 'application/pdf' })
       const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
@@ -753,7 +753,7 @@ describe('PDFExtraction Component - Enhanced with Content Extraction', () => {
     })
 
     it('should maintain accessibility attributes', () => {
-      render(<PDFExtraction />)
+      render(<PDFExtraction currentProjectId={1} />)
       
       const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
       expect(fileInput).toHaveAttribute('id', 'pdf-upload')
@@ -769,7 +769,7 @@ describe('PDFExtraction Component - Enhanced with Content Extraction', () => {
         stats: { imagesFound: 0, graphsDetected: 0, processingTimeMs: 1000 }
       })
 
-      const { container } = render(<PDFExtraction />)
+      const { container } = render(<PDFExtraction currentProjectId={1} />)
       
       // Initial state should have upload icon
       expect(container.querySelector('svg')).toBeInTheDocument()
@@ -811,7 +811,7 @@ describe('PDFExtraction Component - Enhanced with Content Extraction', () => {
         message: 'Successfully extracted content from PDF with 1 graph(s) detected'
       })
 
-      render(<PDFExtraction />)
+      render(<PDFExtraction currentProjectId={1} />)
       
       const file = new File(['content'], 'research.pdf', { type: 'application/pdf' })
       const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
