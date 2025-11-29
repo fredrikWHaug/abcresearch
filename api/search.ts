@@ -385,170 +385,351 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json({ papers });
 
     } else if (searchType === 'press-releases') {
-      // Press Releases Search
+      // Press Releases Search - Using Google Custom Search API for company press releases
       const params: PressReleaseSearchParams = req.body;
 
       if (!params.query) {
         return res.status(400).json({ error: 'Query parameter is required' });
       }
 
-      const newsApiKey = process.env.NEWS_API_KEY;
-      if (!newsApiKey) {
-        return res.status(500).json({ error: 'NEWS_API_KEY environment variable is required' });
+      const googleApiKey = process.env.GOOGLE_SEARCH_API_KEY;
+      const searchEngineId = process.env.GOOGLE_SEARCH_ENGINE_ID;
+
+      if (!googleApiKey || !searchEngineId) {
+        console.error('Google Search API not configured, falling back to empty results');
+        return res.status(200).json({
+          pressReleases: [],
+          totalCount: 0,
+          error: 'Google Search API not configured. Please set GOOGLE_SEARCH_API_KEY and GOOGLE_SEARCH_ENGINE_ID in environment variables.'
+        });
       }
 
-      const now = Date.now();
-      const timeSinceLastRequest = now - lastRequestTimeNews;
-      if (timeSinceLastRequest < RATE_LIMIT_DELAY_NEWS) {
-        await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_DELAY_NEWS - timeSinceLastRequest));
+      try {
+        const maxResults = params.maxResults || 30;
+        const pressReleases: any[] = [];
+
+        // Build search query for company press releases
+        let searchQuery = params.query;
+        if (params.company) {
+          searchQuery = `${params.company} ${params.query} press release`;
+        } else {
+          searchQuery = `${params.query} press release`;
+        }
+
+        // Search for press releases on company websites and SEC
+        // We'll do multiple searches: company sites + SEC
+        const searchUrls = [
+          // Search company investor relations pages
+          `${searchQuery} site:investors OR site:investor OR site:ir`,
+          // Search SEC 8-K filings
+          `${searchQuery} site:sec.gov 8-K`
+        ];
+
+        for (const query of searchUrls) {
+          if (pressReleases.length >= maxResults) break;
+
+          const now = Date.now();
+          const timeSinceLastRequest = now - lastRequestTimeSEC;
+          if (timeSinceLastRequest < RATE_LIMIT_DELAY_SEC) {
+            await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_DELAY_SEC - timeSinceLastRequest));
+          }
+          lastRequestTimeSEC = Date.now();
+
+          const searchParams = new URLSearchParams({
+            key: googleApiKey,
+            cx: searchEngineId,
+            q: query,
+            num: '10'
+          });
+
+          if (params.startDate) {
+            searchParams.append('dateRestrict', `d${Math.floor((Date.now() - new Date(params.startDate).getTime()) / (1000 * 60 * 60 * 24))}`);
+          }
+
+          const response = await fetch(`https://www.googleapis.com/customsearch/v1?${searchParams.toString()}`);
+
+          if (!response.ok) {
+            console.error(`Google Search API error: ${response.statusText}`);
+            continue;
+          }
+
+          const data = await response.json();
+          const items = data.items || [];
+
+          for (const item of items) {
+            if (pressReleases.length >= maxResults) break;
+
+            // Extract company name from domain or title
+            const extractCompany = () => {
+              const domain = item.displayLink || '';
+              // Remove common TLDs and subdomains
+              const companyFromDomain = domain
+                .replace(/^(www\.|investors?\.|ir\.)/i, '')
+                .replace(/\.(com|org|net|gov)$/i, '')
+                .split('.')[0];
+
+              // Try to extract from title
+              const titleMatch = item.title.match(/^([A-Z][a-zA-Z0-9\s&.,'\-]+?)\s+(Announces|Reports|Issues|Releases)/i);
+              if (titleMatch) return titleMatch[1].trim();
+
+              return companyFromDomain.charAt(0).toUpperCase() + companyFromDomain.slice(1);
+            };
+
+            // Extract date from snippet or metadata
+            const extractDate = () => {
+              // Try to find date in snippet
+              const dateMatch = item.snippet?.match(/(\d{1,2}[-/]\d{1,2}[-/]\d{2,4}|\w+ \d{1,2},? \d{4})/);
+              if (dateMatch) {
+                const parsed = new Date(dateMatch[1]);
+                if (!isNaN(parsed.getTime())) {
+                  return parsed.toISOString().split('T')[0];
+                }
+              }
+              // Default to today if not found
+              return new Date().toISOString().split('T')[0];
+            };
+
+            // Calculate relevance score
+            const calculateScore = () => {
+              let score = 50;
+              const queryLower = params.query.toLowerCase();
+              const queryTerms = queryLower.split(/\s+/).filter(t => t.length > 2);
+
+              queryTerms.forEach(term => {
+                if (item.title.toLowerCase().includes(term)) score += 10;
+                if (item.snippet?.toLowerCase().includes(term)) score += 5;
+              });
+
+              // Prefer company official sources
+              if (item.link.includes('investor') || item.link.includes('/ir/')) score += 20;
+              if (item.link.includes('sec.gov')) score += 15;
+              if (item.link.includes('newsroom') || item.link.includes('press-release')) score += 10;
+
+              return Math.min(score, 100);
+            };
+
+            const company = extractCompany();
+            const releaseDate = extractDate();
+            const urlHash = Buffer.from(item.link).toString('base64').replace(/[+/=]/g, '').substring(0, 32);
+
+            pressReleases.push({
+              id: `pr-google-${urlHash}`,
+              title: item.title,
+              company: company,
+              releaseDate: releaseDate,
+              summary: item.snippet || '',
+              source: item.displayLink || 'Web',
+              url: item.link,
+              relevanceScore: calculateScore(),
+              mentionedDrugs: [],
+              keyAnnouncements: []
+            });
+          }
+        }
+
+        // Sort by relevance score
+        pressReleases.sort((a, b) => b.relevanceScore - a.relevanceScore);
+
+        return res.status(200).json({
+          pressReleases: pressReleases.slice(0, maxResults),
+          totalCount: pressReleases.length
+        });
+
+      } catch (error) {
+        console.error('Error in press-releases search:', error);
+        return res.status(200).json({
+          pressReleases: [],
+          totalCount: 0
+        });
       }
-      lastRequestTimeNews = Date.now();
-
-      let searchQuery = params.query;
-      if (params.company) {
-        searchQuery = `${params.company} ${searchQuery}`;
-      }
-      searchQuery += ' (press release OR announces OR reports)';
-
-      const searchParams = new URLSearchParams({
-        q: searchQuery,
-        language: 'en',
-        sortBy: 'relevancy',
-        pageSize: Math.min(params.maxResults || 30, 100).toString()
-      });
-
-      const defaultStartDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-      searchParams.append('from', params.startDate || defaultStartDate);
-      searchParams.append('to', params.endDate || new Date().toISOString().split('T')[0]);
-
-      const response = await fetch(`https://newsapi.org/v2/everything?${searchParams.toString()}`, {
-        headers: { 'X-Api-Key': newsApiKey }
-      });
-
-      if (!response.ok) throw new Error(`NewsAPI error: ${response.statusText}`);
-
-      const data = await response.json();
-      if (data.status !== 'ok') throw new Error('NewsAPI returned error status');
-
-      const pressReleases = data.articles
-        .map((article: any) => transformToPressRelease(article, params.query))
-        .sort((a: any, b: any) => b.relevanceScore - a.relevanceScore)
-        .slice(0, params.maxResults || 30);
-
-      return res.status(200).json({
-        pressReleases,
-        totalCount: data.totalResults
-      });
 
     } else if (searchType === 'ir-decks') {
-      // IR Decks Search via SEC EDGAR
+      // IR Decks Search - Using Google Custom Search API for SEC filings and IR materials
       const params: IRDeckSearchParams = req.body;
 
       if (!params.query && !params.company) {
         return res.status(400).json({ error: 'Query or company parameter is required' });
       }
 
-      const COMPANY_TICKER_MAP: Record<string, string> = {
-        'eli lilly': '0000059478',
-        'novo nordisk': '0001108134',
-        'pfizer': '0000078003',
-        'moderna': '0001682852',
-        'biontech': '0001776985',
-        'neumora therapeutics': '0001907249',
-      };
+      const googleApiKey = process.env.GOOGLE_SEARCH_API_KEY;
+      const searchEngineId = process.env.GOOGLE_SEARCH_ENGINE_ID;
 
-      const getCIKFromCompany = (companyName: string): string | null => {
-        const normalized = companyName.toLowerCase();
-        if (COMPANY_TICKER_MAP[normalized]) return COMPANY_TICKER_MAP[normalized];
-        for (const [key, cik] of Object.entries(COMPANY_TICKER_MAP)) {
-          if (normalized.includes(key) || key.includes(normalized)) return cik;
+      if (!googleApiKey || !searchEngineId) {
+        console.error('Google Search API not configured, falling back to empty results');
+        return res.status(200).json({
+          irDecks: [],
+          totalCount: 0,
+          error: 'Google Search API not configured. Please set GOOGLE_SEARCH_API_KEY and GOOGLE_SEARCH_ENGINE_ID in environment variables.'
+        });
+      }
+
+      try {
+        const maxResults = params.maxResults || 20;
+        const allIRDecks: any[] = [];
+
+        // Build search query
+        let searchQuery = params.query || '';
+        if (params.company) {
+          searchQuery = `${params.company} ${searchQuery}`;
         }
-        return null;
-      };
 
-      const searchCompanyByCIK = async (cik: string): Promise<any> => {
-        const now = Date.now();
-        const timeSinceLastRequest = now - lastRequestTimeSEC;
-        if (timeSinceLastRequest < RATE_LIMIT_DELAY_SEC) {
-          await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_DELAY_SEC - timeSinceLastRequest));
-        }
-        lastRequestTimeSEC = Date.now();
+        // Search for IR decks and investor presentations on SEC and company sites
+        const searchQueries = [
+          // SEC filings (PDFs)
+          `${searchQuery} site:sec.gov filetype:pdf`,
+          // Company investor relations pages
+          `${searchQuery} investor presentation filetype:pdf`,
+          `${searchQuery} "investor relations" OR "IR deck" filetype:pdf`
+        ];
 
-        try {
-          const paddedCik = cik.padStart(10, '0');
-          const response = await fetch(`https://data.sec.gov/submissions/CIK${paddedCik}.json`, {
-            headers: {
-              'User-Agent': 'ABC Research abcresearch@example.com',
-              'Accept': 'application/json'
-            }
+        for (const query of searchQueries) {
+          if (allIRDecks.length >= maxResults) break;
+
+          const now = Date.now();
+          const timeSinceLastRequest = now - lastRequestTimeSEC;
+          if (timeSinceLastRequest < RATE_LIMIT_DELAY_SEC) {
+            await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_DELAY_SEC - timeSinceLastRequest));
+          }
+          lastRequestTimeSEC = Date.now();
+
+          const searchParams = new URLSearchParams({
+            key: googleApiKey,
+            cx: searchEngineId,
+            q: query,
+            num: '10'
           });
-          if (!response.ok) return null;
-          return await response.json();
-        } catch (error) {
-          return null;
+
+          const response = await fetch(`https://www.googleapis.com/customsearch/v1?${searchParams.toString()}`);
+
+          if (!response.ok) {
+            console.error(`Google Search API error: ${response.statusText}`);
+            continue;
+          }
+
+          const data = await response.json();
+          const items = data.items || [];
+
+          for (const item of items) {
+            if (allIRDecks.length >= maxResults) break;
+
+            // Extract company name
+            const extractCompany = () => {
+              const domain = item.displayLink || '';
+              const companyFromDomain = domain
+                .replace(/^(www\.|investors?\.|ir\.)/i, '')
+                .replace(/\.(com|org|net|gov)$/i, '')
+                .split('.')[0];
+
+              // Try to extract from title
+              const titleMatch = item.title.match(/^([A-Z][a-zA-Z0-9\s&.,'\-]+?)\s+[-–|]/);
+              if (titleMatch) return titleMatch[1].trim();
+
+              return companyFromDomain.charAt(0).toUpperCase() + companyFromDomain.slice(1);
+            };
+
+            // Determine filing type from URL or title
+            const extractFilingType = () => {
+              const url = item.link.toLowerCase();
+              const title = item.title.toLowerCase();
+
+              if (url.includes('8-k') || title.includes('8-k')) return '8-K';
+              if (url.includes('10-k') || title.includes('10-k')) return '10-K';
+              if (url.includes('10-q') || title.includes('10-q')) return '10-Q';
+              if (url.includes('def14a') || url.includes('def 14a') || title.includes('proxy')) return 'DEF 14A';
+              if (url.includes('defa14a')) return 'DEFA14A';
+              if (title.includes('presentation') || title.includes('investor deck')) return 'Presentation';
+              return 'IR Material';
+            };
+
+            // Extract date
+            const extractDate = () => {
+              const dateMatch = item.snippet?.match(/(\d{1,2}[-/]\d{1,2}[-/]\d{2,4}|\w+ \d{1,2},? \d{4})/);
+              if (dateMatch) {
+                const parsed = new Date(dateMatch[1]);
+                if (!isNaN(parsed.getTime())) {
+                  return parsed.toISOString().split('T')[0];
+                }
+              }
+              // Try to extract from URL (SEC URLs often have dates)
+              const urlDateMatch = item.link.match(/(\d{8})/);
+              if (urlDateMatch) {
+                const dateStr = urlDateMatch[1];
+                const year = dateStr.substring(0, 4);
+                const month = dateStr.substring(4, 6);
+                const day = dateStr.substring(6, 8);
+                return `${year}-${month}-${day}`;
+              }
+              return new Date().toISOString().split('T')[0];
+            };
+
+            // Calculate relevance score
+            const calculateScore = () => {
+              let score = 50;
+              const queryLower = (params.query || '').toLowerCase();
+              const queryTerms = queryLower.split(/\s+/).filter(t => t.length > 2);
+
+              queryTerms.forEach(term => {
+                if (item.title.toLowerCase().includes(term)) score += 10;
+                if (item.snippet?.toLowerCase().includes(term)) score += 5;
+              });
+
+              // Prefer SEC filings
+              if (item.link.includes('sec.gov')) score += 20;
+              // Prefer investor relations materials
+              if (item.link.includes('investor') || item.link.includes('/ir/')) score += 15;
+              // Prefer presentations and decks
+              if (item.title.toLowerCase().includes('presentation') ||
+                  item.title.toLowerCase().includes('deck') ||
+                  item.title.toLowerCase().includes('investor day')) score += 15;
+
+              // Score by filing type
+              const filingType = extractFilingType();
+              if (filingType === 'DEF 14A' || filingType === 'DEFA14A') score += 20;
+              if (filingType === 'Presentation') score += 25;
+              if (filingType === '8-K') score += 15;
+
+              return Math.min(score, 100);
+            };
+
+            const company = extractCompany();
+            const filingType = extractFilingType();
+            const filingDate = extractDate();
+            const urlHash = Buffer.from(item.link).toString('base64').replace(/[+/=]/g, '').substring(0, 32);
+
+            allIRDecks.push({
+              id: `ir-google-${urlHash}`,
+              company: company,
+              title: item.title,
+              filingType: filingType,
+              filingDate: filingDate,
+              reportDate: filingDate,
+              description: item.snippet || '',
+              url: item.link,
+              documentUrl: item.link.endsWith('.pdf') ? item.link : undefined,
+              relevanceScore: calculateScore()
+            });
+          }
         }
-      };
 
-      const companyName = params.company || params.query || '';
-      const cik = getCIKFromCompany(companyName);
+        // Sort by relevance score and date
+        allIRDecks.sort((a, b) => {
+          if (Math.abs(a.relevanceScore - b.relevanceScore) > 5) {
+            return b.relevanceScore - a.relevanceScore;
+          }
+          return new Date(b.filingDate).getTime() - new Date(a.filingDate).getTime();
+        });
 
-      if (!cik) {
-        return res.status(200).json({ irDecks: [], totalCount: 0 });
+        const irDecks = allIRDecks.slice(0, maxResults);
+
+        return res.status(200).json({ irDecks, totalCount: allIRDecks.length });
+
+      } catch (error) {
+        console.error('Error in ir-decks search:', error);
+        return res.status(200).json({
+          irDecks: [],
+          totalCount: 0
+        });
       }
-
-      const companyData = await searchCompanyByCIK(cik);
-      if (!companyData) {
-        return res.status(200).json({ irDecks: [], totalCount: 0 });
-      }
-
-      const relevantForms = params.filingTypes || ['8-K', 'DEF 14A', 'DEFA14A', 'SC 13D'];
-      const maxResults = params.maxResults || 20;
-      const filings: any[] = [];
-      const recentFilings = companyData.filings.recent;
-
-      for (let i = 0; i < recentFilings.form.length && filings.length < maxResults * 2; i++) {
-        if (relevantForms.includes(recentFilings.form[i])) {
-          filings.push({
-            accessionNumber: recentFilings.accessionNumber[i],
-            filingDate: recentFilings.filingDate[i],
-            reportDate: recentFilings.reportDate[i],
-            form: recentFilings.form[i],
-            items: recentFilings.items[i],
-            primaryDocument: recentFilings.primaryDocument[i],
-            primaryDocDescription: recentFilings.primaryDocDescription[i]
-          });
-        }
-      }
-
-      const calculateScore = (filing: any): number => {
-        let score = 50;
-        if (filing.form === 'DEF 14A') score += 20;
-        if (filing.form === '8-K') score += 15;
-        if (filing.form === 'DEFA14A') score += 15;
-        const daysSince = (Date.now() - new Date(filing.filingDate).getTime()) / (1000 * 60 * 60 * 24);
-        if (daysSince <= 30) score += 20;
-        else if (daysSince <= 90) score += 15;
-        return Math.min(score, 100);
-      };
-
-      const irDecks = filings.map(filing => {
-        const accessionNumber = filing.accessionNumber.replace(/-/g, '');
-        return {
-          id: `ir-${accessionNumber}`,
-          company: companyData.name,
-          ticker: companyData.tickers?.[0],
-          title: `${filing.form} - ${filing.primaryDocDescription || 'SEC Filing'}`,
-          filingType: filing.form,
-          filingDate: filing.filingDate,
-          reportDate: filing.reportDate || filing.filingDate,
-          description: filing.items || filing.primaryDocDescription,
-          url: `https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=${cik}&type=${filing.form}&dateb=&owner=exclude&count=1`,
-          documentUrl: filing.primaryDocument ? `https://www.sec.gov/Archives/edgar/data/${cik}/${accessionNumber}/${filing.primaryDocument}` : undefined,
-          relevanceScore: calculateScore(filing)
-        };
-      }).sort((a, b) => b.relevanceScore - a.relevanceScore).slice(0, maxResults);
-
-      return res.status(200).json({ irDecks, totalCount: filings.length });
 
     } else {
       return res.status(400).json({ error: 'Invalid search type. Use: trials, papers, press-releases, or ir-decks' });
