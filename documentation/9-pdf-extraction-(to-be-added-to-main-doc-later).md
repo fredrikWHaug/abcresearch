@@ -1,6 +1,6 @@
-**Documentation Version**: 3.1   
+**Documentation Version**: 3.2   
 **Last Updated**: November 29, 2025  
-**Last Updated by**: Bozhen (Paul) Peng (Bug fixes ABC-105 + Progressive Loading)
+**Last Updated by**: Bozhen (Paul) Peng (Bug fixes ABC-104, ABC-105 + Progressive Loading)
 
 
 # ABCresearch - PDF Content Extraction Documentation
@@ -22,6 +22,7 @@ The PDF extraction system serves to:
 - **Async Background Processing**: Jobs run in background, survive page navigation
 - **Persistent Job History**: Track all extraction jobs with status and progress
 - **Error Recovery**: Retry failed jobs, preserve partial results
+- **Project Organization**: Link extractions to research projects for better organization (ABC-104)
 
 ## Key Features
 
@@ -36,10 +37,11 @@ The PDF extraction system serves to:
 - **Error Recovery**: Retry failed jobs with one click
 - **Survive Navigation**: Jobs continue even if you leave the page
 - **Browser Notifications**: Get notified when extraction completes or fails
-- **Project Association**: Link extractions to specific research projects
+- **Project Association**: All extractions automatically linked to current active project (required, fixed in ABC-104)
 
 **Architecture Highlights**:
 - Database tables: `pdf_extraction_jobs` and `pdf_extraction_results`
+- **Project Scoping** ✨ **FIXED (Nov 29, ABC-104)**: Jobs require active project, history filtered by project
 - **Partial Status** (Nov 29): Markdown available after ~15s, graphs analyze in background
 - Client-side worker triggering (Vercel workaround)
 - Real-time UI polling for job status (2s intervals)
@@ -100,7 +102,8 @@ Interactive interface for comprehensive content exploration:
 Integrated directly into the Data Extraction page:
 
 - **Job List Display**: View all extraction jobs in chronological order
-- **Status Indicators**: Visual badges for pending, processing, completed, failed states
+- **Project Filtering** ✨ **FIXED (Nov 29, ABC-104)**: Shows only current project's jobs (switch projects to see others)
+- **Status Indicators**: Visual badges for pending, processing, partial, completed, failed states
 - **Progress Tracking**: Real-time progress percentage and current stage
 - **File Information**: Display file name, size, and submission time
 - **Action Buttons**:
@@ -109,7 +112,8 @@ Integrated directly into the Data Extraction page:
   - **Retry**: Re-run failed extractions with one click
 - **Real-time Updates**: Auto-refreshes to show latest job status
 - **Error Messages**: Display detailed error information for failed jobs
-- **Persistent Storage**: All jobs stored in database, accessible across sessions
+- **Persistent Storage**: All jobs stored in database with `project_id`, accessible across sessions
+- **Project-Scoped Cache** ✨ **NEW (Nov 29, ABC-104)**: Separate cache per project for instant loading
 
 ### 5. Multiple Download Formats
 Users receive up to five downloadable outputs:
@@ -157,8 +161,10 @@ Users receive up to five downloadable outputs:
 ### Typical Extraction Session (Async Job Queue)
 
 1. **Navigate to Data Extraction**
+   - **Ensure you have an active project selected** (required as of ABC-104 fix)
    - Click "Data Extraction" tab in main navigation
    - Upload interface loads at top, Extraction History below
+   - If no project selected, see warning: "Select or create a project before uploading a PDF"
 
 2. **Upload PDF**
    - Click upload area or **drag & drop PDF file**
@@ -173,9 +179,10 @@ Users receive up to five downloadable outputs:
    - See warning about processing time and cost
 
 4. **Submit Extraction Job**
-   - Click "Extract Content" button
+   - Click "Extract Content" button (disabled if no project selected)
    - **Job is created immediately** (returns in <1 second)
    - PDF is uploaded to Supabase Storage
+   - Job is linked to your current project via `project_id` foreign key
    - Job appears in Extraction History with "Pending" status
    - **You can navigate away** - job continues in background
 
@@ -220,6 +227,8 @@ Users receive up to five downloadable outputs:
 
 8. **Access Past Extractions**
    - All completed extractions persist in database
+   - **History filtered by current project** (shows only current project's jobs)
+   - Switch projects to see different extraction histories
    - View extraction history across browser sessions
    - Re-download results anytime
    - Re-analyze with Paper Analysis View
@@ -235,8 +244,9 @@ Users receive up to five downloadable outputs:
 - ✅ No data loss if you accidentally close tab
 - ✅ Navigate to other parts of app while extracting
 - ✅ Come back later to check results
-- ✅ Full history of all extractions
+- ✅ Full history of all extractions (organized by project)
 - ✅ Retry failed jobs without re-uploading
+- ✅ Project-scoped history (switch projects to see different extractions)
 
 ## Technical Architecture
 
@@ -355,9 +365,10 @@ pending → processing → partial → completed
 - 50MB file size limit
 
 4. **Client-Side Services**:
-- `PDFExtractionJobService` - Submit jobs, poll status, list history
+- `PDFExtractionJobService` - Submit jobs (with `projectId`), poll status, list history (filtered by project)
 - `NotificationService` - Browser notifications for job completion
 - Real-time UI polling every 2 seconds when jobs are active
+- **Project-scoped caching** - Separate sessionStorage cache per project
 
 5. **Vercel Limitations & Workarounds**:
 - **Issue**: Serverless functions cannot trigger other functions directly
@@ -653,6 +664,14 @@ static downloadBlob(blob: Blob, fileName: string): void {
 
 **UI Component**: `src/components/PDFExtraction.tsx`
 
+**Props** (Updated Nov 29, ABC-104):
+```typescript
+interface PDFExtractionProps {
+  isVisible?: boolean;
+  currentProjectId: number | null; // REQUIRED - links jobs to project
+}
+```
+
 **State Management**:
 ```typescript
 const [selectedFile, setSelectedFile] = useState<File | null>(null)
@@ -663,9 +682,21 @@ const [maxImages, setMaxImages] = useState(10)
 const [isDragging, setIsDragging] = useState(false)  // New: Drag state
 const [showAnalysisView, setShowAnalysisView] = useState(false)  // New: Analysis view toggle
 const fileInputRef = useRef<HTMLInputElement>(null)  // New: For resetting input
+
+// Project validation (Added Nov 29, ABC-104)
+const hasActiveProject = typeof currentProjectId === 'number'
 ```
 
 **UI Sections**:
+
+0. **Project Requirement Warning** (Added Nov 29, ABC-104):
+```tsx
+{!hasActiveProject && (
+  <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+    Select or create a project from the header before uploading a PDF. Extraction jobs are saved per project.
+  </div>
+)}
+```
 
 1. **File Upload Area with Drag & Drop**:
 ```tsx
@@ -775,11 +806,11 @@ const fileInputRef = useRef<HTMLInputElement>(null)  // New: For resetting input
 )}
 ```
 
-4. **Extract Button & Loading State**:
+4. **Extract Button & Loading State** (Updated Nov 29, ABC-104):
 ```tsx
 <Button
   onClick={handleExtractContent}
-  disabled={!selectedFile || isProcessing}
+  disabled={!selectedFile || isProcessing || !hasActiveProject} // NEW: Also disabled if no project
   className="w-full"
 >
   {isProcessing ? (
@@ -2448,38 +2479,55 @@ await supabase.from('pdf_extraction_results').update({
 - **Progress bar**: Shows graph analysis progress (80-100%)
 - **Analysis view**: Displays "Graph analysis in progress..." for pending images
 
-### Extraction History Caching
+### Extraction History Caching & Project Scoping
 
-**Problem**: History loaded slowly (2-3 seconds) on every navigation to Data Extraction tab.
+**Problem 1** (ABC-105): History loaded slowly (2-3 seconds) on every navigation to Data Extraction tab.
 
-**Solution**: SessionStorage cache with stale-while-revalidate pattern.
+**Problem 2** (ABC-104): History showed jobs from ALL projects, not filtered by current project.
+
+**Solution**: 
+- SessionStorage cache with stale-while-revalidate pattern
+- **Project-scoped cache keys** (e.g., `extraction_history_cache:project_123`)
+- API filtering by `projectId`
 
 **Impact**:
 - **99.6% faster** on repeat visits (<10ms vs 2.5s)
 - **Instant navigation** between tabs
 - **Background refresh** keeps data fresh
+- **Project isolation** - Only see current project's extractions
+- **Cache invalidation** - Automatic cache clear on project switch
 
 **Implementation**:
 ```typescript
+// Project-scoped cache keys (ABC-104 fix)
+const cacheSuffix = currentProjectId !== null ? `project_${currentProjectId}` : 'all'
+const cacheKey = `extraction_history_cache:${cacheSuffix}`
+const cacheTimestampKey = `extraction_history_cache_ts:${cacheSuffix}`
+
 // Load cache immediately on mount (synchronous)
-const cached = sessionStorage.getItem('extraction_history_cache')
+const cached = sessionStorage.getItem(cacheKey)
 if (cached && isFresh) {
   setJobs(JSON.parse(cached))
   setIsLoading(false)  // Show immediately!
 }
 
-// Fetch fresh data in background
-const response = await PDFExtractionJobService.listJobs({ limit: 50 })
+// Fetch fresh data in background (with project filter)
+const response = await PDFExtractionJobService.listJobs({ 
+  limit: 50,
+  projectId: currentProjectId  // ABC-104: Filter by project
+})
 setJobs(response.jobs)  // Update when ready
 
 // Cache for next visit (5-minute TTL)
-sessionStorage.setItem('extraction_history_cache', JSON.stringify(jobs))
+sessionStorage.setItem(cacheKey, JSON.stringify(jobs))
+sessionStorage.setItem(cacheTimestampKey, String(Date.now()))
 ```
 
 **UI Improvements**:
 - **Skeleton loading**: Shows animated placeholders when no cache
 - **Refresh indicator**: Small spinner in title when refreshing cached data
 - **No flashing**: Smooth transition from cached to fresh data
+- **Project warning** ✨ **NEW (ABC-104)**: Amber banner when no project selected
 
 ### Auto-Refresh on Job Completion
 
@@ -2515,6 +2563,7 @@ useEffect(() => {
 | **History load (first time)** | 2.5s | 2.5s | Same |
 | **Tab switching** | 2.5s delay | <10ms | **Instant** |
 | **Job completion updates** | Manual refresh | Auto-refresh | **Seamless** |
+| **Project switch** (ABC-104) | Stale cache | Fresh cache | **No stale data** |
 
 ---
 
@@ -2601,16 +2650,17 @@ useEffect(() => {
 
 ### Technical Limitations
 
-1. **File Size**: Maximum 50MB per PDF
-2. **Processing Time Limits** (Vercel serverless timeouts):
+1. **Project Requirement**: Must have an active project selected to submit extraction jobs (enforced as of ABC-104)
+2. **File Size**: Maximum 50MB per PDF
+3. **Processing Time Limits** (Vercel serverless timeouts):
    - **Free Plan**: 5 minutes maximum (may timeout on large PDFs)
    - **Pro Plan**: 15 minutes maximum (recommended for production)
    - **Enterprise Plan**: 60 minutes maximum
-3. **Image Limit**: Maximum 20 images processed for graph detection
-4. **Python Execution**: Code generated but NOT executed server-side (except in browser via Pyodide)
-5. **OCR Accuracy**: Depends on source PDF quality
-6. **Concurrent Jobs**: No hard limit, but Vercel may throttle excessive concurrent requests
-7. **Storage Duration**: Temporary PDF storage (auto-deleted after processing)
+4. **Image Limit**: Maximum 20 images processed for graph detection
+5. **Python Execution**: Code generated but NOT executed server-side (except in browser via Pyodide)
+6. **OCR Accuracy**: Depends on source PDF quality
+7. **Concurrent Jobs**: No hard limit, but Vercel may throttle excessive concurrent requests
+8. **Storage Duration**: Temporary PDF storage (auto-deleted after processing)
 
 ### Known Issues
 
@@ -2626,9 +2676,10 @@ useEffect(() => {
 10. **Matplotlib Limitations**: Advanced matplotlib features may not be supported in Pyodide
 11. **Vercel Workaround**: Worker must be triggered from client-side (Vercel serverless functions cannot call each other)
 12. **Timeout on Free Plan**: 5-minute limit may not be sufficient for PDFs with >20 pages and graphify enabled
-13. ~~**Data Extraction Tab Requires Chat**~~ ✅ **FIXED (Nov 29)**: Users can now access Data Extraction directly without chat interaction
-14. ~~**Slow History Loading**~~ ✅ **FIXED (Nov 29)**: SessionStorage caching provides instant loads (<10ms) on navigation
-15. ~~**Blocking Wait for Graphs**~~ ✅ **FIXED (Nov 29)**: Progressive loading shows markdown after 15s, graphs appear when ready
+13. ~~**Data Extraction Tab Requires Chat**~~ ✅ **FIXED (Nov 29, ABC-105)**: Users can now access Data Extraction directly without chat interaction
+14. ~~**Slow History Loading**~~ ✅ **FIXED (Nov 29, ABC-105)**: SessionStorage caching provides instant loads (<10ms) on navigation
+15. ~~**Blocking Wait for Graphs**~~ ✅ **FIXED (Nov 29, ABC-105)**: Progressive loading shows markdown after 15s, graphs appear when ready
+16. ~~**Jobs Not Linked to Projects**~~ ✅ **FIXED (Nov 29, ABC-104)**: All extraction jobs now require and link to current project via `project_id` FK
 
 ### Not Supported
 
@@ -2785,26 +2836,30 @@ if (viewMode === 'dataextraction') {
 - Saved Maps
 - **Data Extraction** ← New
 
-**Component Hierarchy**:
+**Component Hierarchy** (Updated Nov 29, ABC-104):
 ```
-Dashboard
+Dashboard (state: currentProjectId)
   └── viewMode === 'dataextraction'
-      └── PDFExtraction
-          ├── Upload Interface (top)
-          │   ├── File upload with drag & drop
-          │   ├── Options configuration
-          │   └── Extract button
-          ├── Extraction History (below upload, integrated)
-          │   ├── Job list with status indicators
-          │   ├── Progress bars for active jobs
-          │   ├── View Analysis buttons
-          │   ├── Download buttons
-          │   └── Retry buttons for failed jobs
-          └── PaperAnalysisView (conditional, when viewing a completed extraction)
-              ├── Markdown Tab
-              ├── Tables Tab
-              ├── Graphs Tab
-              └── Data Tab
+      └── DataExtractionView (receives: currentProjectId)
+          └── PDFExtraction (requires: currentProjectId)
+              ├── Upload Interface (top)
+              │   ├── Project requirement warning (if no project)
+              │   ├── File upload with drag & drop
+              │   ├── Options configuration
+              │   └── Extract button (disabled if no project)
+              ├── Extraction History (below upload, integrated)
+              │   ├── Project-filtered job list
+              │   ├── Project-scoped cache (per-project sessionStorage)
+              │   ├── Status indicators (pending, processing, partial, completed, failed)
+              │   ├── Progress bars for active jobs
+              │   ├── View Analysis buttons
+              │   ├── Download buttons
+              │   └── Retry buttons for failed jobs
+              └── PaperAnalysisView (conditional, when viewing a completed extraction)
+                  ├── Markdown Tab
+                  ├── Tables Tab
+                  ├── Graphs Tab
+                  └── Data Tab
 ```
 
 **Key Changes (November 2025)**:
@@ -2812,6 +2867,8 @@ Dashboard
 - No separate "Extraction History" tab in main navigation
 - Upload interface and history visible simultaneously
 - Seamless workflow from upload → monitor → view results
+- **Project Scoping** ✨ **NEW (ABC-104)**: `currentProjectId` prop required throughout component tree
+- **Project Filtering** ✨ **NEW (ABC-104)**: History shows only current project's jobs (switch projects to see others)
 
 ### Design System Compliance
 
@@ -2888,6 +2945,23 @@ Check: Vercel function logs for worker errors
 Fix: Add INTERNAL_API_KEY to Vercel dashboard
 Fix: Verify worker endpoint is accessible
 Fix: Check for 403 Forbidden errors in logs
+```
+
+**Issue**: "Please select or create a project before extracting PDF content"
+```
+Check: Current project is selected in Dashboard header
+Check: currentProjectId prop is being passed correctly
+Fix: Select a project from the Projects dropdown
+Fix: Create a new project if none exist
+Note: This is expected behavior (ABC-104) - jobs require active project
+```
+
+**Issue**: Extraction history shows jobs from wrong project
+```
+Check: This was a bug before ABC-104 fix
+Check: Update to latest version (commits cedda1c + b85fa43)
+Fix: History now automatically filters by currentProjectId
+Note: Cache is project-scoped - switch projects to see different histories
 ```
 
 **Issue**: Worker returns 403 Forbidden
@@ -3004,15 +3078,32 @@ The TypeScript implementation in `/api/extract-pdf-content.ts` is based on the P
 
 ## Quick Reference
 
-### Service Usage
+### Service Usage (Updated Nov 29, ABC-104)
 
 ```typescript
+import { PDFExtractionJobService } from '@/services/pdfExtractionJobService'
+
+// Submit job with current project (REQUIRED)
+const response = await PDFExtractionJobService.submitJob(pdfFile, {
+  projectId: currentProjectId,  // REQUIRED - must be a valid project ID
+  enableGraphify: true,
+  forceOCR: false,
+  maxGraphifyImages: 10
+})
+
+// List jobs for current project
+const jobsResponse = await PDFExtractionJobService.listJobs({
+  limit: 50,
+  projectId: currentProjectId  // Filter by project
+})
+
+// Legacy synchronous API (deprecated, use async job queue instead)
 import { PDFExtractionService } from '@/services/pdfExtractionService'
 
-// Extract with default options
+// Extract with default options (no project association)
 const result = await PDFExtractionService.extractContent(pdfFile)
 
-// Extract with custom options
+// Extract with custom options (no project association)
 const result = await PDFExtractionService.extractContent(pdfFile, {
   enableGraphify: true,
   forceOCR: false,
@@ -3054,16 +3145,28 @@ curl -X POST http://localhost:3000/api/extract-pdf-content \
   -F "maxGraphifyImages=10"
 ```
 
-### Component Usage
+### Component Usage (Updated Nov 29, ABC-104)
 
 ```tsx
 import { PDFExtraction } from '@/components/PDFExtraction'
+import { DataExtractionView } from '@/components/dashboard/views/DataExtractionView'
 import { PaperAnalysisView } from '@/components/PaperAnalysisView'
 
-// In Dashboard
+// In Dashboard (current implementation)
 if (viewMode === 'dataextraction') {
-  return <PDFExtraction />
+  return (
+    <DataExtractionView
+      currentProjectId={currentProjectId}  // REQUIRED
+      isVisible
+    />
+  )
 }
+
+// Or use PDFExtraction directly (requires currentProjectId)
+<PDFExtraction 
+  currentProjectId={currentProjectId}  // REQUIRED
+  isVisible={true} 
+/>
 
 // PaperAnalysisView is automatically shown by PDFExtraction when user clicks "View Comprehensive Analysis"
 // It can also be used standalone:
@@ -3071,6 +3174,7 @@ if (viewMode === 'dataextraction') {
   result={extractionResult}
   fileName="research-paper.pdf"
   onBack={() => console.log('Back clicked')}
+  isPartialResult={false}  // Optional: true if showing partial results
 />
 ```
 
@@ -3155,6 +3259,7 @@ The PDF Content Extraction feature provides a powerful, AI-enhanced way to conve
 **Key Strengths**:
 - **Asynchronous processing** (30s - 15min depending on plan)
 - **Job queue system** with persistent storage
+- **Project-scoped organization** ✨ (ABC-104) - All jobs linked to projects, history filtered by project
 - **Extraction history** with retry capability
 - **No data loss** - survives page navigation
 - Five output formats (Markdown, Original Images, Tables, Full Response, GPT Analysis)
@@ -3173,12 +3278,13 @@ The PDF Content Extraction feature provides a powerful, AI-enhanced way to conve
 
 **Integration Points**:
 - Accessible via "Data Extraction" tab
-- Extraction History embedded in same page
+- **Requires active project** (enforced at UI level) - ABC-104
+- Extraction History embedded in same page (project-filtered)
 - Follows ABCresearch design system
 - Seamless navigation between upload → monitor → view results
-- Consistent with existing API patterns
+- Consistent with existing API patterns (project-centric architecture)
 - Type-safe implementation
-- Database-backed job tracking
+- Database-backed job tracking with `project_id` foreign key
 
 **Cost-Effective**:
 - ~$0.11 per PDF extraction (API costs)
@@ -3205,8 +3311,16 @@ The PDF Content Extraction feature provides a powerful, AI-enhanced way to conve
 ---
 
 
-**Feature Status**: Production Ready (Enhanced with Async Job Queue, Pyodide Rendering & Progressive Loading)  
+**Feature Status**: Production Ready (Enhanced with Async Job Queue, Pyodide Rendering, Progressive Loading & Project Scoping)  
 **Major Updates (November 2025)**:
+
+**Bug Fixes & Optimizations (Nov 29, 2025 - ABC-104)**:
+- ✅ **FIXED**: Extraction jobs now **required** to link to current project via `project_id` foreign key
+- ✅ **FIXED**: Extract button disabled when no project selected (with clear warning message)
+- ✅ **FIXED**: Extraction History filtered by current project (was showing all projects)
+- ✅ **FIXED**: Project-scoped cache keys prevent stale data across project switches
+- ✅ **ARCHITECTURE**: Now consistent with trials/papers/drugs (all project-scoped)
+- ✅ **TESTS**: Updated 48 test renders to include `currentProjectId` prop
 
 **Bug Fixes & Optimizations (Nov 29, 2025 - ABC-105)**:
 - ✅ **FIXED**: Data Extraction tab now accessible without chat interaction
@@ -3243,6 +3357,7 @@ The PDF Content Extraction feature provides a powerful, AI-enhanced way to conve
 - Markdown rendering with GFM support
 
 **Related Documentation**:
+- See `BUG_REPORT_ABC-104.md` for project association bug fix (Nov 29, 2025)
 - See `BUG_REPORT_ABC-105.md` for bug fixes and performance optimizations (Nov 29, 2025)
 - See `__tests__/integration/ui/dataExtraction.test.tsx` for comprehensive test suite (13 tests)
 - See `ASYNC_PDF_EXTRACTION_IMPLEMENTATION.md` for async job queue architecture
