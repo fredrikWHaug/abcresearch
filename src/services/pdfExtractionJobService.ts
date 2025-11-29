@@ -98,7 +98,12 @@ export class PDFExtractionJobService {
       // Prepare form data
       const formData = new FormData()
       formData.append('file', file)
-      formData.append('projectId', String(options.projectId || ''))
+      formData.append(
+        'projectId',
+        options.projectId !== undefined && options.projectId !== null
+          ? String(options.projectId)
+          : ''
+      )
       formData.append('enableGraphify', String(options.enableGraphify ?? true))
       formData.append('forceOCR', String(options.forceOCR ?? false))
       formData.append('maxGraphifyImages', String(options.maxGraphifyImages ?? 10))

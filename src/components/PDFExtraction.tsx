@@ -12,9 +12,10 @@ import { ExtractionHistory } from './ExtractionHistory'
 
 interface PDFExtractionProps {
   isVisible?: boolean;
+  currentProjectId: number | null;
 }
 
-export function PDFExtraction({ isVisible = true }: PDFExtractionProps = {}) {
+export function PDFExtraction({ isVisible = true, currentProjectId }: PDFExtractionProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [extractionResult, setExtractionResult] = useState<PDFExtractionResult | null>(null)
@@ -93,8 +94,14 @@ export function PDFExtraction({ isVisible = true }: PDFExtractionProps = {}) {
     }
   }, [])
 
+  const hasActiveProject = typeof currentProjectId === 'number'
+
   const handleExtractContent = async () => {
     if (!selectedFile) return
+    if (!hasActiveProject) {
+      alert('Please select or create a project before extracting PDF content.')
+      return
+    }
 
     setIsProcessing(true)
     setExtractionResult(null)
@@ -104,6 +111,7 @@ export function PDFExtraction({ isVisible = true }: PDFExtractionProps = {}) {
     try {
       // Submit job
       const response = await PDFExtractionJobService.submitJob(selectedFile, {
+        projectId: currentProjectId ?? undefined,
         enableGraphify,
         forceOCR: false,
         maxGraphifyImages: maxImages
@@ -415,6 +423,11 @@ export function PDFExtraction({ isVisible = true }: PDFExtractionProps = {}) {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
+          {!hasActiveProject && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+              Select or create a project from the header before uploading a PDF. Extraction jobs are saved per project.
+            </div>
+          )}
           {/* File Input Section */}
           <div
             onDragEnter={handleDragEnter}
@@ -526,7 +539,7 @@ export function PDFExtraction({ isVisible = true }: PDFExtractionProps = {}) {
           {/* Action Button */}
           <Button
             onClick={handleExtractContent}
-            disabled={!selectedFile || isProcessing}
+            disabled={!selectedFile || isProcessing || !hasActiveProject}
             className="w-full"
           >
             {isProcessing ? (
@@ -803,7 +816,11 @@ export function PDFExtraction({ isVisible = true }: PDFExtractionProps = {}) {
 
         {/* Extraction History - Full width */}
         <div className="w-full">
-          <ExtractionHistory isVisible={isVisible} refreshTrigger={historyRefreshTrigger} />
+          <ExtractionHistory
+            currentProjectId={currentProjectId}
+            isVisible={isVisible}
+            refreshTrigger={historyRefreshTrigger}
+          />
         </div>
       </div>
     </div>
