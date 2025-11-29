@@ -2,7 +2,14 @@
  * Type definitions for async PDF extraction job queue
  */
 
-export type PDFJobStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled'
+// Job statuses:
+// - 'pending': Job created, waiting to start
+// - 'processing': Job is being processed
+// - 'partial': Markdown/images ready, graph analysis in progress
+// - 'completed': All processing finished (including graphs if enabled)
+// - 'failed': Job failed
+// - 'cancelled': Job was cancelled
+export type PDFJobStatus = 'pending' | 'processing' | 'partial' | 'completed' | 'failed' | 'cancelled'
 
 export type PDFJobStage = 
   | 'initializing'
