@@ -7,6 +7,7 @@ import type { SlideData } from '@/services/slideAPI'
 import type { PubMedArticle } from '@/types/papers'
 import type { ChatMessage } from '@/types/chat'
 import type { SavedMarketMap } from '@/services/marketMapService'
+import type { DrugGroup } from '@/services/drugGroupingService'
 
 interface MarketMapCombinedViewProps {
   trials: ClinicalTrial[];
@@ -20,6 +21,7 @@ interface MarketMapCombinedViewProps {
   setSlideError: React.Dispatch<React.SetStateAction<string | null>>;
   chatHistory: ChatMessage[];
   papers: PubMedArticle[];
+  drugGroups: DrugGroup[];
   currentProjectId: number | null;
   onNavigateToResearch: () => void;
   onLoadMap: (map: SavedMarketMap) => Promise<void>;
@@ -38,6 +40,7 @@ export function MarketMapCombinedView({
   setSlideError,
   chatHistory,
   papers,
+  drugGroups,
   currentProjectId,
   onNavigateToResearch,
   onLoadMap,
@@ -59,6 +62,7 @@ export function MarketMapCombinedView({
           setSlideError={setSlideError}
           chatHistory={chatHistory}
           papers={papers}
+          drugGroups={drugGroups}
           currentProjectId={currentProjectId}
           onSaveSuccess={() => {
             console.log('Market map saved successfully!')
