@@ -97,8 +97,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         })
       }
 
+      // Fetch results for both 'completed' and 'partial' status
+      // 'partial' means markdown/images are ready, just graphs are still being analyzed
       let result = null
-      if (job.status === 'completed') {
+      if (job.status === 'completed' || job.status === 'partial') {
         const { data: resultData } = await supabase
           .from('pdf_extraction_results')
           .select('*')

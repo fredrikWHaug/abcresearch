@@ -37,12 +37,13 @@ interface PaperAnalysisViewProps {
   result: PDFExtractionResult
   fileName: string
   onBack: () => void
+  isPartialResult?: boolean // True when markdown is ready but graphs are still being analyzed
 }
 
 type ViewTab = 'markdown' | 'tables' | 'graphs' | 'data'
 type MarkdownView = 'rendered' | 'source'
 
-export function PaperAnalysisView({ result, fileName, onBack }: PaperAnalysisViewProps) {
+export function PaperAnalysisView({ result, fileName, onBack, isPartialResult = false }: PaperAnalysisViewProps) {
   const [activeTab, setActiveTab] = useState<ViewTab>('markdown')
   const [markdownView, setMarkdownView] = useState<MarkdownView>('rendered')
   const [selectedDataView, setSelectedDataView] = useState<'original' | 'response' | 'gpt'>('original')
@@ -255,8 +256,19 @@ export function PaperAnalysisView({ result, fileName, onBack }: PaperAnalysisVie
                     <div className="text-xs text-gray-600">Tables</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-green-600">{result.stats.graphsDetected}</div>
-                    <div className="text-xs text-gray-600">Graphs</div>
+                    {isPartialResult ? (
+                      <>
+                        <div className="flex items-center justify-center gap-1">
+                          <Loader2 className="h-5 w-5 text-amber-600 animate-spin" />
+                        </div>
+                        <div className="text-xs text-amber-600">Analyzing...</div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="text-2xl font-bold text-green-600">{result.stats.graphsDetected}</div>
+                        <div className="text-xs text-gray-600">Graphs</div>
+                      </>
+                    )}
                   </div>
                   <div className="text-center">
                     <div className="text-2xl font-bold text-purple-600">
@@ -535,6 +547,24 @@ export function PaperAnalysisView({ result, fileName, onBack }: PaperAnalysisVie
           {/* Images & Graphs Tab */}
           {activeTab === 'graphs' && (
             <div className="space-y-6">
+              {/* Show banner when graph analysis is in progress */}
+              {isPartialResult && allImages.length > 0 && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                  <div className="flex items-center gap-3">
+                    <Loader2 className="h-5 w-5 text-amber-600 animate-spin flex-shrink-0" />
+                    <div>
+                      <p className="text-sm font-medium text-amber-900">
+                        Graph Analysis in Progress
+                      </p>
+                      <p className="text-sm text-amber-700 mt-1">
+                        GPT Vision is analyzing {allImages.length} images to detect and extract graph data. 
+                        You can view the original images below while analysis completes.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
               {allImages.length === 0 ? (
                 <Card>
                   <CardContent className="py-12 text-center">
@@ -840,14 +870,26 @@ export function PaperAnalysisView({ result, fileName, onBack }: PaperAnalysisVie
                           </>
                         )}
 
-                        {/* No GPT analysis available */}
+                        {/* No GPT analysis available - show different message based on partial status */}
                         {!gptAnalysis && (
-                          <div className="bg-gray-50 border border-gray-200 p-3 rounded-lg">
-                            <p className="text-sm text-gray-600">
-                              <strong>Note:</strong> GPT analysis not available for this image. 
-                              Enable graph detection during extraction for AI-powered analysis.
-                            </p>
-                          </div>
+                          isPartialResult ? (
+                            <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg">
+                              <div className="flex items-center gap-2">
+                                <Loader2 className="h-4 w-4 text-amber-600 animate-spin" />
+                                <p className="text-sm text-amber-700">
+                                  <strong>Graph analysis in progress...</strong> 
+                                  {' '}GPT is analyzing this image. Results will appear when complete.
+                                </p>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="bg-gray-50 border border-gray-200 p-3 rounded-lg">
+                              <p className="text-sm text-gray-600">
+                                <strong>Note:</strong> GPT analysis not available for this image. 
+                                Enable graph detection during extraction for AI-powered analysis.
+                              </p>
+                            </div>
+                          )
                         )}
                       </CardContent>
                     </Card>

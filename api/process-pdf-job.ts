@@ -395,23 +395,73 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const result = await pollDatalabJob(checkUrl, datalabApiKey, jobId, supabase)
     console.log('Datalab job complete')
 
-    // Extract data
-    await updateJobProgress(supabase, jobId, {
-      progress: 80,
-      current_stage: 'extracting_markdown'
-    })
-
+    // Extract data from Datalab response
     const markdown = result.markdown as string || ''
     const images = (result.images as Record<string, string>) || {}
     const imagesFound = Object.keys(images).length
 
     console.log(`Found ${imagesFound} images`)
 
+    // PROGRESSIVE LOADING: Save partial results immediately after Datalab completes
+    // This allows the frontend to display markdown + images while graphs are being analyzed
+    const partialProcessingTimeMs = Date.now() - startTime
+    
+    // Check if we need to do graph analysis
+    const needsGraphAnalysis = job.enable_graphify && imagesFound > 0 && gptApiKey
+
+    // Insert partial results first (markdown + images, no graphs yet)
+    console.log('Saving partial results (markdown + images)...')
+    const { data: insertedResult, error: partialResultError } = await supabase
+      .from('pdf_extraction_results')
+      .insert({
+        job_id: jobId,
+        user_id: job.user_id,
+        markdown_content: markdown,
+        response_json: result,
+        original_images: images,
+        graphify_results: null, // Will be updated after graph analysis
+        tables_data: null,
+        images_found: imagesFound,
+        graphs_detected: 0, // Will be updated after graph analysis
+        tables_found: 0,
+        processing_time_ms: partialProcessingTimeMs
+      })
+      .select()
+      .single()
+
+    if (partialResultError) {
+      console.error('Failed to store partial results:', partialResultError)
+      throw new Error('Failed to store partial results')
+    }
+
+    // If graph analysis is needed, update status to 'partial' so frontend can show markdown
+    // This allows the frontend to display markdown immediately while graphs are being analyzed
+    if (needsGraphAnalysis) {
+      console.log(`[PARTIAL] Setting status to partial for job ${jobId}. needsGraphAnalysis=${needsGraphAnalysis}, imagesFound=${imagesFound}`)
+      const { error: partialStatusError } = await supabase
+        .from('pdf_extraction_jobs')
+        .update({
+          status: 'partial',
+          progress: 80,
+          current_stage: 'markdown_ready_analyzing_graphs'
+        })
+        .eq('id', jobId)
+      
+      if (partialStatusError) {
+        console.error('[PARTIAL] Failed to set partial status:', partialStatusError)
+      } else {
+        console.log('[PARTIAL] Status successfully set to partial for job:', jobId)
+      }
+    } else {
+      console.log(`[PARTIAL] Skipping partial status. needsGraphAnalysis=${needsGraphAnalysis}, enable_graphify=${job.enable_graphify}, imagesFound=${imagesFound}, gptApiKey=${!!gptApiKey}`)
+    }
+
     // Process images with GPT if enabled
     let graphifyResults: GraphifyResult[] = []
     let graphsDetected = 0
 
-    if (job.enable_graphify && imagesFound > 0 && gptApiKey) {
+    if (needsGraphAnalysis) {
+      // Note: This update does NOT change status - it stays 'partial'
       await updateJobProgress(supabase, jobId, {
         progress: 85,
         current_stage: 'analyzing_graphs'
@@ -428,36 +478,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       )
       graphsDetected = graphifyResults.filter(r => r.isGraph).length
       console.log(`Detected ${graphsDetected} graphs`)
-    }
 
-    await updateJobProgress(supabase, jobId, {
-      progress: 95,
-      current_stage: 'finalizing'
-    })
-
-    const processingTimeMs = Date.now() - startTime
-
-    // Store results in database
-    const { error: resultError } = await supabase
-      .from('pdf_extraction_results')
-      .insert({
-        job_id: jobId,
-        user_id: job.user_id,
-        markdown_content: markdown,
-        response_json: result,
-        original_images: images,
-        graphify_results: graphifyResults.length > 0 ? graphifyResults : null,
-        tables_data: null, // TODO: Extract tables if needed
-        images_found: imagesFound,
-        graphs_detected: graphsDetected,
-        tables_found: 0,
-        processing_time_ms: processingTimeMs
+      // Update the results record with graph analysis
+      await updateJobProgress(supabase, jobId, {
+        progress: 95,
+        current_stage: 'finalizing'
       })
 
-    if (resultError) {
-      console.error('Failed to store results:', resultError)
-      throw new Error('Failed to store results')
+      const finalProcessingTimeMs = Date.now() - startTime
+
+      const { error: updateResultError } = await supabase
+        .from('pdf_extraction_results')
+        .update({
+          graphify_results: graphifyResults.length > 0 ? graphifyResults : null,
+          graphs_detected: graphsDetected,
+          processing_time_ms: finalProcessingTimeMs
+        })
+        .eq('job_id', jobId)
+
+      if (updateResultError) {
+        console.error('Failed to update results with graphs:', updateResultError)
+        // Don't throw - partial results are still valid
+      }
     }
+
+    // Calculate final processing time
+    const totalProcessingTimeMs = Date.now() - startTime
 
     // Update job to completed
     await updateJobProgress(supabase, jobId, {
@@ -470,12 +516,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Clean up file from storage
     await supabase.storage.from('pdf-uploads').remove([fileKey])
 
-    console.log(`Job ${jobId} completed in ${processingTimeMs}ms`)
+    console.log(`Job ${jobId} completed in ${totalProcessingTimeMs}ms`)
 
     return res.status(200).json({
       success: true,
       jobId,
-      processingTimeMs
+      processingTimeMs: totalProcessingTimeMs
     })
 
   } catch (error) {
