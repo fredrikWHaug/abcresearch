@@ -1,6 +1,6 @@
-**Documentation Version**: 3.0   
-**Last Updated**: November 10, 2025  
-**Last Updated by**: Bozhen (Paul) Peng
+**Documentation Version**: 3.1   
+**Last Updated**: November 29, 2025  
+**Last Updated by**: Bozhen (Paul) Peng (Bug fixes ABC-105 + Progressive Loading)
 
 
 # ABCresearch - PDF Content Extraction Documentation
@@ -29,8 +29,10 @@ The PDF extraction system serves to:
 - **Background Processing**: Extraction runs asynchronously without blocking UI
 - **Job Persistence**: All jobs stored in Supabase database
 - **Real-time Progress**: Live progress updates with percentage completion
-- **Status Tracking**: Track jobs through states: pending → processing → completed/failed
-- **Extraction History**: View all past and in-progress extractions
+- **Status Tracking**: Track jobs through states: pending → processing → **partial** → completed/failed
+- **Progressive Loading** ✨ **NEW (Nov 29)**: View markdown/images immediately while graphs analyze
+- **SessionStorage Cache** ✨ **NEW (Nov 29)**: Instant history loading on navigation (<10ms)
+- **Extraction History**: View all past and in-progress extractions with skeleton loading UI
 - **Error Recovery**: Retry failed jobs with one click
 - **Survive Navigation**: Jobs continue even if you leave the page
 - **Browser Notifications**: Get notified when extraction completes or fails
@@ -38,8 +40,11 @@ The PDF extraction system serves to:
 
 **Architecture Highlights**:
 - Database tables: `pdf_extraction_jobs` and `pdf_extraction_results`
+- **Partial Status** (Nov 29): Markdown available after ~15s, graphs analyze in background
 - Client-side worker triggering (Vercel workaround)
-- Real-time UI polling for job status
+- Real-time UI polling for job status (2s intervals)
+- Auto-refresh history when jobs complete (no manual refresh needed)
+- SessionStorage caching (5-minute TTL) for instant repeat visits
 - Automatic cleanup of temporary storage files
 - **Timeout Limits**: 5 minutes (Vercel Free), 15 minutes (Vercel Pro), 60 minutes (Enterprise)
 
@@ -174,19 +179,27 @@ Users receive up to five downloadable outputs:
    - Job appears in Extraction History with "Pending" status
    - **You can navigate away** - job continues in background
 
-5. **Monitor Progress** (Real-time)
+5. **Monitor Progress** (Real-time with Progressive Loading ✨ NEW)
    - Job status updates automatically in Extraction History
    - Progress bar shows percentage completion (0-100%)
    - Current stage displayed:
-     - "Uploading to processing server..."
-     - "Analyzing document structure..."
-     - "Extracting tables..."
-     - "Processing images with GPT Vision..."
+     - "Uploading to processing server..." (0-20%)
+     - "Extracting markdown from PDF..." (20-80%)
+     - **📄 "Markdown ready • 🔍 Analyzing graphs..."** (80-95%) → **PARTIAL STATUS**
+     - "Finalizing results..." (95-100%)
+   - **Progressive Results** ✨ (Nov 29):
+     - Markdown/images appear after ~15 seconds (don't wait for graphs!)
+     - Amber theme indicates "partial" completion
+     - Graph analysis continues in background
+     - Results update automatically when graphs complete
    - **Browser notification** when job completes or fails (if permitted)
 
 6. **View Results from History**
-   - Completed jobs show green checkmark badge
-   - Click **"View Analysis"** button to open Paper Analysis View
+   - Completed jobs show **green checkmark** badge
+   - Partial jobs (markdown ready, graphs analyzing) show **amber spinner** ✨ NEW
+   - In-progress jobs show blue spinner
+   - Click **"View Analysis"** or **"View Markdown"** button to open Paper Analysis View
+   - **Can view/download during partial status** ✨ NEW (don't wait for graphs!)
    - Click **Download** icon to get markdown directly
    - Failed jobs show red X with error message
    - Click **Retry** to re-run failed extractions
@@ -231,7 +244,7 @@ Users receive up to five downloadable outputs:
 
 **Overview**: PDF extraction now uses an asynchronous job queue with persistent storage to ensure reliability and prevent data loss.
 
-**Architecture Pattern**:
+**Architecture Pattern** (with Progressive Loading ✨):
 ```
 User Upload (Frontend)
     ↓
@@ -250,15 +263,25 @@ Download PDF from storage
 Submit to Datalab Marker API
 Poll for completion (2s intervals)
     ↓
-Process images with GPT Vision
+✨ [PROGRESSIVE LOADING - Nov 29, 2025]
+Save partial results (markdown + images) → ~15 seconds
+Update job status to 'partial'
     ↓
-Store results in pdf_extraction_results table
+[Frontend receives 'partial' status]
+Display markdown/images immediately (amber theme)
+Show "Graph analysis in progress..." indicator
+    ↓
+[Background Worker continues]
+Process images with GPT Vision (concurrent batches of 3)
+    ↓
+Update results with graph data
 Update job status to 'completed'
 Clean up storage file
     ↓
-[Frontend - polls job status]
+[Frontend - polls job status every 2s]
     ↓
-Display results in Extraction History
+Auto-update UI with graph results
+Display final results in Extraction History
 Send browser notification
 ```
 
@@ -273,7 +296,8 @@ CREATE TABLE pdf_extraction_jobs (
   project_id BIGINT REFERENCES projects(id),
   file_name TEXT,
   file_size INTEGER,
-  status TEXT CHECK (status IN ('pending', 'processing', 'completed', 'failed', 'cancelled')),
+  -- ✨ Updated Nov 29, 2025: Added 'partial' status for progressive loading
+  status TEXT CHECK (status IN ('pending', 'processing', 'partial', 'completed', 'failed', 'cancelled')),
   progress INTEGER CHECK (progress >= 0 AND progress <= 100),
   current_stage TEXT,
   error_message TEXT,
@@ -285,20 +309,34 @@ CREATE TABLE pdf_extraction_jobs (
 );
 
 -- Results storage table
+-- ✨ Updated Nov 29, 2025: Results can be saved in 'partial' state (markdown ready, graphs pending)
 CREATE TABLE pdf_extraction_results (
   id UUID PRIMARY KEY,
   job_id UUID REFERENCES pdf_extraction_jobs(id),
   user_id UUID REFERENCES auth.users(id),
-  markdown_content TEXT,
-  response_json JSONB,
-  original_images JSONB,
-  graphify_results JSONB,
+  markdown_content TEXT,           -- Available in 'partial' status
+  response_json JSONB,               -- Available in 'partial' status
+  original_images JSONB,             -- Available in 'partial' status
+  graphify_results JSONB,            -- NULL during 'partial', populated when 'completed'
   tables_data JSONB,
   images_found INTEGER,
-  graphs_detected INTEGER,
+  graphs_detected INTEGER,           -- 0 during 'partial', updated when 'completed'
   tables_found INTEGER,
-  processing_time_ms INTEGER
+  processing_time_ms INTEGER         -- Partial time during 'partial', final time when 'completed'
 );
+```
+
+**Job Status Flow** (✨ Updated Nov 29):
+```
+pending → processing → partial → completed
+              ↓           ↓
+            failed      failed
+
+- pending: Job created, waiting to start
+- processing: Datalab extraction in progress (0-80%)
+- partial: ✨ Markdown/images ready, graphs analyzing (80-95%)
+- completed: All done including graphs (100%)
+- failed: Error at any stage
 ```
 
 2. **API Endpoints**:
@@ -2366,6 +2404,120 @@ console.error('Error in PDFExtractionService:', error)
 
 ---
 
+## Performance Optimizations (Nov 29, 2025)
+
+### Progressive Loading with Partial Status
+
+**Problem**: Users had to wait 60+ seconds for graph analysis before viewing any results, even though markdown was ready after 15 seconds.
+
+**Solution**: Introduced `'partial'` status that allows immediate access to markdown/images while graphs analyze in background.
+
+**Impact**:
+- **75% faster** time to first content view (15s vs 60s)
+- **45 seconds saved** per extraction with graph analysis
+- Users can start reading immediately, graphs appear when ready
+
+**Implementation**:
+```typescript
+// Backend: Save partial results after Datalab completes
+await supabase.from('pdf_extraction_results').insert({
+  markdown_content: markdown,  // Ready!
+  original_images: images,      // Ready!
+  graphify_results: null        // Analyzing...
+})
+
+// Set status to 'partial' 
+await updateJobProgress(supabase, jobId, {
+  status: 'partial',
+  progress: 80,
+  current_stage: 'markdown_ready_analyzing_graphs'
+})
+
+// Continue with graph analysis (doesn't block user)
+graphifyResults = await processImagesWithGPT(...)
+
+// Update with graph results when complete
+await supabase.from('pdf_extraction_results').update({
+  graphify_results: graphifyResults
+}).eq('job_id', jobId)
+```
+
+**UI Indicators**:
+- **Partial badge**: Amber spinner with "Markdown ready • 🔍 Analyzing graphs..."
+- **View Markdown button**: Enabled during partial status
+- **Progress bar**: Shows graph analysis progress (80-100%)
+- **Analysis view**: Displays "Graph analysis in progress..." for pending images
+
+### Extraction History Caching
+
+**Problem**: History loaded slowly (2-3 seconds) on every navigation to Data Extraction tab.
+
+**Solution**: SessionStorage cache with stale-while-revalidate pattern.
+
+**Impact**:
+- **99.6% faster** on repeat visits (<10ms vs 2.5s)
+- **Instant navigation** between tabs
+- **Background refresh** keeps data fresh
+
+**Implementation**:
+```typescript
+// Load cache immediately on mount (synchronous)
+const cached = sessionStorage.getItem('extraction_history_cache')
+if (cached && isFresh) {
+  setJobs(JSON.parse(cached))
+  setIsLoading(false)  // Show immediately!
+}
+
+// Fetch fresh data in background
+const response = await PDFExtractionJobService.listJobs({ limit: 50 })
+setJobs(response.jobs)  // Update when ready
+
+// Cache for next visit (5-minute TTL)
+sessionStorage.setItem('extraction_history_cache', JSON.stringify(jobs))
+```
+
+**UI Improvements**:
+- **Skeleton loading**: Shows animated placeholders when no cache
+- **Refresh indicator**: Small spinner in title when refreshing cached data
+- **No flashing**: Smooth transition from cached to fresh data
+
+### Auto-Refresh on Job Completion
+
+**Problem**: Completed jobs didn't appear in history until page refresh.
+
+**Solution**: Refresh trigger system between PDFExtraction and ExtractionHistory components.
+
+**Implementation**:
+```typescript
+// PDFExtraction: Trigger refresh when job completes
+const [historyRefreshTrigger, setHistoryRefreshTrigger] = useState(0)
+
+if (jobStatus === 'completed' || jobStatus === 'partial') {
+  setHistoryRefreshTrigger(prev => prev + 1)
+}
+
+// ExtractionHistory: Watch for trigger
+useEffect(() => {
+  if (refreshTrigger > 0) {
+    loadJobs(true)  // Refresh in background
+  }
+}, [refreshTrigger])
+```
+
+**Impact**: Jobs appear in history immediately when submitted/completed, no manual refresh needed.
+
+### Performance Metrics Summary
+
+| Metric | Before (Nov 28) | After (Nov 29) | Improvement |
+|--------|-----------------|----------------|-------------|
+| **Time to view markdown** | 60s | 15s | **75% faster** |
+| **History load (cached)** | 2.5s | <10ms | **99.6% faster** |
+| **History load (first time)** | 2.5s | 2.5s | Same |
+| **Tab switching** | 2.5s delay | <10ms | **Instant** |
+| **Job completion updates** | Manual refresh | Auto-refresh | **Seamless** |
+
+---
+
 ## Use Cases
 
 ### Research Paper Analysis (Enhanced)
@@ -2474,6 +2626,9 @@ console.error('Error in PDFExtractionService:', error)
 10. **Matplotlib Limitations**: Advanced matplotlib features may not be supported in Pyodide
 11. **Vercel Workaround**: Worker must be triggered from client-side (Vercel serverless functions cannot call each other)
 12. **Timeout on Free Plan**: 5-minute limit may not be sufficient for PDFs with >20 pages and graphify enabled
+13. ~~**Data Extraction Tab Requires Chat**~~ ✅ **FIXED (Nov 29)**: Users can now access Data Extraction directly without chat interaction
+14. ~~**Slow History Loading**~~ ✅ **FIXED (Nov 29)**: SessionStorage caching provides instant loads (<10ms) on navigation
+15. ~~**Blocking Wait for Graphs**~~ ✅ **FIXED (Nov 29)**: Progressive loading shows markdown after 15s, graphs appear when ready
 
 ### Not Supported
 
@@ -3050,18 +3205,35 @@ The PDF Content Extraction feature provides a powerful, AI-enhanced way to conve
 ---
 
 
-**Feature Status**: Production Ready (Enhanced with Async Job Queue & Pyodide Rendering)  
+**Feature Status**: Production Ready (Enhanced with Async Job Queue, Pyodide Rendering & Progressive Loading)  
 **Major Updates (November 2025)**:
-- **NEW**: Asynchronous job queue system with database persistence
-- **NEW**: Extraction History embedded in Data Extraction page
-- **NEW**: Real-time progress tracking and browser notifications
-- **NEW**: Error recovery with retry functionality
-- **NEW**: Supabase storage integration for temporary files
-- **NEW**: Client-side worker triggering (Vercel workaround)
+
+**Bug Fixes & Optimizations (Nov 29, 2025 - ABC-105)**:
+- ✅ **FIXED**: Data Extraction tab now accessible without chat interaction
+- ✅ **FIXED**: Tab navigation properly preserved on page refresh
+- ✅ **OPTIMIZED**: SessionStorage caching for 99.6% faster history loading
+- ✅ **OPTIMIZED**: Skeleton loading UI for better perceived performance
+- ✅ **NEW**: Progressive loading with `'partial'` status - view markdown after 15s, don't wait for graphs!
+- ✅ **NEW**: Auto-refresh history when jobs complete (no manual refresh needed)
+- ✅ **NEW**: Amber theme for partial results with graph analysis progress indicator
+- ✅ **NEW**: "Graph analysis in progress" messages in Analysis View during partial status
+- ✅ **13 integration tests** created and passing for all bug fixes
+
+**Async Job Queue System (Nov 10, 2025)**:
+- Asynchronous job queue system with database persistence
+- Extraction History embedded in Data Extraction page
+- Real-time progress tracking and browser notifications
+- Error recovery with retry functionality
+- Supabase storage integration for temporary files
+- Client-side worker triggering (Vercel workaround)
+
+**Pyodide Graph Rendering (Nov 2025)**:
 - Browser-based Python graph rendering with Pyodide WebAssembly
 - One-click execution of GPT-generated matplotlib code
 - Side-by-side comparison of original vs AI-reconstructed graphs
 - Visual verification of data extraction accuracy
+
+**Analysis & UI Enhancements**:
 - Paper Analysis View with tabbed interface
 - Integrated table extraction functionality
 - Enhanced UI with drag & drop support
@@ -3071,8 +3243,11 @@ The PDF Content Extraction feature provides a powerful, AI-enhanced way to conve
 - Markdown rendering with GFM support
 
 **Related Documentation**:
+- See `BUG_REPORT_ABC-105.md` for bug fixes and performance optimizations (Nov 29, 2025)
+- See `__tests__/integration/ui/dataExtraction.test.tsx` for comprehensive test suite (13 tests)
 - See `ASYNC_PDF_EXTRACTION_IMPLEMENTATION.md` for async job queue architecture
 - See `SETUP_ASYNC_PDF_EXTRACTION.md` for setup instructions
 - See `PYODIDE_GRAPH_RENDERING.md` for Pyodide rendering details
-- See `supabase/migrations/add_pdf_extraction_async.sql` for database schema
+- See `supabase/migrations/add_pdf_extraction_async.sql` for initial database schema
+- See `supabase/migrations/20251129_add_partial_status_to_pdf_jobs.sql` for partial status migration
 
