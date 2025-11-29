@@ -380,8 +380,11 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
             projectChatHistoryRef.current.set(currentProjectId, [...dbChat])
             // Set hasSearched to true so the UI shows the research view with chat history
             setHasSearched(true)
-            // Ensure we're in research view mode
-            setViewMode('research')
+            // Only set viewMode to research if NOT inside AppShell with URL routing
+            // When inside AppShell, the URL controls the view mode via initialView prop
+            if (!insideAppShell) {
+              setViewMode('research')
+            }
           } else {
             // Check in-memory cache as fallback
             const cachedChat = projectChatHistoryRef.current.get(currentProjectId)
@@ -390,13 +393,18 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
               setChatHistory([...cachedChat])
               // Set hasSearched to true so the UI shows the research view with chat history
               setHasSearched(true)
-              // Ensure we're in research view mode
-              setViewMode('research')
+              // Only set viewMode to research if NOT inside AppShell with URL routing
+              if (!insideAppShell) {
+                setViewMode('research')
+              }
             } else {
               console.log('[Dashboard] ✅ No chat history for project', currentProjectId, ', starting fresh')
               setChatHistory([])
               setHasSearched(false)
-              setViewMode('research')
+              // Only set viewMode to research if NOT inside AppShell with URL routing
+              if (!insideAppShell) {
+                setViewMode('research')
+              }
             }
           }
         } catch (error) {
@@ -1275,7 +1283,7 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
     )
   }
 
-  if (!hasSearched && viewMode !== 'pipeline' && viewMode !== 'marketmap' && viewMode !== 'realtimefeed') {
+  if (!hasSearched && viewMode !== 'pipeline' && viewMode !== 'marketmap' && viewMode !== 'dataextraction' && viewMode !== 'realtimefeed') {
     console.log('Rendering initial centered search. hasSearched:', hasSearched, 'viewMode:', viewMode);
     return (
       <DashboardLayout variant="initial" currentProjectId={currentProjectId}>
