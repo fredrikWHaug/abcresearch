@@ -10,7 +10,7 @@
  * - Skeleton loading UI for better perceived performance
  */
 
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { 
@@ -28,11 +28,12 @@ import type { PDFExtractionJob } from '@/types/pdf-extraction-job'
 import type { PDFExtractionResult } from '@/types/extraction'
 import { PaperAnalysisView } from './PaperAnalysisView'
 
-const CACHE_KEY = 'extraction_history_cache'
-const CACHE_TIMESTAMP_KEY = 'extraction_history_cache_ts'
+const CACHE_KEY_BASE = 'extraction_history_cache'
+const CACHE_TIMESTAMP_KEY_BASE = 'extraction_history_cache_ts'
 const CACHE_MAX_AGE_MS = 5 * 60 * 1000 // 5 minutes
 
 interface ExtractionHistoryProps {
+  currentProjectId: number | null;
   isVisible?: boolean;
   refreshTrigger?: number; // Increment this to trigger a refresh (e.g., when a new job completes)
 }
@@ -64,7 +65,7 @@ function JobSkeleton() {
   )
 }
 
-export function ExtractionHistory({ isVisible = true, refreshTrigger = 0 }: ExtractionHistoryProps = {}) {
+export function ExtractionHistory({ currentProjectId, isVisible = true, refreshTrigger = 0 }: ExtractionHistoryProps) {
   const [jobs, setJobs] = useState<PDFExtractionJob[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false) // For background refresh indicator
@@ -76,95 +77,69 @@ export function ExtractionHistory({ isVisible = true, refreshTrigger = 0 }: Extr
   const loadingRef = useRef(false) // Prevent duplicate loads
   const hasCacheRef = useRef(false) // Track if we loaded from cache (survives re-renders)
 
-  // Load cached jobs from sessionStorage immediately on mount
-  useEffect(() => {
-    const loadCachedJobs = () => {
-      try {
-        const cached = sessionStorage.getItem(CACHE_KEY)
-        const cachedTs = sessionStorage.getItem(CACHE_TIMESTAMP_KEY)
-        
-        if (cached && cachedTs) {
-          const cacheAge = Date.now() - parseInt(cachedTs, 10)
-          // Use cache if it's fresh enough
-          if (cacheAge < CACHE_MAX_AGE_MS) {
-            const cachedJobs = JSON.parse(cached)
-            if (Array.isArray(cachedJobs)) {
-              // FIX: Set cache flag BEFORE setting state to avoid race condition
-              hasCacheRef.current = true
-              setJobs(cachedJobs)
-              setIsLoading(false) // Show cached data immediately (even if empty)
-              console.log('[ExtractionHistory] Loaded', cachedJobs.length, 'jobs from cache')
-            }
+  const cacheSuffix = useMemo(
+    () => (currentProjectId !== null ? `project_${currentProjectId}` : 'all'),
+    [currentProjectId]
+  )
+  const cacheKey = useMemo(() => `${CACHE_KEY_BASE}:${cacheSuffix}`, [cacheSuffix])
+  const cacheTimestampKey = useMemo(() => `${CACHE_TIMESTAMP_KEY_BASE}:${cacheSuffix}`, [cacheSuffix])
+
+  const loadCachedJobs = useCallback(() => {
+    try {
+      const cached = sessionStorage.getItem(cacheKey)
+      const cachedTs = sessionStorage.getItem(cacheTimestampKey)
+      
+      if (cached && cachedTs) {
+        const cacheAge = Date.now() - parseInt(cachedTs, 10)
+        if (cacheAge < CACHE_MAX_AGE_MS) {
+          const cachedJobs = JSON.parse(cached)
+          if (Array.isArray(cachedJobs)) {
+            hasCacheRef.current = true
+            setJobs(cachedJobs)
+            setIsLoading(false)
+            console.log('[ExtractionHistory] Loaded', cachedJobs.length, 'jobs from cache for', cacheSuffix)
+            return true
           }
         }
-      } catch (error) {
-        console.warn('[ExtractionHistory] Failed to load cache:', error)
       }
+    } catch (error) {
+      console.warn('[ExtractionHistory] Failed to load cache:', error)
     }
-    
+    hasCacheRef.current = false
+    return false
+  }, [cacheKey, cacheTimestampKey, cacheSuffix])
+
+  // Reload cache whenever project changes
+  useEffect(() => {
+    setJobs([])
+    setIsLoading(true)
     loadCachedJobs()
-  }, [])
+    setHasLoadedOnce(false)
+  }, [loadCachedJobs])
 
-  // Lazy load: only load jobs when view becomes visible for the first time
-  useEffect(() => {
-    if (isVisible && !hasLoadedOnce && !loadingRef.current) {
-      setHasLoadedOnce(true)
-      // FIX: Use hasCacheRef instead of jobs.length to determine loading state
-      // This avoids the race condition where jobs state hasn't updated yet
-      loadJobs(hasCacheRef.current) // Pass true if we have cache (will show refresh indicator instead of skeleton)
-    }
-  }, [isVisible, hasLoadedOnce])
-
-  // Set up polling for in-progress jobs (including 'partial' which is still analyzing graphs)
-  useEffect(() => {
-    const interval = setInterval(() => {
-      // Check if there are any in-progress or partial jobs
-      const inProgressJobs = jobs.filter(j => 
-        j.status === 'processing' || j.status === 'pending' || j.status === 'partial'
-      )
-      if (inProgressJobs.length > 0 && !loadingRef.current) {
-        loadJobs(true) // Has existing data, show refresh indicator not skeleton
-      }
-    }, 5000)
-
-    return () => clearInterval(interval)
-  }, [jobs]) // This only sets up polling, doesn't load on every jobs change
-
-  // Refresh when triggered externally (e.g., new job submitted/completed)
-  useEffect(() => {
-    if (refreshTrigger > 0 && hasLoadedOnce) {
-      console.log('[ExtractionHistory] Refresh triggered by parent, refreshTrigger:', refreshTrigger)
-      loadJobs(true) // We have existing data, show refresh indicator
-    }
-  }, [refreshTrigger])
-
-  const loadJobs = async (hasExistingData = false) => {
-    // Prevent duplicate loads
+  const loadJobs = useCallback(async (hasExistingData = false) => {
     if (loadingRef.current) return
     loadingRef.current = true
-    
-    // FIX: Use hasExistingData parameter (set by caller based on hasCacheRef)
-    // This avoids the race condition where jobs.length check would fail
-    // because React state hasn't updated yet from the cache effect
+
     if (hasExistingData) {
-      // We have cached data showing, just show refresh indicator
       setIsRefreshing(true)
     } else {
-      // No data to show, show full loading skeleton
       setIsLoading(true)
     }
-    
+
     try {
-      const response = await PDFExtractionJobService.listJobs({ limit: 50 })
-      
+      const response = await PDFExtractionJobService.listJobs({
+        limit: 50,
+        projectId: typeof currentProjectId === 'number' ? currentProjectId : undefined
+      })
+
       if (response.success) {
         setJobs(response.jobs)
-        hasCacheRef.current = true // Mark that we now have data
-        
-        // Cache jobs to sessionStorage
+        hasCacheRef.current = true
+
         try {
-          sessionStorage.setItem(CACHE_KEY, JSON.stringify(response.jobs))
-          sessionStorage.setItem(CACHE_TIMESTAMP_KEY, String(Date.now()))
+          sessionStorage.setItem(cacheKey, JSON.stringify(response.jobs))
+          sessionStorage.setItem(cacheTimestampKey, String(Date.now()))
         } catch (error) {
           console.warn('[ExtractionHistory] Failed to cache jobs:', error)
         }
@@ -174,7 +149,38 @@ export function ExtractionHistory({ isVisible = true, refreshTrigger = 0 }: Extr
       setIsRefreshing(false)
       loadingRef.current = false
     }
-  }
+  }, [cacheKey, cacheTimestampKey, currentProjectId])
+
+  // Lazy load: only load jobs when view becomes visible for the first time
+  useEffect(() => {
+    if (isVisible && !hasLoadedOnce && !loadingRef.current) {
+      setHasLoadedOnce(true)
+      loadJobs(hasCacheRef.current)
+    }
+  }, [isVisible, hasLoadedOnce, loadJobs])
+
+  // Set up polling for in-progress jobs (including 'partial' which is still analyzing graphs)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const inProgressJobs = jobs.filter(j => 
+        j.status === 'processing' || j.status === 'pending' || j.status === 'partial'
+      )
+      if (inProgressJobs.length > 0 && !loadingRef.current) {
+        loadJobs(true)
+      }
+    }, 5000)
+
+    return () => clearInterval(interval)
+  }, [jobs, loadJobs])
+
+  // Refresh when triggered externally (e.g., new job submitted/completed)
+  useEffect(() => {
+    if (refreshTrigger > 0 && hasLoadedOnce) {
+      console.log('[ExtractionHistory] Refresh triggered by parent, refreshTrigger:', refreshTrigger)
+      loadJobs(true)
+    }
+  }, [refreshTrigger, hasLoadedOnce, loadJobs])
+
 
   const handleViewResult = async (job: PDFExtractionJob) => {
     // Allow viewing for both 'completed' and 'partial' (markdown is available)

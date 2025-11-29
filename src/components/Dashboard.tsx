@@ -1353,7 +1353,10 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
   if (viewMode === 'dataextraction') {
     return (
       <DashboardLayout currentProjectId={currentProjectId}>
-        <DataExtractionView />
+        <DataExtractionView
+          currentProjectId={currentProjectId}
+          isVisible
+        />
       </DashboardLayout>
     );
   }
