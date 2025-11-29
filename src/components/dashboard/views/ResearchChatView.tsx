@@ -453,22 +453,23 @@ export const ResearchChatView = React.memo(function ResearchChatView({
                   )}
 
                   {item.searchSuggestions && item.searchSuggestions.length > 0 && (
-                    <div className="mt-4 space-y-2">
+                    <div className="mt-3 space-y-2">
                       {item.searchSuggestions.map((suggestion) => (
-                        <Button
+                        <button
                           key={suggestion.id}
-                          variant="ghost"
                           onClick={() => handleSearchSuggestion(suggestion)}
-                          className="w-full justify-start p-3.5 bg-blue-50/50 hover:bg-blue-100/50 border border-blue-100 rounded-xl transition-all duration-200 hover:shadow-sm group h-auto block text-left whitespace-normal"
+                          className="w-full text-left p-4 bg-blue-600 hover:bg-blue-700 border-2 border-blue-700 rounded-lg transition-all shadow-md hover:shadow-lg hover:scale-[1.02] cursor-pointer"
                         >
-                          <div className="flex items-center gap-3 mb-1">
-                            <div className="w-2 h-2 bg-blue-500 rounded-full ring-4 ring-blue-100 group-hover:ring-blue-200 transition-all shrink-0"></div>
-                            <span className="font-semibold text-blue-900">{suggestion.label}</span>
+                          <div className="flex items-center gap-3">
+                            <svg className="w-5 h-5 text-white flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                            <span className="font-semibold text-white text-base">{suggestion.label}</span>
                           </div>
                           {suggestion.description && (
-                            <p className="text-xs text-blue-700/80 ml-5 font-medium">{suggestion.description}</p>
+                            <p className="text-sm text-blue-100 mt-2 ml-8">{suggestion.description}</p>
                           )}
-                        </Button>
+                        </button>
                       ))}
                     </div>
                   )}
