@@ -411,7 +411,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Insert partial results first (markdown + images, no graphs yet)
     console.log('Saving partial results (markdown + images)...')
-    const { data: insertedResult, error: partialResultError } = await supabase
+    const { error: partialResultError } = await supabase
       .from('pdf_extraction_results')
       .insert({
         job_id: jobId,
