@@ -29,6 +29,12 @@ export function PDFExtraction({ isVisible = true }: PDFExtractionProps = {}) {
   const [jobProgress, setJobProgress] = useState(0)
   const [jobStage, setJobStage] = useState<string>('')
   const pollingIntervalRef = useRef<number | null>(null)
+  
+  // Trigger to refresh ExtractionHistory when a job completes
+  const [historyRefreshTrigger, setHistoryRefreshTrigger] = useState(0)
+  
+  // Track if we're showing partial results (markdown ready, graphs still analyzing)
+  const [isPartialResult, setIsPartialResult] = useState(false)
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -114,6 +120,9 @@ export function PDFExtraction({ isVisible = true }: PDFExtractionProps = {}) {
 
       console.log('Job submitted:', job.id)
 
+      // Trigger ExtractionHistory refresh to show the new job
+      setHistoryRefreshTrigger(prev => prev + 1)
+
       // Start polling for updates
       const pollJob = async () => {
         const statusResponse = await PDFExtractionJobService.getJob(job.id)
@@ -128,8 +137,43 @@ export function PDFExtraction({ isVisible = true }: PDFExtractionProps = {}) {
         setJobProgress(updatedJob.progress)
         setJobStage(updatedJob.current_stage || 'Processing...')
 
-        // Check if completed or failed
-        if (updatedJob.status === 'completed' && statusResponse.result) {
+        // Debug logging to see what status we're getting
+        console.log(`[POLL] Job ${updatedJob.id}: status=${updatedJob.status}, stage=${updatedJob.current_stage}, progress=${updatedJob.progress}, hasResult=${!!statusResponse.result}`)
+
+        // Handle PARTIAL status - markdown ready, graphs still analyzing
+        // Show results immediately but keep polling for graph completion
+        if (updatedJob.status === 'partial' && statusResponse.result) {
+          const result = statusResponse.result
+          const blobs = PDFExtractionJobService.convertResultToBlobs(result)
+
+          // Show partial results - markdown + images available
+          setExtractionResult({
+            success: true,
+            jobId: updatedJob.id,
+            markdownContent: result.markdown_content || undefined,
+            markdownBlob: blobs.markdownBlob,
+            responseJson: result.response_json || undefined,
+            responseJsonBlob: blobs.responseJsonBlob,
+            originalImagesBlob: blobs.originalImagesBlob,
+            graphifyResults: undefined, // Not available yet
+            stats: {
+              imagesFound: result.images_found,
+              graphsDetected: 0, // Not analyzed yet
+              processingTimeMs: result.processing_time_ms || 0,
+              tablesFound: result.tables_found
+            },
+            message: `Markdown and images extracted. Graph analysis in progress...`
+          })
+
+          setIsPartialResult(true)
+          // Don't stop polling - continue until 'completed'
+          // Don't set isProcessing to false - we're still processing graphs
+
+          // Trigger ExtractionHistory refresh to show partial results
+          setHistoryRefreshTrigger(prev => prev + 1)
+        }
+        // Handle COMPLETED status - all done including graphs
+        else if (updatedJob.status === 'completed' && statusResponse.result) {
           // Convert result to legacy format for compatibility with PaperAnalysisView
           const result = statusResponse.result
           const blobs = PDFExtractionJobService.convertResultToBlobs(result)
@@ -156,10 +200,14 @@ export function PDFExtraction({ isVisible = true }: PDFExtractionProps = {}) {
           })
 
           setIsProcessing(false)
+          setIsPartialResult(false)
           if (pollingIntervalRef.current) {
             clearInterval(pollingIntervalRef.current)
             pollingIntervalRef.current = null
           }
+
+          // Trigger ExtractionHistory refresh
+          setHistoryRefreshTrigger(prev => prev + 1)
 
           // Show notification
           NotificationService.notifyJobComplete(selectedFile?.name || 'PDF', {
@@ -176,6 +224,9 @@ export function PDFExtraction({ isVisible = true }: PDFExtractionProps = {}) {
             clearInterval(pollingIntervalRef.current)
             pollingIntervalRef.current = null
           }
+
+          // Trigger ExtractionHistory refresh (even on failure, show the failed job)
+          setHistoryRefreshTrigger(prev => prev + 1)
 
           // Show notification
           NotificationService.notifyJobFailed(
@@ -263,6 +314,9 @@ export function PDFExtraction({ isVisible = true }: PDFExtractionProps = {}) {
             pollingIntervalRef.current = null
           }
 
+          // Trigger ExtractionHistory refresh
+          setHistoryRefreshTrigger(prev => prev + 1)
+
           // Show notification
           NotificationService.notifyJobComplete(selectedFile?.name || 'PDF', {
             imagesFound: result.images_found,
@@ -278,6 +332,9 @@ export function PDFExtraction({ isVisible = true }: PDFExtractionProps = {}) {
             clearInterval(pollingIntervalRef.current)
             pollingIntervalRef.current = null
           }
+
+          // Trigger ExtractionHistory refresh
+          setHistoryRefreshTrigger(prev => prev + 1)
 
           // Show notification
           NotificationService.notifyJobFailed(
@@ -308,6 +365,7 @@ export function PDFExtraction({ isVisible = true }: PDFExtractionProps = {}) {
     setSelectedFile(null)
     setExtractionResult(null)
     setIsProcessing(false)
+    setIsPartialResult(false)
     setShowAnalysisView(false)
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
@@ -337,6 +395,7 @@ export function PDFExtraction({ isVisible = true }: PDFExtractionProps = {}) {
         result={extractionResult}
         fileName={selectedFile.name}
         onBack={handleBackToUpload}
+        isPartialResult={isPartialResult}
       />
     )
   }
@@ -516,29 +575,44 @@ export function PDFExtraction({ isVisible = true }: PDFExtractionProps = {}) {
             </div>
           )}
 
-          {/* Success Result */}
-          {extractionResult?.success && !isProcessing && (
+          {/* Success Result (including partial results) */}
+          {extractionResult?.success && (!isProcessing || isPartialResult) && (
             <div className="space-y-4">
-              {/* Success Banner */}
-              <div className="flex items-start gap-3 p-4 bg-green-50 border border-green-200 rounded-lg">
-                <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0 mt-0.5" />
+              {/* Success/Partial Banner */}
+              <div className={`flex items-start gap-3 p-4 rounded-lg ${
+                isPartialResult 
+                  ? 'bg-blue-50 border border-blue-200' 
+                  : 'bg-green-50 border border-green-200'
+              }`}>
+                {isPartialResult ? (
+                  <Loader2 className="h-5 w-5 text-blue-600 shrink-0 mt-0.5 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0 mt-0.5" />
+                )}
                 <div className="flex-1">
-                  <p className="text-sm font-medium text-green-900">Extraction Successful!</p>
-                  <p className="text-sm text-green-700 mt-1">
+                  <p className={`text-sm font-medium ${isPartialResult ? 'text-blue-900' : 'text-green-900'}`}>
+                    {isPartialResult ? 'Markdown Ready - Graph Analysis in Progress' : 'Extraction Successful!'}
+                  </p>
+                  <p className={`text-sm mt-1 ${isPartialResult ? 'text-blue-700' : 'text-green-700'}`}>
                     {extractionResult.message || 'PDF content extracted successfully'}
                   </p>
                   {extractionResult.stats && (
-                    <div className="mt-2 flex items-center gap-3 text-xs text-green-600">
+                    <div className={`mt-2 flex items-center gap-3 text-xs ${isPartialResult ? 'text-blue-600' : 'text-green-600'}`}>
                       <span className="flex items-center gap-1">
                         <FileText className="h-3 w-3" />
                         {extractionResult.stats.imagesFound} image{extractionResult.stats.imagesFound !== 1 ? 's' : ''} found
                       </span>
-                      {extractionResult.stats.graphsDetected > 0 && (
+                      {isPartialResult ? (
+                        <span className="flex items-center gap-1">
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                          Analyzing graphs...
+                        </span>
+                      ) : extractionResult.stats.graphsDetected > 0 ? (
                         <span className="flex items-center gap-1">
                           <Image className="h-3 w-3" />
                           {extractionResult.stats.graphsDetected} graph{extractionResult.stats.graphsDetected !== 1 ? 's' : ''} detected
                         </span>
-                      )}
+                      ) : null}
                       <span>
                         · Processed in {(extractionResult.stats.processingTimeMs / 1000).toFixed(1)}s
                       </span>
@@ -546,6 +620,27 @@ export function PDFExtraction({ isVisible = true }: PDFExtractionProps = {}) {
                   )}
                 </div>
               </div>
+
+              {/* Graph Analysis Progress (shown when partial) */}
+              {isPartialResult && currentJob && (
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="flex items-center justify-between text-xs text-blue-700 mb-2">
+                    <span className="font-medium">Graph Analysis Progress</span>
+                    <span>{currentJob.progress}%</span>
+                  </div>
+                  <div className="w-full bg-blue-100 rounded-full h-1.5 overflow-hidden">
+                    <div 
+                      className="h-full bg-blue-600 transition-all duration-300"
+                      style={{ width: `${currentJob.progress}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-blue-600 mt-2">
+                    {currentJob.current_stage === 'analyzing_graphs' 
+                      ? '🔍 Analyzing images with GPT Vision...'
+                      : currentJob.current_stage || 'Processing...'}
+                  </p>
+                </div>
+              )}
 
               {/* View Analysis Button */}
               <Button
@@ -708,7 +803,7 @@ export function PDFExtraction({ isVisible = true }: PDFExtractionProps = {}) {
 
         {/* Extraction History - Full width */}
         <div className="w-full">
-          <ExtractionHistory isVisible={isVisible} />
+          <ExtractionHistory isVisible={isVisible} refreshTrigger={historyRefreshTrigger} />
         </div>
       </div>
     </div>
