@@ -166,7 +166,7 @@ export default async function handler(req: any, res: any) {
       console.log('Using graph generation prompt');
     } else if (userIntent === 'search') {
       // Use search-specific prompt that focuses on search suggestions
-      systemPrompt = buildSearchPrompt(contextPapers, contextPressReleases, contextExtractions);
+      systemPrompt = buildSearchPrompt(contextPapers, contextPressReleases);
       console.log('Using search prompt');
     } else {
       // Use general conversation prompt

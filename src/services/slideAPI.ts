@@ -1,5 +1,6 @@
  
 import type { ClinicalTrial } from '@/types/trials';
+import type { DrugGroup } from '@/services/drugGroupingService';
 
 interface ChartData {
   phaseChart: Array<{ name: string; value: number }>;
@@ -36,7 +37,7 @@ export class SlideAPI {
    * @param query - Search query
    * @param drugGroups - Organized drug groups with associated trials, papers, etc.
    */
-  static async generateSlide(trials: ClinicalTrial[], query: string, drugGroups?: any[]): Promise<SlideData> {
+  static async generateSlide(trials: ClinicalTrial[], query: string, drugGroups?: DrugGroup[]): Promise<SlideData> {
     try {
       const response = await fetch('/api/generate-slide', {
         method: 'POST',

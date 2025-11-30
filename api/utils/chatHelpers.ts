@@ -351,8 +351,7 @@ Your response should start with \`\`\`python and end with \`\`\`. Nothing else.`
  */
 export function buildSearchPrompt(
   contextPapers?: ContextPaper[], 
-  contextPressReleases?: ContextPressRelease[],
-  contextExtractions?: ContextExtraction[]
+  contextPressReleases?: ContextPressRelease[]
 ): string {
   let prompt = `You are a medical research search assistant. Your goal is to help users find relevant clinical trials and research papers.
 
