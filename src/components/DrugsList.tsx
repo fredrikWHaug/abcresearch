@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ChevronRight, Pill, FileText, FlaskConical, Search, X, Target, Loader2, Newspaper, FolderOpen, Check } from 'lucide-react';
+import { ChevronRight, Pill, FileText, FlaskConical, Search, X, Target, Loader2, Newspaper, FolderOpen } from 'lucide-react';
 import type { DrugGroup } from '@/services/drugGroupingService';
 import type { StrategyResult } from '@/services/gatherSearchResults';
 
