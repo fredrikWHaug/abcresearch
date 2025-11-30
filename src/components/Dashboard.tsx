@@ -473,7 +473,8 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
             setHasSearched(true)
             // Only set viewMode to research if NOT inside AppShell with URL routing
             // When inside AppShell, the URL controls the view mode via initialView prop
-            if (!insideAppShell) {
+            // Preserve user-selected views (dataextraction, pipeline, etc.) - only reset if currently research
+            if (!insideAppShell && (viewMode === 'research' || !viewMode)) {
               setViewMode('research')
             }
           } else {
@@ -485,7 +486,8 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
               // Set hasSearched to true so the UI shows the research view with chat history
               setHasSearched(true)
               // Only set viewMode to research if NOT inside AppShell with URL routing
-              if (!insideAppShell) {
+              // Preserve user-selected views (dataextraction, pipeline, etc.) - only reset if currently research
+              if (!insideAppShell && (viewMode === 'research' || !viewMode)) {
                 setViewMode('research')
               }
             } else {
@@ -493,7 +495,8 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
               setChatHistory([])
               setHasSearched(false)
               // Only set viewMode to research if NOT inside AppShell with URL routing
-              if (!insideAppShell) {
+              // Preserve user-selected views (dataextraction, pipeline, etc.) - only reset if currently research or undefined
+              if (!insideAppShell && (viewMode === 'research' || !viewMode)) {
                 setViewMode('research')
               }
             }
