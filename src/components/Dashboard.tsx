@@ -242,6 +242,7 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
     setInitialSearchQueries(null);
     setSelectedExtractions([]);
     setShowGraphSuggestion(false);
+    setLoadingProjectData(false); // Reset loading state when clearing session
   }
 
   const handleDeleteSavedMap = (_id: number) => {
@@ -284,6 +285,8 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
   const [loadingProjects, setLoadingProjects] = useState(false)
   const [showCreateProjectModal, setShowCreateProjectModal] = useState(false)
   const [creatingProject, setCreatingProject] = useState(false)
+  // Track whether we're loading a project's data (prevents initial view flash)
+  const [loadingProjectData, setLoadingProjectData] = useState(projectId !== null)
   
   // Memoized callbacks to prevent unnecessary re-renders
   const handleToggleContextPanel = useCallback(() => {
@@ -327,6 +330,10 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
   // Set project ID and name when props change
   React.useEffect(() => {
     if (projectId) {
+      // Set loading immediately when projectId prop changes to prevent flash
+      if (projectId !== currentProjectId) {
+        setLoadingProjectData(true)
+      }
       setCurrentProjectId(projectId)
       console.log('[Dashboard] Project ID prop received:', projectId, '- will trigger project load effect')
     }
@@ -396,6 +403,9 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
     const isInitialLoad = currentProjectId !== null && previousProjectIdRef.current === null
     
     if (isProjectSwitch || isInitialLoad) {
+      // Set loading state immediately to prevent flash of initial view
+      setLoadingProjectData(true)
+      
     if (isProjectSwitch) {
       console.log('[Dashboard] ✅ Project switched from', previousProjectIdRef.current, 'to', currentProjectId)
       
@@ -417,6 +427,16 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
       
       // THEN: Load chat history and data for new project from database
       console.log('[Dashboard] 📥 Loading chat history for project', currentProjectId, 'from database...')
+      
+      // Track completion of both async operations
+      let chatLoaded = false
+      let dataLoaded = false
+      const checkLoadingComplete = () => {
+        if (chatLoaded && dataLoaded) {
+          console.log('[Dashboard] ✅ All project data loaded, removing loading state')
+          setLoadingProjectData(false)
+        }
+      }
       
       // Load chat history, search queries, and pipeline candidates
       import('@/services/projectService').then(async ({ loadChatHistory, loadSearchQueries, loadPipelineCandidates }) => {
@@ -483,6 +503,9 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
           setChatHistory([])
           setHasSearched(false)
           setInitialSearchQueries(null)
+        } finally {
+          chatLoaded = true
+          checkLoadingComplete()
         }
       })
       
@@ -534,6 +557,9 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
         setDrugGroups([])
         setPressReleases([])
         setIRDecks([])
+      }).finally(() => {
+        dataLoaded = true
+        checkLoadingComplete()
       })
       
       // Clear other state when switching projects
@@ -545,6 +571,9 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
       setSelectedExtractions([])
       setShowContextPanel(false)
       setShowGraphSuggestion(false)
+    } else if (currentProjectId === null) {
+      // No project selected, not loading
+      setLoadingProjectData(false)
     }
     
     // Update previous project ref
@@ -1390,6 +1419,24 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
       </div>
     )
   }, [showHeader])
+
+  // Show loading screen while project data is being fetched
+  if (loadingProjectData) {
+    return (
+      <DashboardLayout currentProjectId={currentProjectId}>
+        <div className="h-full w-full flex items-center justify-center">
+          <div className="text-center">
+            <div className="relative">
+              {/* Animated loading spinner */}
+              <div className="w-16 h-16 border-4 border-blue-100 border-t-blue-500 rounded-full animate-spin mx-auto"></div>
+            </div>
+            <p className="mt-6 text-gray-600 font-medium">Loading project...</p>
+            <p className="mt-2 text-gray-400 text-sm">Fetching your research data</p>
+          </div>
+        </div>
+      </DashboardLayout>
+    )
+  }
 
   if (!hasSearched && viewMode !== 'pipeline' && viewMode !== 'marketmap' && viewMode !== 'dataextraction' && viewMode !== 'realtimefeed') {
     console.log('Rendering initial centered search. hasSearched:', hasSearched, 'viewMode:', viewMode);
