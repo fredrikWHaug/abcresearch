@@ -162,8 +162,8 @@ export function MarketMap({
     );
   }
 
-  // Only show "search required" message if there's no query AND no trials
-  if (!query && trials.length === 0) {
+  // Only show "search required" message if there's no query AND no trials AND no existing slide data
+  if (!query && trials.length === 0 && !slideData) {
     return (
       <div className="w-full h-full flex items-center justify-center min-h-0">
         <div className="text-center text-gray-500">
@@ -181,7 +181,7 @@ export function MarketMap({
     );
   }
 
-  if (trials.length === 0) {
+  if (trials.length === 0 && !slideData) {
     return (
       <div className="w-full h-full flex items-center justify-center min-h-0">
         <div className="text-center">

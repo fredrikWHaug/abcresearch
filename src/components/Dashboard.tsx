@@ -521,9 +521,29 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
           papers: projectPapers.length,
           drugGroups: drugGroups.length
         })
+
+        // If project trials/papers are empty but we have drug groups, populate from drug groups
+        let effectiveTrials = projectTrials
+        let effectivePapers = projectPapers
+
+        if (effectiveTrials.length === 0 && drugGroups.length > 0) {
+          const allTrials = drugGroups.flatMap(dg => dg.trials)
+          // Deduplicate by nctId
+          const uniqueTrials = Array.from(new Map(allTrials.map(t => [t.nctId, t])).values())
+          console.log('[Dashboard] Populating trials from drug groups:', uniqueTrials.length)
+          effectiveTrials = uniqueTrials
+        }
+
+        if (effectivePapers.length === 0 && drugGroups.length > 0) {
+           const allPapers = drugGroups.flatMap(dg => dg.papers)
+           // Deduplicate by pmid
+           const uniquePapers = Array.from(new Map(allPapers.map(p => [p.pmid, p])).values())
+           console.log('[Dashboard] Populating papers from drug groups:', uniquePapers.length)
+           effectivePapers = uniquePapers
+        }
         
-        setTrials(projectTrials)
-        setPapers(projectPapers)
+        setTrials(effectiveTrials)
+        setPapers(effectivePapers)
         setDrugGroups(drugGroups)
         
         // Extract press releases and IR decks from drug groups
