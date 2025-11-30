@@ -50,53 +50,53 @@ export function DrugDetailModal({
 
           {/* View Mode Toggle */}
           <div className="flex items-center justify-center">
-            <div className="flex rounded-lg bg-gray-100 p-1 w-[50rem]">
+            <div className="flex rounded-full bg-gray-100 p-1.5 w-160 border border-gray-200">
               <button
                 onClick={() => setViewMode('papers')}
-                className={`py-2 px-3 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
+                className={`py-2 px-3 rounded-full text-sm font-medium transition-all duration-300 flex-1 text-center whitespace-nowrap cursor-pointer ${
                   viewMode === 'papers'
-                    ? 'bg-white text-gray-900 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900'
+                    ? 'bg-white text-blue-600 shadow-sm hover:bg-white'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200/50'
                 }`}
               >
                 Papers ({drugGroup.papers.length})
               </button>
               <button
                 onClick={() => setViewMode('trials')}
-                className={`py-2 px-3 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
+                className={`py-2 px-3 rounded-full text-sm font-medium transition-all duration-300 flex-1 text-center whitespace-nowrap cursor-pointer ${
                   viewMode === 'trials'
-                    ? 'bg-white text-gray-900 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900'
+                    ? 'bg-white text-purple-600 shadow-sm hover:bg-white'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200/50'
                 }`}
               >
                 Trials ({drugGroup.trials.length})
               </button>
               <button
                 onClick={() => setViewMode('pressReleases')}
-                className={`py-2 px-3 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
+                className={`py-2 px-3 rounded-full text-sm font-medium transition-all duration-300 flex-1 text-center whitespace-nowrap cursor-pointer ${
                   viewMode === 'pressReleases'
-                    ? 'bg-white text-gray-900 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900'
+                    ? 'bg-white text-pink-600 shadow-sm hover:bg-white'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200/50'
                 }`}
               >
                 Press ({drugGroup.pressReleases.length})
               </button>
               <button
                 onClick={() => setViewMode('irDecks')}
-                className={`py-2 px-3 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
+                className={`py-2 px-3 rounded-full text-sm font-medium transition-all duration-300 flex-1 text-center whitespace-nowrap cursor-pointer ${
                   viewMode === 'irDecks'
-                    ? 'bg-white text-gray-900 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900'
+                    ? 'bg-white text-amber-600 shadow-sm hover:bg-white'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200/50'
                 }`}
               >
                 IR Decks ({drugGroup.irDecks.length})
               </button>
               <button
                 onClick={() => setViewMode('both')}
-                className={`py-2 px-3 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
+                className={`py-2 px-3 rounded-full text-sm font-medium transition-all duration-300 flex-1 text-center whitespace-nowrap cursor-pointer ${
                   viewMode === 'both'
-                    ? 'bg-white text-gray-900 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900'
+                    ? 'bg-white text-gray-900 shadow-sm hover:bg-white'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200/50'
                 }`}
               >
                 Side by Side
