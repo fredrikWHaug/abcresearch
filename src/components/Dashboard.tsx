@@ -1301,8 +1301,8 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
     );
   };
 
-  // Create Project Modal Component (shared across all views)
-  const ProjectModal = () => (
+  // Memoize ProjectModal component to prevent recreation on every render
+  const ProjectModal = useCallback(() => (
     <CreateProjectModal
       isOpen={showCreateProjectModal}
       onClose={() => setShowCreateProjectModal(false)}
@@ -1352,46 +1352,17 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
         }
       }}
     />
-  );
+  ), [showCreateProjectModal, isGuest])
 
   type ViewVariant = 'initial' | 'default';
 
-  // Memoize DashboardLayout to prevent child components from remounting on every keystroke
-  const DashboardLayout = useCallback(({
-    variant = 'default',
-    currentProjectId,
-    children
-  }: {
-    variant?: ViewVariant;
-    currentProjectId: number | null;
-    children: React.ReactNode;
-  }) => {
-    if (variant === 'initial') {
-    return (
         <div className={showHeader ? "h-screen flex flex-col bg-gray-50" : "h-full flex flex-col bg-gray-50"}>
-          <div className={showHeader ? "flex-1 overflow-auto flex items-center justify-center" : "flex-1 overflow-auto flex items-center justify-center"}>
+          {showHeader && <Header currentProjectId={currentProjectId} />}
+          <div className="flex-1 min-h-0">
             {children}
           </div>
-        {showHeader && (
-          <div className="fixed top-0 left-0 right-0 z-50">
-            <Header currentProjectId={currentProjectId} />
-          </div>
-        )}
           <ProjectModal />
-      </div>
-      )
-  }
-
-    return (
-      <div className={showHeader ? "h-screen flex flex-col bg-gray-50" : "h-full flex flex-col bg-gray-50"}>
-        {showHeader && <Header currentProjectId={currentProjectId} />}
-        <div className="flex-1 min-h-0">
-          {children}
         </div>
-        <ProjectModal />
-      </div>
-    )
-  }, [showHeader])
 
   if (!hasSearched && viewMode !== 'pipeline' && viewMode !== 'marketmap' && viewMode !== 'dataextraction' && viewMode !== 'realtimefeed') {
     console.log('Rendering initial centered search. hasSearched:', hasSearched, 'viewMode:', viewMode);
