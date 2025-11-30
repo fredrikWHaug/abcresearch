@@ -5,10 +5,14 @@ import {
   buildConversationContext,
   generateSearchSuggestions,
   buildSystemPrompt,
+  buildGraphGenerationPrompt,
+  buildSearchPrompt,
   buildMessagesFromHistory,
+  detectUserIntent,
   type ChatMessage,
   type ContextPaper,
-  type ContextPressRelease
+  type ContextPressRelease,
+  type UserIntent
 } from './utils/chatHelpers.js'
 
 interface GenerateResponseRequest {
@@ -41,6 +45,25 @@ interface GenerateResponseRequest {
     fileName: string;
     markdownContent: string;
     hasTables: boolean;
+    tablesData?: Array<{
+      index: number;
+      headers: string[];
+      rows: string[][];
+      rawMarkdown: string;
+    }>;
+    graphifyResults?: Array<{
+      imageName: string;
+      isGraph: boolean;
+      graphType?: string;
+      reason?: string;
+      pythonCode?: string;
+      data?: Record<string, unknown>;
+      assumptions?: string;
+      error?: string;
+      renderedImage?: string;
+      renderError?: string;
+      renderTimeMs?: number;
+    }>;
   }>;
   searchResults?: {
     trials: any[];
@@ -66,7 +89,7 @@ interface GenerateResponseResponse {
     description?: string;
   }>;
   graphCode?: string;
-  intent: 'greeting' | 'search_request' | 'follow_up' | 'clarification' | 'general_question';
+  intent: 'search_request' | 'general_question' | 'graph_generation';
 }
 
 export default async function handler(req: any, res: any) {
@@ -85,6 +108,24 @@ export default async function handler(req: any, res: any) {
     console.log('Context papers count:', contextPapers?.length || 0);
     console.log('Context press releases count:', contextPressReleases?.length || 0);
     console.log('Context extractions count:', contextExtractions?.length || 0);
+    
+    // Debug: Log extraction structure
+    if (contextExtractions && contextExtractions.length > 0) {
+      contextExtractions.forEach((extraction, idx) => {
+        console.log(`[API] Extraction ${idx + 1}:`, {
+          jobId: extraction.jobId,
+          fileName: extraction.fileName,
+          hasTables: extraction.hasTables,
+          tablesDataLength: extraction.tablesData?.length || 0,
+          tablesDataType: Array.isArray(extraction.tablesData) ? 'array' : typeof extraction.tablesData,
+          tablesDataFirst: extraction.tablesData?.[0] ? {
+            index: extraction.tablesData[0].index,
+            headersCount: extraction.tablesData[0].headers?.length || 0,
+            rowsCount: extraction.tablesData[0].rows?.length || 0
+          } : 'none'
+        });
+      });
+    }
 
     if (!userQuery) {
       console.log('No userQuery provided');
@@ -109,15 +150,29 @@ export default async function handler(req: any, res: any) {
       });
     }
 
-    // HW9 ABC-85: Detect if user is asking for graph generation early to optimize context
-    const isGraphRequest = userQuery.toLowerCase().includes('graph') || 
-                          userQuery.toLowerCase().includes('chart') || 
-                          userQuery.toLowerCase().includes('comparison') ||
-                          userQuery.toLowerCase().includes('visualiz');
+    // Detect user intent to route to appropriate prompt
+    const hasExtractions = (contextExtractions && contextExtractions.length > 0) || false;
+    const userIntent = detectUserIntent(userQuery, hasExtractions);
     
-    // ABC-39, HW9: Build system prompt with context papers, press releases, and PDF extractions (persistent)
-    // HW9 ABC-85: Pass isGraphRequest to optimize context (only tables for graph generation)
-    const systemPrompt = buildSystemPrompt(contextPapers, contextPressReleases, contextExtractions, isGraphRequest);
+    console.log('Detected user intent:', userIntent, 'Has extractions:', hasExtractions);
+    
+    // Build system prompt based on intent
+    let systemPrompt: string;
+    const isGraphRequest = userIntent === 'graph_generation';
+    
+    if (userIntent === 'graph_generation') {
+      // Use graph-specific prompt that focuses on code generation
+      systemPrompt = buildGraphGenerationPrompt(contextExtractions);
+      console.log('Using graph generation prompt');
+    } else if (userIntent === 'search') {
+      // Use search-specific prompt that focuses on search suggestions
+      systemPrompt = buildSearchPrompt(contextPapers, contextPressReleases, contextExtractions);
+      console.log('Using search prompt');
+    } else {
+      // Use general conversation prompt
+      systemPrompt = buildSystemPrompt(contextPapers, contextPressReleases, contextExtractions, false);
+      console.log('Using general conversation prompt');
+    }
 
     // ABC-39: Build messages array from chat history and current query
     const messages = buildMessagesFromHistory(chatHistory || [], userQuery);
@@ -212,9 +267,29 @@ Keep the response concise (2-3 sentences) and natural. Don't use bullet points o
     // HW8 ABC-57: Reduce max_tokens to encourage brevity (Claude tends to be verbose)
     // HW9 ABC-85: Graph request detected earlier to optimize system prompt context
     // HW11: Ensure minimum 1500 tokens to prevent mid-sentence truncation, but allow more for graphs
-    const maxTokens = isGraphRequest ? 2000 : 1500;  // Graph code needs ~500-1000 tokens, normal needs 1500 to prevent truncation
+    const maxTokens = isGraphRequest ? 5000 : 2500;  // Graph code needs ~500-1000 tokens, normal needs 1500 to prevent truncation
     
-    console.log('Graph request detected:', isGraphRequest, 'Max tokens:', maxTokens);
+    // Use Sonnet 4.5 with thinking for graph generation, Haiku for other requests
+    const model = isGraphRequest ? 'claude-sonnet-4-5' : 'claude-3-haiku-20240307';
+    const thinkingConfig = isGraphRequest ? {
+      type: "enabled" as const,
+      budget_tokens: 2000  // Reasonable thinking budget for complex graph generation
+    } : undefined;
+    
+    console.log('Graph request detected:', isGraphRequest, 'Model:', model, 'Max tokens:', maxTokens, 'Thinking:', !!thinkingConfig);
+    
+    const requestBody: any = {
+      model: model,
+      max_tokens: maxTokens,
+      temperature: 1,
+      system: systemPrompt,  // Papers persist here (ABC-39)
+      messages: messages     // Conversation flows here (ABC-39)
+    };
+    
+    // Add thinking config only for graph generation
+    if (thinkingConfig) {
+      requestBody.thinking = thinkingConfig;
+    }
     
     const conversationalResponse = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -223,13 +298,7 @@ Keep the response concise (2-3 sentences) and natural. Don't use bullet points o
         'x-api-key': anthropicApiKey,
         'anthropic-version': '2023-06-01'
       },
-      body: JSON.stringify({
-        model: 'claude-3-haiku-20240307',
-        max_tokens: maxTokens,  // HW11: Minimum 1500 to prevent truncation, 2000 for graphs
-        temperature: 0.7,
-        system: systemPrompt,  // Papers persist here (ABC-39)
-        messages: messages     // Conversation flows here (ABC-39)
-      })
+      body: JSON.stringify(requestBody)
     });
 
     if (!conversationalResponse.ok) {
@@ -254,55 +323,165 @@ Keep the response concise (2-3 sentences) and natural. Don't use bullet points o
     const conversationalData = await conversationalResponse.json();
     console.log('Conversational API response:', conversationalData);
     
-    let conversationalResult = conversationalData.content[0].text;
+    // Handle response structure - may have thinking content or direct text
+    // When thinking mode is enabled, content array has: [{type: 'thinking', ...}, {type: 'text', text: '...'}]
+    // We need to find the text content item, not just use content[0]
+    let conversationalResult: string = '';
     
-    // HW8 ABC-57: Parse search intent metadata from Claude's response
-    const searchIntentMatch = conversationalResult.match(/\[SEARCH_INTENT:\s*(yes|no)\]/i);
-    const searchTermsMatch = conversationalResult.match(/\[SEARCH_TERMS:\s*(.+?)\]/i);
+    if (conversationalData.content && Array.isArray(conversationalData.content)) {
+      // Find the text content item (skip thinking blocks)
+      const textContentItem = conversationalData.content.find(
+        (item: any) => item.type === 'text' && (item.text || item.content)
+      );
+      
+      if (textContentItem) {
+        conversationalResult = textContentItem.text || textContentItem.content || '';
+        console.log('[Response] Found text content, length:', conversationalResult.length);
+      } else {
+        // Fallback: try content[0] if no text item found
+        const firstItem = conversationalData.content[0];
+        if (firstItem) {
+          conversationalResult = firstItem.text || firstItem.content || '';
+          if (!conversationalResult && firstItem.type === 'thinking') {
+            console.log('[Response] First item is thinking block, looking for text item...');
+            // Try to find text in other items
+            for (let i = 1; i < conversationalData.content.length; i++) {
+              const item = conversationalData.content[i];
+              if (item.type === 'text' && (item.text || item.content)) {
+                conversationalResult = item.text || item.content || '';
+                console.log('[Response] Found text content at index', i);
+                break;
+              }
+            }
+          }
+        }
+      }
+      
+      // Log structure for debugging if we still don't have text
+      if (!conversationalResult) {
+        console.warn('[Response] No text content found. Content structure:', 
+          conversationalData.content.map((item: any) => ({ type: item.type, hasText: !!item.text }))
+        );
+      }
+    } else {
+      console.warn('[Response] No content array found in response');
+    }
     
-    const claudeSearchIntent = searchIntentMatch ? searchIntentMatch[1].toLowerCase() === 'yes' : null;
-    const claudeSearchTerms = searchTermsMatch ? searchTermsMatch[1].trim() : null;
+    // Safety check - ensure we have a valid string
+    if (!conversationalResult || typeof conversationalResult !== 'string') {
+      console.error('[Response] Invalid conversational result:', {
+        type: typeof conversationalResult,
+        value: conversationalResult,
+        contentLength: conversationalData.content?.length,
+        contentTypes: conversationalData.content?.map((item: any) => item.type)
+      });
+      conversationalResult = 'I apologize, but I encountered an error processing the response.';
+    }
     
-    console.log('HW8 ABC-57: Claude search intent:', claudeSearchIntent);
-    console.log('HW8 ABC-57: Claude search terms:', claudeSearchTerms);
+    // Parse search intent metadata from Claude's response (only for search/general intents, not graph)
+    let shouldSearch = false;
+    let searchSuggestions: Array<{ id: string; label: string; query: string; description?: string }> = [];
     
-    // Remove metadata from response before showing to user
-    conversationalResult = conversationalResult
-      .replace(/\[SEARCH_INTENT:\s*(yes|no)\]/gi, '')
-      .replace(/\[SEARCH_TERMS:\s*.+?\]/gi, '')
-      .trim();
+    // Only parse search intent if NOT a graph generation request
+    if (userIntent !== 'graph_generation') {
+      const searchIntentMatch = conversationalResult.match(/\[SEARCH_INTENT:\s*(yes|no)\]/i);
+      const searchTermsMatch = conversationalResult.match(/\[SEARCH_TERMS:\s*(.+?)\]/i);
+      
+      const claudeSearchIntent = searchIntentMatch ? searchIntentMatch[1].toLowerCase() === 'yes' : null;
+      const claudeSearchTerms = searchTermsMatch ? searchTermsMatch[1].trim() : null;
+      
+      console.log('Claude search intent:', claudeSearchIntent);
+      console.log('Claude search terms:', claudeSearchTerms);
+      
+      // Remove metadata from response before showing to user (with safety check)
+      if (typeof conversationalResult === 'string') {
+        conversationalResult = conversationalResult
+          .replace(/\[SEARCH_INTENT:\s*(yes|no)\]/gi, '')
+          .replace(/\[SEARCH_TERMS:\s*.+?\]/gi, '')
+          .trim();
+      }
+      
+      // Use Claude's intent for search/general, but override with detected intent
+      shouldSearch = (userIntent === 'search') || (claudeSearchIntent === true && userIntent === 'general');
+      searchSuggestions = shouldSearch && claudeSearchTerms && claudeSearchTerms !== 'none' 
+        ? [{
+            id: 'search-1',
+            label: `Search for ${claudeSearchTerms}`,
+            query: claudeSearchTerms,
+            description: `Find clinical trials and research papers about ${claudeSearchTerms}`
+          }]
+        : [];
+      
+      console.log('Using intent routing. userIntent:', userIntent, 'shouldSearch:', shouldSearch);
+      console.log('Search suggestions:', searchSuggestions);
+    } else {
+      // For graph generation, remove any search intent metadata that might have leaked through
+      // Also remove any text before/after the Python code block
+      if (typeof conversationalResult === 'string') {
+        // Remove search intent metadata
+        conversationalResult = conversationalResult
+          .replace(/\[SEARCH_INTENT:\s*(yes|no)\]/gi, '')
+          .replace(/\[SEARCH_TERMS:\s*.+?\]/gi, '')
+          .trim();
+        
+        // Extract ONLY the Python code block if it exists
+        const pythonCodeMatch = conversationalResult.match(/```[Pp]ython\s*\n([\s\S]+?)(?:```|$)/);
+        if (pythonCodeMatch && pythonCodeMatch[1]) {
+          // If we found a code block, use ONLY that (wrapped properly)
+          conversationalResult = `\`\`\`python\n${pythonCodeMatch[1].trim()}\n\`\`\``;
+          console.log('[Graph] Extracted Python code block, removed surrounding text');
+        } else {
+          // If no code block found, try to clean up any remaining text
+          conversationalResult = conversationalResult
+            .replace(/^[^`]*/, '') // Remove text before first backtick
+            .replace(/[^`]*$/, '') // Remove text after last backtick
+            .trim();
+        }
+      }
+      
+      console.log('Graph generation request - no search suggestions will be generated');
+    }
     
     // Clean up any stage directions or action notations (e.g., "*responds warmly*", "*smiles*")
-    conversationalResult = conversationalResult
-      .replace(/\*[^*]+\*/g, '') // Remove anything between asterisks
-      .replace(/^\s+/, '') // Remove leading whitespace
-      .trim();
-
-    // HW8 ABC-57: Use Claude's intent instead of regex
-    const shouldSearch = claudeSearchIntent === true;
-    const searchSuggestions = shouldSearch && claudeSearchTerms && claudeSearchTerms !== 'none' 
-      ? [{
-          id: 'search-1',
-          label: `Search for ${claudeSearchTerms}`,
-          query: claudeSearchTerms,
-          description: `Find clinical trials and research papers about ${claudeSearchTerms}`
-        }]
-      : [];
-    
-    console.log('HW8 ABC-57: Using Claude intent. shouldSearch:', shouldSearch);
-    console.log('HW8 ABC-57: Search suggestions:', searchSuggestions);
+    // Only for non-graph requests (graph requests should already be cleaned above)
+    if (typeof conversationalResult === 'string' && userIntent !== 'graph_generation') {
+      conversationalResult = conversationalResult
+        .replace(/\*[^*]+\*/g, '') // Remove anything between asterisks
+        .replace(/^\s+/, '') // Remove leading whitespace
+        .trim();
+    }
 
     // Extract Python code if present (for graph generation)
     let graphCode: string | undefined;
     
-    // Match ```python or ```Python with optional whitespace, then capture everything until closing ```
-    // If closing ``` is missing (due to token cutoff), take everything until end of text
-    const pythonCodeMatch = conversationalResult.match(/```[Pp]ython\s*\n([\s\S]+?)(?:```|$)/);
-    if (pythonCodeMatch && pythonCodeMatch[1]) {
-      const extractedCode = pythonCodeMatch[1].trim();
-      graphCode = extractedCode;
-      console.log('Graph code extracted! Length:', extractedCode.length);
+    // For graph generation, the entire response should be the code block
+    if (userIntent === 'graph_generation') {
+      // Match ```python or ```Python with optional whitespace, then capture everything until closing ```
+      // If closing ``` is missing (due to token cutoff), take everything until end of text
+      const pythonCodeMatch = conversationalResult.match(/```[Pp]ython\s*\n([\s\S]+?)(?:```|$)/);
+      if (pythonCodeMatch && pythonCodeMatch[1]) {
+        const extractedCode = pythonCodeMatch[1].trim();
+        graphCode = extractedCode;
+        console.log('[Graph] Code extracted! Length:', extractedCode.length);
+        
+        // For graph generation, set the response to just the code (will be displayed by GraphCodeExecutor)
+        conversationalResult = `\`\`\`python\n${extractedCode}\n\`\`\``;
+      } else {
+        console.warn('[Graph] No Python code block found in response:', conversationalResult.substring(0, 200));
+      }
+    } else {
+      // For non-graph requests, extract code if present but keep the full response
+      const pythonCodeMatch = conversationalResult.match(/```[Pp]ython\s*\n([\s\S]+?)(?:```|$)/);
+      if (pythonCodeMatch && pythonCodeMatch[1]) {
+        graphCode = pythonCodeMatch[1].trim();
+        console.log('Python code found in response (non-graph request)');
+      }
     }
+
+    // Map UserIntent to response intent type
+    const responseIntent = userIntent === 'graph_generation' ? 'graph_generation' 
+                         : userIntent === 'search' ? 'search_request' 
+                         : 'general_question';
 
     return res.status(200).json({
       success: true,
@@ -310,7 +489,7 @@ Keep the response concise (2-3 sentences) and natural. Don't use bullet points o
       shouldSearch: shouldSearch,
       searchSuggestions: searchSuggestions,
       graphCode: graphCode,
-      intent: shouldSearch ? 'search_request' : 'general_question'
+      intent: responseIntent
     });
 
   } catch (error) {
