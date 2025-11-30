@@ -832,7 +832,8 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
         trials: sortedTrials,
         pressReleases: result.pressReleases || [],
         irDecks: result.irDecks || [],
-        totalResults: sortedPapers.length + sortedTrials.length + (result.pressReleases?.length || 0) + (result.irDecks?.length || 0)
+        totalResults: sortedPapers.length + sortedTrials.length + (result.pressReleases?.length || 0) + (result.irDecks?.length || 0),
+        hasBeenDeepDived: true
       };
       
       // Update drugGroups to include this updated drug or add it if new

@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Maximize2 } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import type { DrugGroup } from '@/services/drugGroupingService';
 import type { PubMedArticle } from '@/types/papers';
 import type { PressRelease } from '@/types/press-releases';
@@ -49,7 +50,14 @@ export function DrugDetail({
               Back to Drugs
             </Button>
             <div className="h-6 w-px bg-gray-300"></div>
-            <h2 className="text-xl font-bold text-gray-900">{drugGroup.drugName}</h2>
+            <div className="flex items-center gap-3">
+              <h2 className="text-xl font-bold text-gray-900">{drugGroup.drugName}</h2>
+              {drugGroup.hasBeenDeepDived && (
+                <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200">
+                  Deep Searched
+                </Badge>
+              )}
+            </div>
           </div>
           <Button
             variant="outline"
