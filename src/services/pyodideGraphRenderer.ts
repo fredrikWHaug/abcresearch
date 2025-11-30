@@ -58,9 +58,9 @@ class PyodideGraphRenderer {
 
       console.log(`[Pyodide] Core loaded in ${Date.now() - startTime}ms`)
 
-      // Load required packages
-      console.log('[Pyodide] Loading matplotlib and numpy...')
-      await this.pyodide.loadPackage(['matplotlib', 'numpy'])
+      // Load required packages (pandas depends on numpy, so load numpy first)
+      console.log('[Pyodide] Loading matplotlib, numpy, and pandas...')
+      await this.pyodide.loadPackage(['matplotlib', 'numpy', 'pandas'])
 
       console.log(`[Pyodide] Packages loaded in ${Date.now() - startTime}ms`)
 
@@ -70,10 +70,12 @@ import matplotlib
 matplotlib.use('Agg')  # Non-GUI backend for image generation
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
+from io import StringIO
 import io
 import base64
 
-print("Matplotlib and numpy ready")
+print("Matplotlib, numpy, and pandas ready")
 `)
 
       this.isInitialized = true
@@ -120,6 +122,8 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
+from io import StringIO
 import io
 import base64
 
