@@ -45,18 +45,18 @@ const ContextSummary = ({
 
   if (total <= 2) {
     return (
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-3">
         {selectedPapers.map((paper) => (
-          <div key={paper.pmid} className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-md text-sm">
+          <div key={paper.pmid} className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50/50 border border-blue-100 rounded-full text-xs font-medium text-blue-900 shadow-sm backdrop-blur-sm">
             <svg className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
-            <span className="text-blue-900 font-medium line-clamp-1 max-w-[200px]" title={paper.title}>
+            <span className="line-clamp-1 max-w-[200px]" title={paper.title}>
               {paper.title}
             </span>
             <button
               onClick={() => onRemovePaper(paper.pmid)}
-              className="flex-shrink-0 text-blue-400 hover:text-blue-600 transition-colors"
+              className="flex-shrink-0 text-blue-400 hover:text-blue-600 transition-colors p-0.5 hover:bg-blue-100 rounded-full"
               title="Remove from context"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -66,16 +66,16 @@ const ContextSummary = ({
           </div>
         ))}
         {selectedPressReleases.map((pr) => (
-          <div key={pr.id} className="inline-flex items-center gap-2 px-3 py-1.5 bg-purple-50 border border-purple-200 rounded-md text-sm">
+          <div key={pr.id} className="inline-flex items-center gap-2 px-4 py-2 bg-purple-50/50 border border-purple-100 rounded-full text-xs font-medium text-purple-900 shadow-sm backdrop-blur-sm">
             <svg className="w-3.5 h-3.5 text-purple-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
             </svg>
-            <span className="text-purple-900 font-medium line-clamp-1 max-w-[200px]" title={pr.title}>
+            <span className="line-clamp-1 max-w-[200px]" title={pr.title}>
               {pr.title}
             </span>
             <button
               onClick={() => onRemovePressRelease(pr.id)}
-              className="flex-shrink-0 text-purple-400 hover:text-purple-600 transition-colors"
+              className="flex-shrink-0 text-purple-400 hover:text-purple-600 transition-colors p-0.5 hover:bg-purple-100 rounded-full"
               title="Remove from context"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -113,36 +113,38 @@ const ContextSummary = ({
     <div className="relative context-panel-container">
       <button
         onClick={onToggleContextPanel}
-        className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
+        className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-full shadow-sm hover:shadow-md hover:border-blue-200 transition-all duration-300"
       >
-        <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-        </svg>
-        <span className="text-sm font-medium text-blue-900">
+        <div className="flex items-center justify-center w-5 h-5 rounded-full bg-blue-50">
+          <svg className="w-3 h-3 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+        </div>
+        <span className="text-xs font-medium text-gray-700">
           Context ({total})
         </span>
-        <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
         </svg>
       </button>
 
       {showContextPanel && (
-        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-white rounded-lg shadow-xl border border-gray-200 py-2 w-96 max-h-96 overflow-y-auto z-50">
-          <div className="px-4 py-2 border-b border-gray-200 flex items-center justify-between">
-            <h3 className="font-semibold text-gray-900">AI Context</h3>
+        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-white/90 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 py-2 w-96 max-h-96 overflow-y-auto z-50 animate-scale-in origin-bottom">
+          <div className="px-4 py-2 border-b border-gray-100 flex items-center justify-between">
+            <h3 className="font-semibold text-gray-900 text-sm">AI Context</h3>
             <button
               onClick={onClearContext}
-              className="text-xs text-red-600 hover:text-red-700 font-medium"
+              className="text-xs text-red-600 hover:text-red-700 font-medium px-2 py-1 hover:bg-red-50 rounded-md transition-colors"
             >
               Clear All
             </button>
           </div>
           <div className="py-2">
             {selectedPapers.map((paper) => (
-              <div key={paper.pmid} className="px-4 py-3 hover:bg-gray-50 border-b border-gray-100 last:border-b-0">
-                <div className="flex items-start justify-between gap-2">
+              <div key={paper.pmid} className="px-4 py-3 hover:bg-gray-50/50 border-b border-gray-50 last:border-b-0 transition-colors">
+                <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 line-clamp-2">
+                    <p className="text-sm font-medium text-gray-900 line-clamp-2 leading-snug">
                       {paper.title}
                     </p>
                     <p className="text-xs text-gray-500 mt-1">
@@ -151,7 +153,7 @@ const ContextSummary = ({
                   </div>
                   <button
                     onClick={() => onRemovePaper(paper.pmid)}
-                    className="flex-shrink-0 text-gray-400 hover:text-red-600 transition-colors"
+                    className="flex-shrink-0 text-gray-400 hover:text-red-600 transition-colors p-1 hover:bg-red-50 rounded-full"
                     title="Remove from context"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -162,19 +164,19 @@ const ContextSummary = ({
               </div>
             ))}
             {selectedPressReleases.map((pr) => (
-              <div key={pr.id} className="px-4 py-3 hover:bg-gray-50 border-b border-gray-100 last:border-b-0 bg-purple-50/30">
-                <div className="flex items-start justify-between gap-2">
+              <div key={pr.id} className="px-4 py-3 hover:bg-purple-50/30 border-b border-gray-50 last:border-b-0 bg-purple-50/10 transition-colors">
+                <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 line-clamp-2">
+                    <p className="text-sm font-medium text-gray-900 line-clamp-2 leading-snug">
                       {pr.title}
                     </p>
-                    <p className="text-xs text-purple-600 mt-1">
+                    <p className="text-xs text-purple-600 mt-1 font-medium">
                       Press Release • {pr.releaseDate}
                     </p>
                   </div>
                   <button
                     onClick={() => onRemovePressRelease(pr.id)}
-                    className="flex-shrink-0 text-gray-400 hover:text-red-600 transition-colors"
+                    className="flex-shrink-0 text-gray-400 hover:text-red-600 transition-colors p-1 hover:bg-red-50 rounded-full"
                     title="Remove from context"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -309,7 +311,7 @@ export const ResearchSplitView = React.memo(function ResearchSplitView({
 
   return (
     <div className="h-full flex flex-col relative overflow-hidden">
-      <div className="absolute w-px h-full bg-gray-200 z-10 top-0 pointer-events-none" style={{ left: '50%', transform: 'translateX(-0.5px)' }}></div>
+      <div className="absolute w-px h-full bg-border/40 backdrop-blur-sm z-10 top-0 pointer-events-none" style={{ left: '50%', transform: 'translateX(-0.5px)' }}></div>
 
       <div className="flex-1 min-h-0 flex overflow-hidden">
         <div className="w-1/2 bg-background flex flex-col min-h-0">
@@ -321,10 +323,10 @@ export const ResearchSplitView = React.memo(function ResearchSplitView({
                   className={`flex ${item.type === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
                   <div
-                    className={`max-w-[80%] p-4 rounded-lg border ${
+                    className={`max-w-[85%] p-5 rounded-2xl shadow-sm transition-all duration-300 ${
                       item.type === 'user'
-                        ? 'bg-gray-800 text-white border-gray-700'
-                        : 'bg-gray-50 text-gray-700 border-gray-200'
+                        ? 'bg-primary text-primary-foreground rounded-br-sm shadow-md'
+                        : 'bg-white text-gray-800 border border-gray-100 rounded-bl-sm'
                     }`}
                   >
                     {item.message.startsWith('progress:') ? (
@@ -519,24 +521,31 @@ export const ResearchSplitView = React.memo(function ResearchSplitView({
                 onClearContext={onClearContext}
               />
 
-              <div className="relative mt-3">
-                <input
-                  type="text"
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  onKeyPress={handleKeyPress}
-                  placeholder="Respond to ABCresearch's agent..."
-                  className="flex h-[50px] w-full rounded-md border border-gray-300 bg-white pl-4 pr-12 py-2 ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50"
-                  disabled={loading}
-                />
-                <button
-                  type="button"
-                  onClick={handleSend}
-                  disabled={!message.trim() || loading}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 rounded-full bg-gray-800 hover:bg-gray-900 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
-                >
-                  <ArrowUp className="h-3 w-3 text-white" />
-                </button>
+              <div className="relative mt-4 group">
+                <div className="absolute inset-0 bg-gradient-to-r from-blue-100 via-purple-100 to-pink-100 rounded-full blur opacity-0 group-hover:opacity-40 transition-opacity duration-500"></div>
+                <div className="relative flex items-center">
+                  <input
+                    type="text"
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                    onKeyPress={handleKeyPress}
+                    placeholder="Ask a follow-up question..."
+                    className="flex h-14 w-full rounded-full border border-gray-200 bg-white pl-6 pr-14 text-base shadow-sm transition-all duration-300 placeholder:text-gray-400 focus:border-blue-300/50 focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={loading}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSend}
+                    disabled={!message.trim() || loading}
+                    className="absolute right-2 h-10 w-10 rounded-full bg-gray-900 hover:bg-black disabled:bg-gray-200 disabled:cursor-not-allowed flex items-center justify-center transition-all duration-300 hover:scale-105 shadow-md text-white"
+                  >
+                    {loading ? (
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-400 border-t-white" />
+                    ) : (
+                      <ArrowUp className="h-4 w-4" />
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
           </div>

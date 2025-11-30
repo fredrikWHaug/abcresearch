@@ -1,4 +1,4 @@
-LATEST UPDATE: 11/23/25
+LATEST UPDATE: 11/30/25
 
 # ABCresearch - Frontend Documentation
 
@@ -393,23 +393,27 @@ Located in `src/components/ui/`:
 
 #### Button
 **File**: `button.tsx`
-- Variants: default, destructive, outline, secondary, ghost, link
-- Sizes: default, sm, lg, icon
+- **Style**: Pill-shaped (`rounded-full`)
+- **Variants**: default, destructive, outline, secondary, ghost, link, **glass**
+- **Animations**: `hover:scale-105`, `active:scale-95`, shadow transitions
 - Built with Radix UI Slot for composition
 
 #### Card
 **File**: `card.tsx`
-- Components: Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter
-- TailwindCSS-based styling
+- **Style**: `rounded-2xl`, `border-black/5`
+- **Components**: Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter
+- **Interaction**: Subtle hover lift and shadow deepening
 
 #### Input
 **File**: `input.tsx`
-- Styled text input with focus states
+- **Style**: `rounded-xl` or `rounded-full`, `bg-background/50`
+- **Focus**: Soft ring with alpha transparency
 - Consistent with design system
 
 #### Badge
 **File**: `badge.tsx`
-- Variants: default, secondary, destructive, outline
+- **Style**: `rounded-full`, `backdrop-blur-sm` support
+- **Variants**: default, secondary, destructive, outline
 - Used for tags and labels
 
 #### Form Components
@@ -847,13 +851,23 @@ const data = await response.json()
 
 ## Styling Approach
 
-### TailwindCSS Utility-First
+### TailwindCSS Utility-First & Design System
+
+The application uses a sophisticated TailwindCSS configuration powered by CSS variables for dynamic theming and a modern "Glassmorphism" aesthetic.
+
+**Core Styling Principles (Nov 2025 Redesign)**:
+- **Glassmorphism**: Extensive use of `backdrop-blur` and semi-transparent backgrounds (`bg-white/70`, `bg-white/80`).
+- **Soft Geometry**: Preference for `rounded-full` buttons/inputs and `rounded-2xl` cards.
+- **Fluid Motion**: Custom animations for entry (fade-in, scale-in) and interaction.
+- **HSL Color System**: All colors defined as HSL variables for easy theming (e.g., `--primary: 220 90% 56%`).
 
 **Example Component Styling**:
 ```tsx
-<div className="flex items-center justify-between mb-4 px-6 py-4 bg-white border-b">
-  <h1 className="text-2xl font-bold text-gray-800">Title</h1>
-  <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+<div className="h-16 bg-white/80 backdrop-blur-xl border-b border-white/20 shadow-sm z-50 sticky top-0">
+  <h1 className="text-2xl font-bold tracking-tight text-gray-900 bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
+    ABCresearch
+  </h1>
+  <Button className="rounded-full shadow-lg hover:shadow-xl transition-all duration-300">
     Action
   </Button>
 </div>
@@ -861,19 +875,20 @@ const data = await response.json()
 
 ### Design Tokens
 
-**Colors**:
-- Primary: Gray-800/900 (dark buttons, headers)
-- Success: Green-600/700
-- Warning: Amber-600/700
-- Error: Red-600/700
-- Info: Blue-600/700
+**Colors (HSL Variables)**:
+- **Primary**: `220 90% 56%` (Vivid Professional Blue)
+- **Background**: `210 20% 98%` (Soft Off-White)
+- **Foreground**: `220 15% 15%` (Soft Black)
+- **Muted**: `210 20% 94%` (Light Gray)
 
-**Spacing**: TailwindCSS default scale (4px increments)
+**Utilities**:
+- `.glass`: `background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(12px);`
+- `.no-scrollbar`: Hides scrollbar while allowing scrolling
 
-**Typography**:
-- Headings: font-bold, text-2xl/3xl
-- Body: text-base, text-gray-700
-- Muted: text-sm, text-gray-500
+**Animations**:
+- `animate-fade-in`: Smooth opacity and translate-y entry.
+- `animate-scale-in`: Subtle zoom and opacity entry.
+- `animate-slide-in-right`: Sidebar entry animation.
 
 ### Component Variants
 
