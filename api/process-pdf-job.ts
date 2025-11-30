@@ -280,6 +280,77 @@ async function processImagesWithGPT(
   return results
 }
 
+/**
+ * Extract tables from markdown content
+ * Returns array of TableData objects matching the TableData interface from extraction.ts
+ */
+function extractTablesFromMarkdown(markdown: string): Array<{
+  index: number
+  headers: string[]
+  rows: string[][]
+  rawMarkdown: string
+}> {
+  if (!markdown) {
+    return []
+  }
+
+  const tables: Array<{
+    index: number
+    headers: string[]
+    rows: string[][]
+    rawMarkdown: string
+  }> = []
+
+  // Match markdown tables: | header1 | header2 | ... |
+  //                        | --- | --- | ... |
+  //                        | data1 | data2 | ... |
+  const tableRegex = /^\|(.+)\|\s*\n\|[-\s|:]+\|\s*\n((?:\|.+\|\s*\n?)+)/gm
+  
+  let match
+  let tableIndex = 0
+  
+  while ((match = tableRegex.exec(markdown)) !== null) {
+    tableIndex++
+    const headerRow = match[1]
+    const dataRows = match[2]
+    
+    // Parse headers
+    const headers = headerRow.split('|').map(h => h.trim()).filter(h => h.length > 0)
+    
+    if (headers.length === 0) {
+      continue
+    }
+    
+    // Parse data rows
+    const rows: string[][] = []
+    const dataRowLines = dataRows.split('\n').filter(line => line.trim().startsWith('|'))
+    
+    for (const line of dataRowLines) {
+      const cells = line.split('|').map(c => c.trim()).filter((c, idx) => idx > 0 && idx < line.split('|').length - 1)
+      if (cells.length > 0) {
+        // Pad or truncate to match header count
+        const paddedCells = headers.map((_, idx) => cells[idx] || '')
+        rows.push(paddedCells)
+      }
+    }
+    
+    // Build raw markdown
+    const separatorRow = `| ${headers.map(() => '---').join(' | ')} |`
+    const headerMarkdown = `| ${headers.join(' | ')} |`
+    const dataMarkdown = rows.map(row => `| ${row.join(' | ')} |`).join('\n')
+    const rawMarkdown = `${headerMarkdown}\n${separatorRow}\n${dataMarkdown}`
+    
+    tables.push({
+      index: tableIndex,
+      headers,
+      rows,
+      rawMarkdown
+    })
+  }
+  
+  return tables
+}
+
 // Main worker handler
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // CORS headers
@@ -402,6 +473,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     console.log(`Found ${imagesFound} images`)
 
+    // Extract tables from markdown
+    const tablesData = extractTablesFromMarkdown(markdown)
+    const tablesFound = tablesData.length
+    console.log(`Extracted ${tablesFound} tables from markdown`)
+
     // PROGRESSIVE LOADING: Save partial results immediately after Datalab completes
     // This allows the frontend to display markdown + images while graphs are being analyzed
     const partialProcessingTimeMs = Date.now() - startTime
@@ -409,8 +485,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Check if we need to do graph analysis
     const needsGraphAnalysis = job.enable_graphify && imagesFound > 0 && gptApiKey
 
-    // Insert partial results first (markdown + images, no graphs yet)
-    console.log('Saving partial results (markdown + images)...')
+    // Insert partial results first (markdown + images + tables, no graphs yet)
+    console.log('Saving partial results (markdown + images + tables)...')
     const { error: partialResultError } = await supabase
       .from('pdf_extraction_results')
       .insert({
@@ -420,10 +496,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         response_json: result,
         original_images: images,
         graphify_results: null, // Will be updated after graph analysis
-        tables_data: null,
+        tables_data: tablesData.length > 0 ? tablesData : null,
         images_found: imagesFound,
         graphs_detected: 0, // Will be updated after graph analysis
-        tables_found: 0,
+        tables_found: tablesFound,
         processing_time_ms: partialProcessingTimeMs
       })
       .select()

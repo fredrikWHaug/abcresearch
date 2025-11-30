@@ -55,11 +55,51 @@ export function buildConversationContext(chatHistory: ChatMessage[]): string {
 }
 
 /**
+ * Intent types for routing to appropriate prompt and handling
+ */
+export type UserIntent = 'graph_generation' | 'search' | 'general';
+
+/**
+ * Detect user intent from query
+ * Prioritizes graph generation over search to prevent graph requests from being treated as searches
+ */
+export function detectUserIntent(userQuery: string, hasExtractions: boolean = false): UserIntent {
+  const query = userQuery.toLowerCase();
+  
+  // Graph generation keywords - check first to prioritize graph intent
+  const graphKeywords = [
+    'create a graph', 'generate a graph', 'make a graph', 'plot', 'visualize', 'visualization',
+    'graph', 'chart', 'comparison graph', 'comparison chart', 'endpoint', 'endpoints',
+    'outcome measures', 'outcomes', 'demographics', 'efficacy comparison', 'efficacy graph',
+    'primary outcome', 'secondary outcome', 'bar chart', 'line chart', 'scatter plot',
+    'generate python', 'python code', 'matplotlib', 'create chart', 'generate chart'
+  ];
+  
+  const isGraphIntent = graphKeywords.some(keyword => query.includes(keyword));
+  
+  // If graph intent detected and user has extractions, prioritize graph generation
+  if (isGraphIntent && hasExtractions) {
+    return 'graph_generation';
+  }
+  
+  // Search keywords
+  const searchKeywords = ['search', 'find', 'look for', 'show me', 'trials', 'studies', 'research', 'papers'];
+  const isSearchIntent = searchKeywords.some(keyword => query.includes(keyword));
+  
+  if (isSearchIntent) {
+    return 'search';
+  }
+  
+  // Default to general conversation
+  return 'general';
+}
+
+/**
  * Detect if user wants to search based on keywords
+ * @deprecated Use detectUserIntent instead
  */
 export function detectSearchIntent(userQuery: string): boolean {
-  const searchKeywords = ['search', 'find', 'look for', 'show me', 'trials', 'studies', 'research', 'papers'];
-  return searchKeywords.some(keyword => userQuery.toLowerCase().includes(keyword));
+  return detectUserIntent(userQuery) === 'search';
 }
 
 /**
@@ -137,6 +177,9 @@ export function generateSearchSuggestions(
   }];
 }
 
+// Import canonical types from extraction.ts
+// Note: This is a backend file, so we define the types inline to match the structure
+// The frontend uses TableData and GraphifyResult from @/types/extraction
 export interface ContextExtraction {
   jobId: string;
   fileName: string;
@@ -147,7 +190,7 @@ export interface ContextExtraction {
     headers: string[];
     rows: string[][];
     rawMarkdown: string;
-  }>;
+  }>;  // Matches TableData from extraction.ts
   graphifyResults?: Array<{
     imageName: string;
     isGraph: boolean;
@@ -160,13 +203,192 @@ export interface ContextExtraction {
     renderedImage?: string;
     renderError?: string;
     renderTimeMs?: number;
-  }>;
+  }>;  // Matches GraphifyResult from extraction.ts
+}
+
+/**
+ * Build system prompt for graph generation intent
+ * Focused on generating Python code for data visualization from PDF extractions
+ */
+export function buildGraphGenerationPrompt(
+  contextExtractions?: ContextExtraction[]
+): string {
+  if (!contextExtractions || contextExtractions.length === 0) {
+    return `You are a data visualization assistant. The user wants to generate a graph, but no PDF extractions are available in context. Please inform them that they need to add PDF extractions first.`;
+  }
+
+  let prompt = `You are a data visualization assistant specialized in generating Python code for scientific graphs and charts from PDF extraction data.
+
+CRITICAL: Your response must contain ONLY Python code. Nothing else. No text, no explanations, no metadata, no search intent tags, no comments outside the code block.
+
+ABSOLUTE REQUIREMENTS:
+1. Your ENTIRE response must be a single Python code block wrapped in triple backticks
+2. Format: \`\`\`python\n[code here]\n\`\`\`
+3. Do NOT include [SEARCH_INTENT: ...] or [SEARCH_TERMS: ...] tags
+4. Do NOT include any text before or after the code block
+5. Do NOT include explanatory comments outside the code block
+6. Do NOT generate search suggestions
+7. Extract data from the PDF extraction tables provided below
+8. Use matplotlib with appropriate chart types (bar charts for comparisons, line charts for trends, etc.)
+9. If Confidence intervals are provided, use them to calculate the error bars
+10. The code must be complete and executable
+
+PDF EXTRACTIONS WITH TABLES:
+`;
+
+  // Log context being provided
+  console.log(`[Graph Prompt] Building prompt with ${contextExtractions.length} extraction(s)`);
+
+  contextExtractions.forEach((extraction, index) => {
+    const extractionNum = index + 1;
+    prompt += `\n[EXT${extractionNum}] ${extraction.fileName}\n`;
+    
+    // Debug: Log what we're receiving
+    console.log(`[Graph Prompt] EXT${extractionNum} structure:`, {
+      hasTables: extraction.hasTables,
+      tablesDataExists: !!extraction.tablesData,
+      tablesDataIsArray: Array.isArray(extraction.tablesData),
+      tablesDataLength: extraction.tablesData?.length || 0,
+      tablesDataType: typeof extraction.tablesData
+    });
+    
+    // Log markdown content preview
+    if (extraction.markdownContent) {
+      const markdownPreview = extraction.markdownContent.substring(0, 100).replace(/\n/g, ' ');
+      console.log(`[Graph Prompt] EXT${extractionNum} markdown (first 100 chars): ${markdownPreview}...`);
+    }
+    
+    // Add structured tables as CSV format
+    if (extraction.tablesData && Array.isArray(extraction.tablesData) && extraction.tablesData.length > 0) {
+      console.log(`[Graph Prompt] EXT${extractionNum} has ${extraction.tablesData.length} table(s)`);
+      prompt += `TABLES (${extraction.tablesData.length} found) - CSV format:\n`;
+      extraction.tablesData.forEach((table, tableIndex) => {
+        // Log table preview
+        const tablePreview = `Headers: ${table.headers?.join(', ') || 'N/A'} | First row: ${table.rows?.[0]?.join(', ') || 'N/A'}`;
+        console.log(`[Graph Prompt] EXT${extractionNum} Table ${tableIndex + 1} (first 100 chars): ${tablePreview.substring(0, 100)}...`);
+        console.log(`[Graph Prompt] EXT${extractionNum} Table ${tableIndex + 1} structure:`, {
+          hasHeaders: !!table.headers,
+          headersLength: table.headers?.length || 0,
+          hasRows: !!table.rows,
+          rowsLength: table.rows?.length || 0,
+          firstRowLength: table.rows?.[0]?.length || 0
+        });
+        
+        // Convert table to CSV format
+        if (table.headers && Array.isArray(table.headers) && table.rows && Array.isArray(table.rows)) {
+          prompt += `\nTable ${tableIndex + 1} (CSV):\n`;
+          // CSV header row
+          prompt += table.headers.map(h => `"${String(h).replace(/"/g, '""')}"`).join(',') + '\n';
+          // CSV data rows
+          table.rows.forEach((row) => {
+            if (Array.isArray(row)) {
+              prompt += row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',') + '\n';
+            }
+          });
+          prompt += `\n`;
+        } else {
+          console.log(`[Graph Prompt] EXT${extractionNum} Table ${tableIndex + 1} has invalid structure - headers or rows not arrays`);
+        }
+      });
+    } else {
+      console.log(`[Graph Prompt] EXT${extractionNum} has NO tables - tablesData:`, {
+        exists: !!extraction.tablesData,
+        isArray: Array.isArray(extraction.tablesData),
+        type: typeof extraction.tablesData,
+        value: extraction.tablesData
+      });
+    }
+    
+    // Log graph data if available
+    if (extraction.graphifyResults && extraction.graphifyResults.length > 0) {
+      const graphs = extraction.graphifyResults.filter(g => g.isGraph);
+      console.log(`[Graph Prompt] EXT${extractionNum} has ${graphs.length} graph(s) in graphifyResults`);
+      graphs.forEach((graph, graphIndex) => {
+        const graphDataPreview = graph.data ? JSON.stringify(graph.data).substring(0, 100) : 'N/A';
+        console.log(`[Graph Prompt] EXT${extractionNum} Graph ${graphIndex + 1} data (first 100 chars): ${graphDataPreview}...`);
+      });
+    }
+  });
+
+  prompt += `
+INSTRUCTIONS:
+1. Examine ALL table data in the PDF extractions (provided in CSV format)
+2. For endpoint/outcome comparisons: Look for tables with "Primary outcomes / end points", "Key secondary endpoints", or similar
+3. For demographics comparisons: Look for tables with "Demographics", "Patient Characteristics", or similar
+4. Extract relevant data points from the CSV tables: endpoints or outcomes (X-axis labels), drugs+dosages (series), values (Y-axis labels)
+5. Use pandas to read the CSV data: pd.read_csv(StringIO(csv_string)) or parse the CSV directly
+6. If Confidence intervals are provided, use them to calculate the error bars
+7. Generate Python code using matplotlib to create the appropriate chart type
+
+YOUR RESPONSE FORMAT (THIS IS THE ONLY THING YOU SHOULD OUTPUT):
+\`\`\`python
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+from io import StringIO
+# [your data extraction and plotting code here]
+plt.show()
+\`\`\`
+
+CRITICAL REMINDERS:
+- Your ENTIRE response must be ONLY the code block above
+- Do NOT add [SEARCH_INTENT: ...] or [SEARCH_TERMS: ...] tags
+- Do NOT add any text before or after the code block
+- Do NOT add explanatory comments outside the code block
+- Make sure your code block is complete with opening and closing triple backticks
+- Adapt your code based on the actual CSV table data you find
+- Use appropriate chart types: bar charts for categorical comparisons, line charts for trends over time
+- Extract numbers directly from the CSV - do NOT hallucinate or invent values
+
+Your response should start with \`\`\`python and end with \`\`\`. Nothing else.`;
+
+  return prompt;
+}
+
+/**
+ * Build system prompt for search intent
+ * Focused on helping users search for clinical trials and papers
+ */
+export function buildSearchPrompt(
+  contextPapers?: ContextPaper[], 
+  contextPressReleases?: ContextPressRelease[],
+  contextExtractions?: ContextExtraction[]
+): string {
+  let prompt = `You are a medical research search assistant. Your goal is to help users find relevant clinical trials and research papers.
+
+CRITICAL RULES:
+1. When the user wants to search, respond briefly (1-2 sentences) confirming you can search
+2. Use the [SEARCH_INTENT: yes] and [SEARCH_TERMS: ...] format
+3. Keep responses concise - under 100 tokens
+4. Do NOT generate graphs or Python code
+5. Do NOT provide detailed analysis - just confirm the search
+
+RESPONSE FORMAT:
+[SEARCH_INTENT: yes]
+[SEARCH_TERMS: extracted search terms]
+Your brief confirmation message here.
+
+Example:
+[SEARCH_INTENT: yes]
+[SEARCH_TERMS: GLP-1 agonists diabetes]
+I can search for clinical trials and papers on GLP-1 agonists for diabetes.`;
+
+  // Add context if available (but keep it brief for search intent)
+  if (contextPapers && contextPapers.length > 0) {
+    prompt += `\n\nNote: You have ${contextPapers.length} reference paper(s) in context that may be relevant.`;
+  }
+
+  if (contextPressReleases && contextPressReleases.length > 0) {
+    prompt += `\nNote: You have ${contextPressReleases.length} press release(s) in context.`;
+  }
+
+  return prompt;
 }
 
 /**
  * Build system prompt with context papers, press releases, and PDF extractions (ABC-39, HW9)
  * Papers, press releases, and extractions persist in system prompt across the conversation
- * HW9 ABC-85: For graph generation, only include tables to reduce token usage
+ * Used for general conversation (not search or graph generation)
  */
 export function buildSystemPrompt(
   contextPapers?: ContextPaper[], 
@@ -239,11 +461,15 @@ The metadata helps the system understand if you think the user wants research re
 
   // Add papers if available
   if (contextPapers && contextPapers.length > 0) {
+    console.log(`[General Prompt] Building prompt with ${contextPapers.length} paper(s)`);
     contextPrompt += `
 REFERENCE PAPERS:
 `;
     contextPapers.forEach((paper, index) => {
       const citationNum = index + 1;
+      const abstractPreview = paper.abstract.substring(0, 100).replace(/\n/g, ' ');
+      console.log(`[General Prompt] Paper ${citationNum} abstract (first 100 chars): ${abstractPreview}...`);
+      
       contextPrompt += `
 [${citationNum}] ${paper.title}
 Authors: ${paper.authors.slice(0, 3).join(', ')}${paper.authors.length > 3 ? ' et al.' : ''}
@@ -257,11 +483,19 @@ Abstract: ${paper.abstract}
 
   // Add press releases if available
   if (contextPressReleases && contextPressReleases.length > 0) {
+    console.log(`[General Prompt] Building prompt with ${contextPressReleases.length} press release(s)`);
     contextPrompt += `
 PRESS RELEASES:
 `;
     contextPressReleases.forEach((pr, index) => {
       const citationNum = index + 1;
+      const summaryPreview = pr.summary.substring(0, 100).replace(/\n/g, ' ');
+      const fullTextPreview = pr.fullText ? pr.fullText.substring(0, 100).replace(/\n/g, ' ') : 'N/A';
+      console.log(`[General Prompt] PR${citationNum} summary (first 100 chars): ${summaryPreview}...`);
+      if (pr.fullText) {
+        console.log(`[General Prompt] PR${citationNum} fullText (first 100 chars): ${fullTextPreview}...`);
+      }
+      
       contextPrompt += `
 [PR${citationNum}] ${pr.title}
 Company: ${pr.company}
@@ -277,6 +511,8 @@ ${pr.keyAnnouncements && pr.keyAnnouncements.length > 0 ? `Key Announcements: ${
 
   // Add PDF extractions if available
   if (contextExtractions && contextExtractions.length > 0) {
+    console.log(`[General Prompt] Building prompt with ${contextExtractions.length} extraction(s)`);
+    
     contextPrompt += `
 PDF EXTRACTIONS:
 `;
@@ -288,17 +524,40 @@ PDF EXTRACTIONS:
 
 `;
       
-      // Add structured tables first (full data, not truncated)
-      if (extraction.tablesData && extraction.tablesData.length > 0) {
-        contextPrompt += `TABLES (${extraction.tablesData.length} found):\n`;
+      // Log markdown content preview
+      if (extraction.markdownContent) {
+        const markdownPreview = extraction.markdownContent.substring(0, 100).replace(/\n/g, ' ');
+        console.log(`[General Prompt] EXT${extractionNum} markdown (first 100 chars): ${markdownPreview}...`);
+      }
+      
+      // Add structured tables as CSV format
+      if (extraction.tablesData && Array.isArray(extraction.tablesData) && extraction.tablesData.length > 0) {
+        console.log(`[General Prompt] EXT${extractionNum} has ${extraction.tablesData.length} table(s)`);
+        contextPrompt += `TABLES (${extraction.tablesData.length} found) - CSV format:\n`;
         extraction.tablesData.forEach((table, tableIndex) => {
-          contextPrompt += `\nTable ${tableIndex + 1}:\n`;
-          contextPrompt += `Headers: ${table.headers.join(' | ')}\n`;
-          contextPrompt += `Data:\n`;
-          table.rows.forEach((row, rowIndex) => {
-            contextPrompt += `  Row ${rowIndex + 1}: ${row.join(' | ')}\n`;
-          });
-          contextPrompt += `\n`;
+          // Log table preview
+          const tablePreview = `Headers: ${table.headers?.join(', ') || 'N/A'} | First row: ${table.rows?.[0]?.join(', ') || 'N/A'}`;
+          console.log(`[General Prompt] EXT${extractionNum} Table ${tableIndex + 1} (first 100 chars): ${tablePreview.substring(0, 100)}...`);
+          
+          // Convert table to CSV format
+          if (table.headers && Array.isArray(table.headers) && table.rows && Array.isArray(table.rows)) {
+            contextPrompt += `\nTable ${tableIndex + 1} (CSV):\n`;
+            // CSV header row
+            contextPrompt += table.headers.map(h => `"${String(h).replace(/"/g, '""')}"`).join(',') + '\n';
+            // CSV data rows
+            table.rows.forEach((row) => {
+              if (Array.isArray(row)) {
+                contextPrompt += row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',') + '\n';
+              }
+            });
+            contextPrompt += `\n`;
+          }
+        });
+      } else {
+        console.log(`[General Prompt] EXT${extractionNum} has NO tables - tablesData:`, {
+          exists: !!extraction.tablesData,
+          isArray: Array.isArray(extraction.tablesData),
+          type: typeof extraction.tablesData
         });
       }
       
@@ -306,8 +565,13 @@ PDF EXTRACTIONS:
       if (!isGraphRequest && extraction.graphifyResults && extraction.graphifyResults.length > 0) {
         const graphs = extraction.graphifyResults.filter(g => g.isGraph);
         if (graphs.length > 0) {
+          console.log(`[General Prompt] EXT${extractionNum} has ${graphs.length} graph(s) in graphifyResults`);
           contextPrompt += `\nGRAPHS (${graphs.length} found):\n`;
           graphs.forEach((graph, graphIndex) => {
+            // Log graph data preview
+            const graphDataPreview = graph.data ? JSON.stringify(graph.data).substring(0, 100) : 'N/A';
+            console.log(`[General Prompt] EXT${extractionNum} Graph ${graphIndex + 1} data (first 100 chars): ${graphDataPreview}...`);
+            
             contextPrompt += `\nGraph ${graphIndex + 1}: ${graph.imageName}\n`;
             contextPrompt += `Type: ${graph.graphType || 'Unknown'}\n`;
             if (graph.reason) {
@@ -350,42 +614,6 @@ INSTRUCTIONS FOR USING REFERENCES:
 - Only cite sources when relevant to the user's question
 - Be natural and conversational, not robotic
 
-ENDPOINT COMPARISON GRAPH GENERATION:
-If the user asks you to generate a graph comparing endpoints, drugs, or efficacy from tables:
-1. Examine ALL of the table data in the PDF extractions ([EXT1], [EXT2], etc.) and specifically focus on the table with all of the endpoints - commonly called Primary end points and components and Key secondary endpoints
-2. Extract the relevant data points that could be across different extractions or tables: endpoints (X-axis), different drugs/dosages (series), efficacy values (Y-axis)
-3. Generate Python code using matplotlib to create a comparison bar chart
-5. Then include your Python code wrapped in triple backticks with 'python' as the language identifier
-6. IMPORTANT: Make sure your code block is complete and ends with closing triple backticks
-7. Only generate the code. Do not include any other text. Example format:
-
-TRIPLE_BACKTICKS_python
-import matplotlib.pyplot as plt
-import numpy as np
-[your actual data extraction and plotting code here]
-TRIPLE_BACKTICKS
-
-Replace TRIPLE_BACKTICKS with three backtick characters.
-8. Adapt your code based on the actual table data you find in the PDF extractions
-
-DEMOGRAPHICS COMPARISON GRAPH GENERATION:
-If the user asks you to generate a graph comparing demographics from tables:
-1. Examine ALL of the table data in the PDF extractions ([EXT1], [EXT2], etc.) and specifically focus on the table with all of the demographics - commonly called Demographics and Patient Characteristics
-2. Extract the relevant data points that could be across different extractions or tables: demographics (X-axis), different drugs/dosages (series), efficacy values (Y-axis)
-3. Generate Python code using matplotlib to create a comparison bar chart
-5. Then include your Python code wrapped in triple backticks with 'python' as the language identifier
-6. IMPORTANT: Make sure your code block is complete and ends with closing triple backticks
-7. Only generate the code. Do not include any other text. Example format:
-
-TRIPLE_BACKTICKS_python
-import matplotlib.pyplot as plt
-import numpy as np
-[your actual data extraction and plotting code here]
-TRIPLE_BACKTICKS
-
-Replace TRIPLE_BACKTICKS with three backtick characters.
-8. Adapt your code based on the actual table data you find in the PDF extractions
-
 CONVERSATIONAL RULES:
 1. ACTUALLY READ what the user just said - respond to their ACTUAL message
 2. If they ask a question, ANSWER IT directly using the references if relevant
@@ -412,25 +640,45 @@ export function buildMessagesFromHistory(
   const messages: Array<{ role: 'user' | 'assistant'; content: string }> = [];
 
   // Add previous conversation (last 6 messages for context)
-  const recentHistory = chatHistory.slice(-6);
+  // Filter out empty messages to avoid API errors
+  const recentHistory = chatHistory.slice(-6).filter(msg => {
+    const hasContent = msg.message && typeof msg.message === 'string' && msg.message.trim().length > 0;
+    if (!hasContent) {
+      console.warn('[buildMessagesFromHistory] Skipping empty message:', { type: msg.type, messageLength: msg.message?.length });
+    }
+    return hasContent;
+  });
+  
   recentHistory.forEach(msg => {
     messages.push({
       role: msg.type === 'user' ? 'user' : 'assistant',
-      content: msg.message
+      content: msg.message.trim()
     });
   });
 
-  // Add current user query
-  // HW8 ABC-57: Append format reminder to reinforce metadata requirement
-  const queryWithReminder = `${currentQuery}
+  // Add current user query (only if not empty)
+  if (currentQuery && typeof currentQuery === 'string' && currentQuery.trim().length > 0) {
+    // HW8 ABC-57: Append format reminder to reinforce metadata requirement
+    // But only for non-graph requests (graph requests should not have this reminder)
+    const queryWithReminder = `${currentQuery.trim()}
 
 [Remember: Start your response with [SEARCH_INTENT: yes/no] and [SEARCH_TERMS: ...] tags]`;
-  
-  messages.push({
-    role: 'user',
-    content: queryWithReminder
-  });
+    
+    messages.push({
+      role: 'user',
+      content: queryWithReminder
+    });
+  } else {
+    console.warn('[buildMessagesFromHistory] Current query is empty, skipping');
+  }
 
-  return messages;
+  // Final safety check: ensure all messages have non-empty content
+  const validMessages = messages.filter(msg => msg.content && msg.content.trim().length > 0);
+  
+  if (validMessages.length !== messages.length) {
+    console.warn(`[buildMessagesFromHistory] Filtered out ${messages.length - validMessages.length} empty message(s)`);
+  }
+
+  return validMessages;
 }
 
