@@ -25,6 +25,7 @@ The frontend is a single-page application (SPA) built with React 19, TypeScript,
 - **@hookform/resolvers**: Form validation integration
 
 ### Additional Libraries
+- **Framer Motion**: 11.13.5 (Modern animation library)
 - **PDF.js**: 5.4.149 (PDF processing)
 - **XLSX**: 0.18.5 (Excel generation)
 - **class-variance-authority**: Component variant styling
@@ -388,6 +389,19 @@ interface AssetPipelineProps {
 ```
 
 ### 9. Reusable UI Components
+
+#### AnimatedGradientBackground
+**File**: `src/components/AnimatedGradientBackground.tsx`
+- **Purpose**: Full-viewport animated gradient mesh background
+- **Animation**: Powered by Framer Motion with GPU-accelerated transforms
+- **Features**:
+  - 6 large gradient blobs with pastel colors (blue, purple, pink, green, yellow, orange)
+  - Independent animations with 20-26 second durations
+  - Heavy Gaussian blur (80px) for dreamy effect
+  - Shimmer overlay for futuristic appearance
+  - Subtle noise texture for depth
+- **Usage**: Positioned absolutely behind content, provides ambient visual interest
+- **Performance**: All animations use `transform` and `opacity` for 60fps rendering
 
 Located in `src/components/ui/`:
 

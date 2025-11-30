@@ -76,8 +76,10 @@ The system uses HSL variables for dynamic runtime theming.
 - `hsl(210 20% 98%)`
 
 **Glass White (Overlays/Panels)**
-- Used for headers, sticky navs, and floating panels.
-- `bg-white/70` to `bg-white/90` with `backdrop-blur-xl`.
+- Used for headers, sticky navs, floating panels, and cards over animated backgrounds.
+- `bg-white/40` to `bg-white/90` with `backdrop-blur-xl` (12px blur).
+- Semi-transparent white borders (`border-white/50`) for subtle definition.
+- Interacts with animated gradient backgrounds to create dynamic depth.
 
 ## Typography
 
@@ -119,10 +121,11 @@ hover:bg-white/80
 ```
 
 ### 2. Cards
-**Style**: Highly rounded (`rounded-2xl`).
-**Border**: Minimal (`border border-black/5`).
-**Shadow**: Soft (`shadow-sm` -> `shadow-md` on hover).
-**Background**: `bg-card` or `bg-white/80` (glass).
+**Style**: Highly rounded (`rounded-2xl` or `rounded-3xl`).
+**Border**: Minimal (`border border-black/5` or `border-white/50` for glass).
+**Shadow**: Soft (`shadow-sm` -> `shadow-md` on hover, or `shadow-2xl` for elevated glass).
+**Background**: `bg-card` or `bg-white/40` to `bg-white/70` with `backdrop-blur-xl` (frosted glass).
+**Enhanced Hover**: Scale transforms (`hover:scale-105`) combined with shadow and border transitions.
 
 ### 3. Inputs
 **Style**: `rounded-full` or `rounded-xl`.
@@ -146,9 +149,60 @@ shadow-sm z-50 sticky top-0
 - Floating bar at bottom.
 - `rounded-full`, `shadow-[0_-4px_30px_rgba(0,0,0,0.03)]`.
 
+## Animated Backgrounds
+
+### Gradient Mesh Background (Nov 2025)
+ABCresearch features a sophisticated animated gradient mesh background system powered by Framer Motion.
+
+**Implementation**: `AnimatedGradientBackground.tsx`
+
+**Design Characteristics**:
+- **Multi-layer Gradients**: 6+ gradient blobs with soft pastel colors
+- **Continuous Motion**: Slow, organic movement with 20-26 second loop durations
+- **Heavy Blur**: 60-80px Gaussian blur for dreamy, diffused effect
+- **Depth Layers**: Multiple z-index layers with varying opacity and scale
+- **Shimmer Effect**: Subtle animated gradient overlay for futuristic appearance
+- **Noise Texture**: SVG-based fractal noise at 1.5% opacity for subtle grain
+
+**Color Palette**:
+```css
+/* Soft pastels with alpha transparency */
+Soft Blue: rgba(147, 197, 253, 0.4) → rgba(191, 219, 254, 0.3)
+Soft Purple: rgba(196, 181, 253, 0.4) → rgba(221, 214, 254, 0.3)
+Soft Pink/Red: rgba(252, 165, 165, 0.3) → rgba(254, 202, 202, 0.2)
+Soft Green: rgba(167, 243, 208, 0.3) → rgba(209, 250, 229, 0.2)
+Soft Yellow: rgba(253, 224, 71, 0.3) → rgba(254, 240, 138, 0.2)
+Soft Orange: rgba(254, 215, 170, 0.3) → rgba(254, 235, 200, 0.2)
+```
+
+**Animation Properties**:
+```typescript
+animate={{
+  x: [0, 100, -50, 50, 0],        // Fluid horizontal movement
+  y: [0, -80, 100, -60, 0],       // Fluid vertical movement
+  scale: [1, 1.2, 0.9, 1.1, 1],   // Breathing effect
+  opacity: [0.6, 0.8, 0.5, 0.7, 0.6], // Pulsing visibility
+}}
+transition={{
+  duration: 20-26,                 // Long, slow loops
+  repeat: Infinity,
+  ease: 'easeInOut',              // Smooth acceleration curves
+}}
+```
+
+**Layering with Content**:
+- Background: `position: fixed; inset: 0; pointer-events: none;`
+- Foreground content: `position: relative; z-index: 10;`
+- Frosted glass cards: `backdrop-blur-xl` to interact with animated background
+
+**Performance**:
+- GPU-accelerated via Framer Motion's `transform` and `opacity` properties
+- No layout thrashing (uses `position: fixed`)
+- ~60fps on modern devices
+
 ## Animation & Transitions
 
-### Keyframes
+### CSS Keyframes
 **Fade In**:
 ```css
 @keyframes fade-in {
@@ -179,6 +233,41 @@ shadow-sm z-50 sticky top-0
 - **Context Panels**: `animate-scale-in origin-bottom`.
 - **Hover**: `transition-all duration-300 hover:scale-105`.
 
+### Framer Motion Animations (Nov 2025)
+For complex, orchestrated animations, ABCresearch uses **Framer Motion**:
+
+**Advantages**:
+- Declarative animation API
+- GPU-accelerated by default
+- Smooth 60fps performance
+- Layout animations and gestures
+- Spring physics for natural motion
+
+**Common Patterns**:
+```typescript
+// Continuous looping animation
+<motion.div
+  animate={{ x: [0, 100, 0], opacity: [0.5, 1, 0.5] }}
+  transition={{ duration: 20, repeat: Infinity, ease: 'easeInOut' }}
+/>
+
+// Entrance animation
+<motion.div
+  initial={{ opacity: 0, y: 20 }}
+  animate={{ opacity: 1, y: 0 }}
+  transition={{ duration: 0.5 }}
+/>
+
+// Hover animation
+<motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} />
+```
+
+**Use Cases**:
+- Animated gradient backgrounds
+- Complex multi-property animations
+- Scroll-triggered animations
+- Gesture-based interactions
+
 ## Iconography
 - **Library**: Lucide React.
 - **Style**: Thin strokes (often `stroke-[1.5]`), sized `w-4 h-4` or `w-5 h-5`.
@@ -188,3 +277,25 @@ shadow-sm z-50 sticky top-0
 - `.glass`: `background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.3);`
 - `.glass-dark`: Dark mode equivalent.
 - `.no-scrollbar`: Utility to hide scrollbars.
+
+## Tailwind Glass Effects (In Practice)
+Modern implementations use Tailwind utilities directly for maximum flexibility:
+
+**Standard Glass Card**:
+```css
+bg-white/50 backdrop-blur-xl border border-white/50 shadow-lg
+```
+
+**Elevated Glass Card**:
+```css
+bg-white/60 backdrop-blur-lg rounded-2xl p-6 shadow-lg border border-white/50
+```
+
+**Interactive Glass Card** (with animated background):
+```css
+bg-white/50 backdrop-blur-xl 
+border border-white/50 
+shadow-2xl hover:shadow-3xl
+transition-all duration-300
+hover:scale-105 hover:bg-white/60
+```
