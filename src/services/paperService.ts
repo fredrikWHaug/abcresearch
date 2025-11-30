@@ -96,6 +96,12 @@ export async function getProjectPapers(projectId: number): Promise<PubMedArticle
     throw error
   }
 
+  // Handle case where data is null or undefined
+  if (!data) {
+    console.log('[PaperService] No papers data returned for project:', projectId)
+    return []
+  }
+
   // Map database columns to PubMedArticle interface (snake_case → camelCase)
   const papers: PubMedArticle[] = data.map((row: any) => ({
     pmid: row.papers.pmid,

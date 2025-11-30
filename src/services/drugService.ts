@@ -100,6 +100,12 @@ export async function getProjectDrugs(projectId: number): Promise<ProjectDrug[]>
     throw error
   }
 
+  // Handle case where data is null or undefined
+  if (!data) {
+    console.log('[DrugService] No drugs data returned for project:', projectId)
+    return []
+  }
+
   // Flatten the structure
   const drugs = data.map((row: any) => ({
     ...row.drugs,
