@@ -6,6 +6,7 @@ import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/ca
 import { Button } from '@/components/ui/button'
 import { Plus, FolderOpen, Calendar, ArrowRight } from 'lucide-react'
 import { CreateProjectModal } from '@/components/CreateProjectModal'
+import { AnimatedGradientBackground } from '@/components/AnimatedGradientBackground'
 
 interface Project {
   id: number
@@ -17,14 +18,14 @@ interface Project {
 // Skeleton loader for project cards
 function ProjectCardSkeleton() {
   return (
-    <Card className="border bg-card">
+    <Card className="border border-white/50 bg-white/50 backdrop-blur-xl shadow-lg">
       <CardHeader className="h-48 flex flex-col justify-between">
         <div>
-          <div className="rounded-lg bg-gray-200 h-12 w-12 mb-4 animate-pulse" />
-          <div className="h-5 bg-gray-200 rounded w-3/4 mb-2 animate-pulse" />
-          <div className="h-4 bg-gray-200 rounded w-1/2 animate-pulse" />
+          <div className="rounded-lg bg-gray-200/70 h-12 w-12 mb-4 animate-pulse" />
+          <div className="h-5 bg-gray-200/70 rounded w-3/4 mb-2 animate-pulse" />
+          <div className="h-4 bg-gray-200/70 rounded w-1/2 animate-pulse" />
         </div>
-        <div className="h-3 bg-gray-200 rounded w-24 animate-pulse" />
+        <div className="h-3 bg-gray-200/70 rounded w-24 animate-pulse" />
       </CardHeader>
     </Card>
   )
@@ -85,11 +86,14 @@ export function ProjectsHomePage() {
   }
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col relative">
+      {/* Animated Gradient Background */}
+      <AnimatedGradientBackground />
+
       {/* Empty State - Centered when no projects */}
       {!loading && projects.length === 0 && (
-        <div className="flex-1 flex items-center justify-center px-6">
-          <div className="text-center">
+        <div className="flex-1 flex items-center justify-center px-6 relative z-10">
+          <div className="text-center bg-white/70 backdrop-blur-xl rounded-3xl p-12 shadow-2xl border border-white/50">
             <div className="relative inline-block mb-8">
               <div className="absolute inset-0 bg-blue-100 rounded-full blur-3xl opacity-30" />
               <div className="relative rounded-full bg-gradient-to-br from-blue-50 to-indigo-50 p-8 w-fit mx-auto">
@@ -120,9 +124,9 @@ export function ProjectsHomePage() {
 
       {/* Projects Grid - Only show when we have projects OR loading */}
       {(loading || projects.length > 0) && (
-        <div className="px-6 py-10 max-w-7xl mx-auto w-full">
-          {/* Header */}
-          <div className="mb-10">
+        <div className="px-6 py-10 max-w-7xl mx-auto w-full relative z-10">
+          {/* Header with frosted glass effect */}
+          <div className="mb-10 bg-white/60 backdrop-blur-lg rounded-2xl p-6 shadow-lg border border-white/50">
             <h1 className="text-4xl font-bold text-gray-900 mb-3">
               Your Projects
             </h1>
@@ -150,43 +154,43 @@ export function ProjectsHomePage() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {/* Create New Project Card */}
               <Card
-              className="border-2 border-dashed border-gray-300 hover:border-blue-500 hover:shadow-md bg-white transition-all duration-200 cursor-pointer group relative overflow-hidden"
+              className="border-2 border-dashed border-white/40 hover:border-blue-400/60 hover:shadow-2xl bg-white/40 backdrop-blur-xl transition-all duration-300 cursor-pointer group relative overflow-hidden hover:scale-105"
               onClick={() => setShowCreateModal(true)}
             >
               <CardHeader className="flex flex-col items-center justify-center h-48 text-center relative z-10">
-                <div className="rounded-full bg-blue-50 p-4 mb-4 group-hover:bg-blue-100 group-hover:scale-110 transition-all duration-200">
+                <div className="rounded-full bg-blue-100/60 backdrop-blur-sm p-4 mb-4 group-hover:bg-blue-200/70 group-hover:scale-110 transition-all duration-300 shadow-lg">
                   <Plus className="h-8 w-8 text-blue-600" />
                 </div>
                 <CardTitle className="text-lg font-semibold text-gray-900 mb-1">
                   Create New Project
                 </CardTitle>
-                <CardDescription className="text-gray-500">
+                <CardDescription className="text-gray-600">
                   Start a fresh research project
                 </CardDescription>
               </CardHeader>
               {/* Subtle gradient on hover */}
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-50/0 to-blue-50/0 group-hover:from-blue-50/30 group-hover:to-transparent transition-all duration-200 pointer-events-none" />
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-100/0 to-blue-100/0 group-hover:from-blue-100/40 group-hover:to-purple-100/30 transition-all duration-300 pointer-events-none" />
             </Card>
 
             {/* Existing Project Cards */}
             {projects.map((project) => (
               <Card
                 key={project.id}
-                className="group border border-gray-200 hover:border-gray-300 hover:shadow-lg bg-white transition-all duration-200 cursor-pointer relative overflow-hidden hover:-translate-y-1"
+                className="group border border-white/50 hover:border-white/70 hover:shadow-2xl bg-white/50 backdrop-blur-xl transition-all duration-300 cursor-pointer relative overflow-hidden hover:-translate-y-2 hover:scale-105"
                 onClick={() => handleProjectClick(project.id)}
               >
                 <CardHeader className="h-48 flex flex-col justify-between p-6 relative z-10">
                   <div>
-                    <div className="rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 p-2 w-fit mb-4 group-hover:from-blue-100 group-hover:to-indigo-100 transition-all duration-200">
-                      <FolderOpen className="h-5 w-5 text-blue-600" />
+                    <div className="rounded-xl bg-gradient-to-br from-blue-100/70 to-indigo-100/70 backdrop-blur-sm p-2 w-fit mb-4 group-hover:from-blue-200/80 group-hover:to-indigo-200/80 transition-all duration-300 shadow-lg">
+                      <FolderOpen className="h-5 w-5 text-blue-700" />
                     </div>
-                    <CardTitle className="text-lg font-semibold text-gray-900 line-clamp-2 mb-2 group-hover:text-blue-600 transition-colors">
+                    <CardTitle className="text-lg font-semibold text-gray-900 line-clamp-2 mb-2 group-hover:text-blue-700 transition-colors">
                       {project.name}
                     </CardTitle>
                   </div>
                   
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                    <div className="flex items-center gap-2 text-xs text-gray-600">
                       <Calendar className="h-3.5 w-3.5" />
                       <span>
                         {new Date(project.updated_at).toLocaleDateString('en-US', {
@@ -196,11 +200,11 @@ export function ProjectsHomePage() {
                         })}
                       </span>
                     </div>
-                    <ArrowRight className="h-4 w-4 text-gray-400 group-hover:text-blue-600 group-hover:translate-x-1 transition-all" />
+                    <ArrowRight className="h-4 w-4 text-gray-500 group-hover:text-blue-700 group-hover:translate-x-2 transition-all" />
                   </div>
                 </CardHeader>
-                {/* Subtle gradient overlay on hover */}
-                <div className="absolute inset-0 bg-gradient-to-br from-blue-50/0 to-indigo-50/0 group-hover:from-blue-50/20 group-hover:to-indigo-50/20 transition-all duration-300 pointer-events-none" />
+                {/* Dynamic gradient overlay on hover */}
+                <div className="absolute inset-0 bg-gradient-to-br from-blue-100/0 to-purple-100/0 group-hover:from-blue-100/30 group-hover:to-purple-100/30 transition-all duration-500 pointer-events-none" />
               </Card>
             ))}
             </div>
