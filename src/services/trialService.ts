@@ -104,6 +104,12 @@ export async function getProjectTrials(projectId: number): Promise<ClinicalTrial
     throw error
   }
 
+  // Handle case where data is null or undefined
+  if (!data) {
+    console.log('[TrialService] No trials data returned for project:', projectId)
+    return []
+  }
+
   // Map database columns to ClinicalTrial interface (snake_case → camelCase)
   const trials: ClinicalTrial[] = data.map((row: any) => ({
     nctId: row.trials.nct_id,
