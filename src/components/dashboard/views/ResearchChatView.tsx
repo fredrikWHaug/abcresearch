@@ -1,6 +1,8 @@
  
 import React from 'react'
 import { ArrowUp } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import type { ChatMessage } from '@/types/chat'
 import type { PubMedArticle } from '@/types/papers'
 import type { PressRelease } from '@/types/press-releases'
@@ -52,15 +54,16 @@ const ContextSummary = ({
             <span className="line-clamp-1 max-w-[200px]" title={paper.title}>
               {paper.title}
             </span>
-            <button
+            <Button
+              variant="ghost"
               onClick={() => onRemovePaper(paper.pmid)}
-              className="flex-shrink-0 text-blue-400 hover:text-blue-600 transition-colors p-0.5 hover:bg-blue-100 rounded-full cursor-pointer"
+              className="flex-shrink-0 text-blue-400 hover:text-blue-600 h-auto w-auto p-0.5 hover:bg-blue-100 rounded-full"
               title="Remove from context"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
-            </button>
+            </Button>
           </div>
         ))}
         {selectedPressReleases.map((pr) => (
@@ -74,15 +77,16 @@ const ContextSummary = ({
             <span className="line-clamp-1 max-w-[200px]" title={pr.title}>
               {pr.title}
             </span>
-            <button
+            <Button
+              variant="ghost"
               onClick={() => onRemovePressRelease(pr.id)}
-              className="flex-shrink-0 text-purple-400 hover:text-purple-600 transition-colors p-0.5 hover:bg-purple-100 rounded-full cursor-pointer"
+              className="flex-shrink-0 text-purple-400 hover:text-purple-600 h-auto w-auto p-0.5 hover:bg-purple-100 rounded-full"
               title="Remove from context"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
-            </button>
+            </Button>
           </div>
         ))}
         {selectedExtractions.map((extraction) => (
@@ -115,9 +119,10 @@ const ContextSummary = ({
 
   return (
     <div className="relative context-panel-container mb-4">
-      <button
+      <Button
+        variant="outline"
         onClick={onToggleContextPanel}
-        className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-full shadow-sm hover:shadow-md hover:border-blue-200 transition-all duration-300 cursor-pointer"
+        className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-full shadow-sm hover:shadow-md hover:border-blue-200 transition-all duration-300 h-auto"
       >
         <div className="flex items-center justify-center w-5 h-5 rounded-full bg-blue-50">
           <svg className="w-3 h-3 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -130,15 +135,19 @@ const ContextSummary = ({
         <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
         </svg>
-      </button>
+      </Button>
 
       {showContextPanel && (
         <div className="absolute bottom-full left-0 mb-2 bg-white/90 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 py-2 w-96 max-h-96 overflow-y-auto z-50 animate-scale-in origin-bottom-left">
           <div className="px-4 py-2 border-b border-gray-100 flex items-center justify-between">
             <h3 className="font-semibold text-gray-900 text-sm">AI Context</h3>
-            <button onClick={onClearContext} className="text-xs text-red-600 hover:text-red-700 font-medium px-2 py-1 hover:bg-red-50 rounded-md transition-colors cursor-pointer">
+            <Button
+              variant="ghost"
+              onClick={onClearContext}
+              className="text-xs text-red-600 hover:text-red-700 font-medium px-2 py-1 hover:bg-red-50 rounded-md h-auto"
+            >
               Clear All
-            </button>
+            </Button>
           </div>
           <div className="py-2">
             {selectedPapers.map((paper) => (
@@ -150,15 +159,16 @@ const ContextSummary = ({
                       {paper.journal} • {paper.publicationDate}
                     </p>
                   </div>
-                  <button
+                  <Button
+                    variant="ghost"
                     onClick={() => onRemovePaper(paper.pmid)}
-                    className="flex-shrink-0 text-gray-400 hover:text-red-600 transition-colors p-1 hover:bg-red-50 rounded-full cursor-pointer"
+                    className="flex-shrink-0 text-gray-400 hover:text-red-600 h-auto w-auto p-1 hover:bg-red-50 rounded-full"
                     title="Remove from context"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                     </svg>
-                  </button>
+                  </Button>
                 </div>
               </div>
             ))}
@@ -169,15 +179,16 @@ const ContextSummary = ({
                     <p className="text-sm font-medium text-gray-900 line-clamp-2 leading-snug">{pr.title}</p>
                     <p className="text-xs text-purple-600 mt-1 font-medium">Press Release • {pr.releaseDate}</p>
                   </div>
-                  <button
+                  <Button
+                    variant="ghost"
                     onClick={() => onRemovePressRelease(pr.id)}
-                    className="flex-shrink-0 text-gray-400 hover:text-red-600 transition-colors p-1 hover:bg-red-50 rounded-full cursor-pointer"
+                    className="flex-shrink-0 text-gray-400 hover:text-red-600 h-auto w-auto p-1 hover:bg-red-50 rounded-full"
                     title="Remove from context"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                     </svg>
-                  </button>
+                  </Button>
                 </div>
               </div>
             ))}
@@ -445,19 +456,20 @@ export const ResearchChatView = React.memo(function ResearchChatView({
                   {item.searchSuggestions && item.searchSuggestions.length > 0 && (
                     <div className="mt-4 space-y-2">
                       {item.searchSuggestions.map((suggestion) => (
-                        <button
+                        <Button
                           key={suggestion.id}
+                          variant="ghost"
                           onClick={() => handleSearchSuggestion(suggestion)}
-                          className="w-full text-left p-3.5 bg-blue-50/50 hover:bg-blue-100/50 border border-blue-100 rounded-xl transition-all duration-200 hover:shadow-sm group cursor-pointer"
+                          className="w-full justify-start p-3.5 bg-blue-50/50 hover:bg-blue-100/50 border border-blue-100 rounded-xl transition-all duration-200 hover:shadow-sm group h-auto block text-left whitespace-normal"
                         >
-                          <div className="flex items-center gap-3">
-                            <div className="w-2 h-2 bg-blue-500 rounded-full ring-4 ring-blue-100 group-hover:ring-blue-200 transition-all"></div>
+                          <div className="flex items-center gap-3 mb-1">
+                            <div className="w-2 h-2 bg-blue-500 rounded-full ring-4 ring-blue-100 group-hover:ring-blue-200 transition-all shrink-0"></div>
                             <span className="font-semibold text-blue-900">{suggestion.label}</span>
                           </div>
                           {suggestion.description && (
-                            <p className="text-xs text-blue-700/80 mt-1 ml-5 font-medium">{suggestion.description}</p>
+                            <p className="text-xs text-blue-700/80 ml-5 font-medium">{suggestion.description}</p>
                           )}
-                        </button>
+                        </Button>
                       ))}
                     </div>
                   )}
@@ -501,7 +513,7 @@ export const ResearchChatView = React.memo(function ResearchChatView({
               <button
                 onClick={handleSend}
                 disabled={!message.trim() || loading}
-                className="absolute right-2 h-12 w-12 rounded-full bg-gray-900 hover:bg-black disabled:bg-gray-200 disabled:cursor-not-allowed flex items-center justify-center transition-all duration-300 hover:scale-105 shadow-md text-white cursor-pointer"
+                className="absolute right-2 h-12 w-12 rounded-full bg-gray-900 hover:bg-black disabled:bg-gray-200 disabled:cursor-not-allowed flex items-center justify-center transition-all duration-300 hover:scale-105 shadow-md text-white"
               >
                 {loading ? (
                   <div className="h-5 w-5 animate-spin rounded-full border-2 border-gray-400 border-t-white" />
