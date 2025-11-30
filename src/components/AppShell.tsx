@@ -3,12 +3,20 @@ import { Outlet, useNavigate, useLocation, Link } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Home, LogOut, ChevronRight, User, ChevronDown } from 'lucide-react'
+import { cn } from '@/lib/utils'
+
+const NAV_ITEMS = [
+  { id: 'research', label: 'Research' },
+  { id: 'pipeline', label: 'Pipeline' },
+  { id: 'marketmap', label: 'Market Map' },
+  { id: 'extraction', label: 'Extraction' },
+  { id: 'feed', label: 'Feed' },
+] as const
 
 export function AppShell() {
   const navigate = useNavigate()
   const location = useLocation()
   const { user, signOut, isGuest, exitGuestMode } = useAuth()
-  const isHomePage = location.pathname === '/app/home'
   
   // Detect if we're on a project route
   const projectRouteMatch = location.pathname.match(/^\/app\/project\/([^/]+)(?:\/(.+))?/)
@@ -108,61 +116,21 @@ export function AppShell() {
           {/* Center: Project View Tabs (only show when on a project page) */}
           {isProjectPage && (
             <div className="hidden md:flex rounded-full bg-gray-100/50 p-1.5 gap-1 border border-black/5 shadow-inner backdrop-blur-sm h-[46px] items-center">
-              <Button
-                variant="ghost"
-                onClick={() => navigate(`/app/project/${projectId}/research`)}
-                className={`rounded-full px-5 h-full text-sm font-medium transition-all duration-300 ease-out ${
-                  currentView === 'research'
-                    ? 'bg-white text-gray-900 shadow-sm hover:bg-white'
-                    : 'text-gray-500 hover:text-gray-900 hover:bg-white/50'
-                }`}
-              >
-                Research
-              </Button>
-              <Button
-                variant="ghost"
-                onClick={() => navigate(`/app/project/${projectId}/pipeline`)}
-                className={`rounded-full px-5 h-full text-sm font-medium transition-all duration-300 ease-out ${
-                  currentView === 'pipeline'
-                    ? 'bg-white text-gray-900 shadow-sm hover:bg-white'
-                    : 'text-gray-500 hover:text-gray-900 hover:bg-white/50'
-                }`}
-              >
-                Pipeline
-              </Button>
-              <Button
-                variant="ghost"
-                onClick={() => navigate(`/app/project/${projectId}/marketmap`)}
-                className={`rounded-full px-5 h-full text-sm font-medium transition-all duration-300 ease-out ${
-                  currentView === 'marketmap'
-                    ? 'bg-white text-gray-900 shadow-sm hover:bg-white'
-                    : 'text-gray-500 hover:text-gray-900 hover:bg-white/50'
-                }`}
-              >
-                Market Map
-              </Button>
-              <Button
-                variant="ghost"
-                onClick={() => navigate(`/app/project/${projectId}/extraction`)}
-                className={`rounded-full px-5 h-full text-sm font-medium transition-all duration-300 ease-out ${
-                  currentView === 'extraction'
-                    ? 'bg-white text-gray-900 shadow-sm hover:bg-white'
-                    : 'text-gray-500 hover:text-gray-900 hover:bg-white/50'
-                }`}
-              >
-                Extraction
-              </Button>
-              <Button
-                variant="ghost"
-                onClick={() => navigate(`/app/project/${projectId}/feed`)}
-                className={`rounded-full px-5 h-full text-sm font-medium transition-all duration-300 ease-out ${
-                  currentView === 'feed'
-                    ? 'bg-white text-gray-900 shadow-sm hover:bg-white'
-                    : 'text-gray-500 hover:text-gray-900 hover:bg-white/50'
-                }`}
-              >
-                Feed
-              </Button>
+              {NAV_ITEMS.map((item) => (
+                <Button
+                  key={item.id}
+                  variant="ghost"
+                  onClick={() => navigate(`/app/project/${projectId}/${item.id}`)}
+                  className={cn(
+                    "rounded-full px-5 h-full text-sm font-medium transition-all duration-300 ease-out",
+                    currentView === item.id
+                      ? "bg-white text-gray-900 shadow-sm hover:bg-white"
+                      : "text-gray-500 hover:text-gray-900 hover:bg-white/50"
+                  )}
+                >
+                  {item.label}
+                </Button>
+              ))}
             </div>
           )}
 
@@ -204,12 +172,15 @@ export function AppShell() {
                   <span className="hidden md:block text-sm text-gray-700 font-medium group-hover:text-gray-900">
                     {user.email?.split('@')[0]}
                   </span>
-                  <ChevronDown className={`h-3 w-3 text-gray-400 transition-transform duration-200 ${isUserMenuOpen ? 'rotate-180' : ''}`} />
+                  <ChevronDown className={cn(
+                    "h-3 w-3 text-gray-400 transition-transform duration-200",
+                    isUserMenuOpen ? "rotate-180" : ""
+                  )} />
                 </button>
 
                 {/* Dropdown Menu */}
                 {isUserMenuOpen && (
-                  <div className="absolute top-full right-0 mt-2 w-48 bg-white/90 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 py-1 z-50 animate-scale-in origin-top-right">
+                  <div className="absolute top-full right-0 mt-2 w-48 bg-white/90 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 py-1 z-50 animate-in fade-in zoom-in-95 origin-top-right duration-200">
                     <div className="px-4 py-2 border-b border-gray-100 block md:hidden">
                       <p className="text-xs text-gray-500">Signed in as</p>
                       <p className="text-sm font-medium text-gray-900 truncate">{user.email}</p>
@@ -237,7 +208,7 @@ export function AppShell() {
 
       {/* Main Content Area - fills remaining height and allows scrolling */}
       <main className="flex-1 min-h-0 overflow-y-auto scroll-smooth">
-        <div className="animate-fade-in h-full">
+        <div className="animate-in fade-in duration-500 h-full">
           <Outlet />
         </div>
       </main>
