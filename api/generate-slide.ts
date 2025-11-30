@@ -14,9 +14,19 @@ interface ClinicalTrial {
   startDate?: string;
 }
 
+interface DrugGroup {
+  drugName: string;
+  normalizedName: string;
+  trials: ClinicalTrial[];
+  papers: any[];
+  pressReleases?: any[];
+  irDecks?: any[];
+}
+
 interface SlideRequest {
   trials: ClinicalTrial[];
   query: string;
+  drugGroups?: DrugGroup[];
 }
 
 export default async function handler(req: any, res: any) {
@@ -25,10 +35,13 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    const { trials, query }: SlideRequest = req.body;
+    const { trials, query, drugGroups = [] }: SlideRequest = req.body;
 
-    if (!trials || trials.length === 0) {
-      return res.status(400).json({ error: 'No trials data provided' });
+    // Prefer drug groups if available, otherwise fall back to trials
+    const hasDrugGroups = drugGroups && drugGroups.length > 0;
+    
+    if (!hasDrugGroups && (!trials || trials.length === 0)) {
+      return res.status(400).json({ error: 'No trials or drug groups data provided' });
     }
 
     const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
@@ -43,7 +56,12 @@ export default async function handler(req: any, res: any) {
     const enrollmentByPhase: { [key: string]: number[] } = {};
     const yearDistribution: { [key: string]: number } = {};
     
-    trials.forEach(trial => {
+    // Get all trials from drug groups if available
+    const allTrials = hasDrugGroups 
+      ? drugGroups.flatMap(dg => dg.trials)
+      : trials;
+    
+    allTrials.forEach(trial => {
       // Phase distribution
       const phase = trial.phase?.[0] || 'Not Specified';
       phaseDistribution[phase] = (phaseDistribution[phase] || 0) + 1;
@@ -81,17 +99,44 @@ export default async function handler(req: any, res: any) {
       .slice(0, 5)
       .map(([sponsor, count]) => ({ sponsor, count }));
 
+    // Build drug groups summary if available
+    let drugGroupsSummary = '';
+    if (hasDrugGroups) {
+      const drugStats = drugGroups.map(dg => ({
+        drug: dg.drugName,
+        trials: dg.trials.length,
+        papers: dg.papers?.length || 0,
+        pressReleases: dg.pressReleases?.length || 0,
+        irDecks: dg.irDecks?.length || 0,
+        totalEvidence: (dg.trials.length + (dg.papers?.length || 0) + (dg.pressReleases?.length || 0) + (dg.irDecks?.length || 0))
+      })).sort((a, b) => b.totalEvidence - a.totalEvidence).slice(0, 10);
+      
+      drugGroupsSummary = `
+
+Drug Candidates (${drugGroups.length} identified, showing top 10 by evidence):
+${drugStats.map(ds => `  - ${ds.drug}: ${ds.trials} trials, ${ds.papers} papers, ${ds.pressReleases} press releases, ${ds.irDecks} IR decks (${ds.totalEvidence} total evidence items)`).join('\n')}
+
+Total Research Evidence:
+- Clinical Trials: ${allTrials.length}
+- Research Papers: ${drugGroups.reduce((sum, dg) => sum + (dg.papers?.length || 0), 0)}
+- Press Releases: ${drugGroups.reduce((sum, dg) => sum + (dg.pressReleases?.length || 0), 0)}
+- IR Decks: ${drugGroups.reduce((sum, dg) => sum + (dg.irDecks?.length || 0), 0)}
+`;
+    }
+
     const prompt = `You are a senior biotech analyst creating an executive-level market analysis slide for pharmaceutical leaders. 
 
 Query: "${query}"
-Total Trials Found: ${trials.length}
-
+Total Trials Found: ${allTrials.length}${hasDrugGroups ? `\nDrug Candidates Identified: ${drugGroups.length}` : ''}
+${drugGroupsSummary}
 Key Analytics:
 - Phase Distribution: ${JSON.stringify(phaseDistribution)}
 - Status Distribution: ${JSON.stringify(statusDistribution)}
 - Top 5 Sponsors: ${JSON.stringify(topSponsors)}
 - Average Enrollment by Phase: ${JSON.stringify(avgEnrollmentByPhase)}
 - Trials by Year (2020+): ${JSON.stringify(yearDistribution)}
+
+${hasDrugGroups ? 'NOTE: This analysis benefits from structured drug-level research data including trials, papers, press releases, and IR decks organized by drug candidate. Use this comprehensive evidence to provide deeper insights.' : ''}
 
 Create a data-driven market analysis with:
 

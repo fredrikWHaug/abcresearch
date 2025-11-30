@@ -224,14 +224,11 @@ interface ResearchChatViewProps {
   onRemoveExtraction?: (jobId: string) => void
   onClearContext: () => void
   handleSearchSuggestion: (suggestion: SearchSuggestion) => Promise<void>
-  message: string
-  onMessageChange: (value: string) => void
-  onSendMessage: () => void
-  onKeyPress: (e: React.KeyboardEvent) => void
+  onSendMessage: (message: string) => void
   loading: boolean
 }
 
-export function ResearchChatView({
+export const ResearchChatView = React.memo(function ResearchChatView({
   chatHistory,
   selectedPapers,
   selectedPressReleases,
@@ -243,14 +240,22 @@ export function ResearchChatView({
   onRemoveExtraction,
   onClearContext,
   handleSearchSuggestion,
-  message,
-  onMessageChange,
   onSendMessage,
-  onKeyPress,
   loading
 }: ResearchChatViewProps) {
+  const [message, setMessage] = React.useState('')
   const messagesEndRef = React.useRef<HTMLDivElement>(null)
+  const inputRef = React.useRef<HTMLInputElement>(null)
   const prevChatLengthRef = React.useRef(0)
+  const hasAutoFocusedRef = React.useRef(false)
+
+  // Auto-focus input only once on initial mount
+  React.useEffect(() => {
+    if (!hasAutoFocusedRef.current && inputRef.current) {
+      inputRef.current.focus()
+      hasAutoFocusedRef.current = true
+    }
+  }, [])
 
   // Auto-scroll ONLY when new messages are added (not on content updates)
   React.useEffect(() => {
@@ -261,6 +266,19 @@ export function ResearchChatView({
     }
   }, [chatHistory])
 
+  const handleSend = () => {
+    if (!message.trim() || loading) return
+    onSendMessage(message)
+    setMessage('')
+  }
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleSend()
+    }
+  }
+
   return (
     <div className="h-full flex flex-col overflow-hidden bg-gray-50">
       {/* Scrollable messages area */}
@@ -269,7 +287,7 @@ export function ResearchChatView({
           <div className="space-y-4">
             {chatHistory.map((item, index) => (
               <div
-                key={`${item.type}-${index}-${item.message}`}
+                key={`${item.type}-${index}`}
                 className={`p-4 rounded-lg border ${
                   item.type === 'user'
                     ? 'bg-gray-800 text-white border-gray-700'
@@ -462,17 +480,17 @@ export function ResearchChatView({
 
           <div className="relative">
             <input
+              ref={inputRef}
               type="text"
               value={message}
-              onChange={(e) => onMessageChange(e.target.value)}
-              onKeyPress={onKeyPress}
+              onChange={(e) => setMessage(e.target.value)}
+              onKeyPress={handleKeyPress}
               placeholder="Respond to ABCresearch's agent..."
               className="flex h-[60px] w-full rounded-md border border-gray-300 bg-white pl-4 pr-16 py-2 text-lg ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50"
               disabled={loading}
-              autoFocus
             />
             <button
-              onClick={onSendMessage}
+              onClick={handleSend}
               disabled={!message.trim() || loading}
               className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-gray-800 hover:bg-gray-900 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
             >
@@ -483,4 +501,4 @@ export function ResearchChatView({
       </div>
     </div>
   )
-}
+})

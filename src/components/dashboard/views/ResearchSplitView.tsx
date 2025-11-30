@@ -232,11 +232,8 @@ interface ResearchSplitViewProps {
   onRemovePressRelease: (id: string) => void
   onRemoveExtraction?: (jobId: string) => void
   onClearContext: () => void
-  onMessageChange: (value: string) => void
-  onSendMessage: (messageOverride?: string) => void
-  onKeyPress: (e: React.KeyboardEvent) => void
+  onSendMessage: (message: string) => void
   handleSearchSuggestion: (suggestion: SearchSuggestion) => Promise<void>
-  message: string
   loading: boolean
   selectedDrug: DrugGroup | null
   setSelectedDrug: React.Dispatch<React.SetStateAction<DrugGroup | null>>
@@ -255,7 +252,7 @@ interface ResearchSplitViewProps {
   isPressReleaseInContext: (id: string) => boolean
 }
 
-export function ResearchSplitView({
+export const ResearchSplitView = React.memo(function ResearchSplitView({
   chatHistory,
   selectedPapers,
   selectedPressReleases,
@@ -266,11 +263,8 @@ export function ResearchSplitView({
   onRemovePressRelease,
   onRemoveExtraction,
   onClearContext,
-  onMessageChange,
   onSendMessage,
-  onKeyPress,
   handleSearchSuggestion,
-  message,
   loading,
   selectedDrug,
   setSelectedDrug,
@@ -285,6 +279,7 @@ export function ResearchSplitView({
   handleAddPressReleaseToContext,
   isPressReleaseInContext
 }: ResearchSplitViewProps) {
+  const [message, setMessage] = React.useState('')
   const isStageTwoInProgress = searchProgress.total > 0 && searchProgress.current < searchProgress.total
   const currentQuery = initialSearchQueries?.originalQuery || ''
   const messagesEndRef = React.useRef<HTMLDivElement>(null)
@@ -299,6 +294,19 @@ export function ResearchSplitView({
     }
   }, [chatHistory])
 
+  const handleSend = () => {
+    if (!message.trim() || loading) return
+    onSendMessage(message)
+    setMessage('')
+  }
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleSend()
+    }
+  }
+
   return (
     <div className="h-full flex flex-col relative overflow-hidden">
       <div className="absolute w-px h-full bg-gray-200 z-10 top-0 pointer-events-none" style={{ left: '50%', transform: 'translateX(-0.5px)' }}></div>
@@ -309,7 +317,7 @@ export function ResearchSplitView({
             <div className="max-w-2xl mx-auto space-y-4">
               {chatHistory.map((item, index) => (
                 <div
-                  key={`${item.message}-${index}`}
+                  key={`${item.type}-${index}`}
                   className={`flex ${item.type === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
                   <div
@@ -515,15 +523,15 @@ export function ResearchSplitView({
                 <input
                   type="text"
                   value={message}
-                  onChange={(e) => onMessageChange(e.target.value)}
-                  onKeyPress={onKeyPress}
+                  onChange={(e) => setMessage(e.target.value)}
+                  onKeyPress={handleKeyPress}
                   placeholder="Respond to ABCresearch's agent..."
                   className="flex h-[50px] w-full rounded-md border border-gray-300 bg-white pl-4 pr-12 py-2 ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50"
                   disabled={loading}
                 />
                 <button
                   type="button"
-                  onClick={() => onSendMessage()}
+                  onClick={handleSend}
                   disabled={!message.trim() || loading}
                   className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 rounded-full bg-gray-800 hover:bg-gray-900 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
                 >
@@ -572,4 +580,4 @@ export function ResearchSplitView({
       )}
     </div>
   )
-}
+})

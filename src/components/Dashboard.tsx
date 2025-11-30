@@ -250,7 +250,7 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
     }
   }
 
-  const [message, setMessage] = useState('')
+  // Note: message state removed - now managed by individual view components
   const [trials, setTrials] = useState<ClinicalTrial[]>([])
   const [loading, setLoading] = useState(false)
   const [lastQuery, setLastQuery] = useState('')
@@ -283,6 +283,11 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
   const [loadingProjects, setLoadingProjects] = useState(false)
   const [showCreateProjectModal, setShowCreateProjectModal] = useState(false)
   const [creatingProject, setCreatingProject] = useState(false)
+  
+  // Memoized callbacks to prevent unnecessary re-renders
+  const handleToggleContextPanel = useCallback(() => {
+    setShowContextPanel(prev => !prev)
+  }, [])
   
   // Fetch user's projects on mount
   React.useEffect(() => {
@@ -533,7 +538,6 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
       // Clear other state when switching projects
       setPressReleases([])
       setLastQuery('')
-      setMessage('')
       setSelectedDrug(null)
       setSelectedPapers([])
       setSelectedPressReleases([])
@@ -640,11 +644,10 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
     }
   }, [viewMode, chatHistory, papers]);
 
-  const handleSendMessage = async (overrideMessage?: string) => {
-    const rawMessage = overrideMessage ?? message;
-    if (!rawMessage.trim()) return;
+  const handleSendMessage = async (messageToSend: string) => {
+    if (!messageToSend || !messageToSend.trim()) return;
 
-    const userMessage = rawMessage.trim();
+    const userMessage = messageToSend.trim();
     const messageContextPapers = [...selectedPapers]; // Snapshot current context
     const messageContextPressReleases = [...selectedPressReleases]; // Snapshot press releases context
     const messageContextExtractions = [...selectedExtractions]; // Snapshot PDF extractions context
@@ -724,13 +727,6 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
       }]);
     } finally {
       setLoading(false);
-    }
-  }
-
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      handleSendMessage()
     }
   }
 
@@ -1395,13 +1391,13 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
           selectedPapers={selectedPapers}
           selectedPressReleases={selectedPressReleases}
           showContextPanel={showContextPanel}
-          onToggleContextPanel={() => setShowContextPanel(prev => !prev)}
+          onToggleContextPanel={handleToggleContextPanel}
           onRemovePaper={handleRemovePaperFromContext}
           onRemovePressRelease={handleRemovePressReleaseFromContext}
           onClearContext={handleClearContext}
-          message={message}
-          onMessageChange={(value) => setMessage(value)}
           onSendMessage={handleSendMessage}
+          loading={loading}
+          hasSearched={hasSearched}
         />
       </DashboardLayout>
     );
@@ -1423,6 +1419,7 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
             setSlideError={setSlideError}
             chatHistory={chatHistory}
             papers={papers}
+            drugGroups={drugGroups}
             currentProjectId={currentProjectId}
             onNavigateToResearch={() => setViewMode('research')}
             onLoadMap={handleLoadSavedMap}
@@ -1477,7 +1474,7 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
 
   // Research mode - split view layout (only when hasSearched is true and we have search results)
   console.log('Checking split screen condition. hasSearched:', hasSearched, 'trials:', trials.length, 'papers:', papers.length);
-  if (hasSearched && (drugGroups.length > 0 || searchProgress.total > 0)) {
+  if (viewMode === 'research' && hasSearched && (drugGroups.length > 0 || searchProgress.total > 0)) {
     console.log('Rendering split screen');
     return (
       <DashboardLayout currentProjectId={currentProjectId}>
@@ -1487,12 +1484,11 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
           selectedPressReleases={selectedPressReleases}
           selectedExtractions={selectedExtractions}
           showContextPanel={showContextPanel}
-          onToggleContextPanel={() => setShowContextPanel(prev => !prev)}
+          onToggleContextPanel={handleToggleContextPanel}
           onRemovePaper={handleRemovePaperFromContext}
           onRemovePressRelease={handleRemovePressReleaseFromContext}
           onRemoveExtraction={handleRemoveExtractionFromContext}
           onClearContext={handleClearContext}
-          onMessageChange={(value) => setMessage(value)}
           onSendMessage={handleSendMessage}
           onKeyPress={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
@@ -1501,7 +1497,6 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
             }
           }}
           handleSearchSuggestion={handleSearchSuggestion}
-          message={message}
           loading={loading}
           selectedDrug={selectedDrug}
           setSelectedDrug={setSelectedDrug}
@@ -1520,24 +1515,23 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
     );
   }
 
-  // Wide screen chat interface - when hasSearched is true but no search results yet
-  console.log('Rendering wide screen chat interface. hasSearched:', hasSearched, 'trials:', trials.length, 'papers:', papers.length);
-  return (
-    <DashboardLayout currentProjectId={currentProjectId}>
-      <ResearchChatView
+  // Wide screen chat interface - when hasSearched is true but no search results yet (research mode only)
+  console.log('Rendering wide screen chat interface. hasSearched:', hasSearched, 'trials:', trials.length, 'papers:', papers.length, 'viewMode:', viewMode);
+  if (viewMode === 'research') {
+    return (
+      <DashboardLayout currentProjectId={currentProjectId}>
+        <ResearchChatView
         chatHistory={chatHistory}
         selectedPapers={selectedPapers}
         selectedPressReleases={selectedPressReleases}
         selectedExtractions={selectedExtractions}
         showContextPanel={showContextPanel}
-        onToggleContextPanel={() => setShowContextPanel(prev => !prev)}
+        onToggleContextPanel={handleToggleContextPanel}
         onRemovePaper={handleRemovePaperFromContext}
         onRemovePressRelease={handleRemovePressReleaseFromContext}
         onRemoveExtraction={handleRemoveExtractionFromContext}
         onClearContext={handleClearContext}
         handleSearchSuggestion={handleSearchSuggestion}
-        message={message}
-        onMessageChange={(value) => setMessage(value)}
         onSendMessage={handleSendMessage}
         onKeyPress={(e) => {
           if (e.key === 'Enter' && !e.shiftKey) {

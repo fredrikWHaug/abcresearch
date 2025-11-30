@@ -10,6 +10,7 @@ import type { SlideData } from '@/services/slideAPI';
 import { MarketMapService } from '@/services/marketMapService';
 import { Slide } from '@/components/Slide';
 import { Building2, Calendar, Users, MapPin, Activity, FileText, Loader2, Save, X } from 'lucide-react';
+import type { DrugGroup } from '@/services/drugGroupingService';
 
 interface MarketMapProps {
   trials: ClinicalTrial[];
@@ -23,6 +24,7 @@ interface MarketMapProps {
   setSlideError: (error: string | null) => void;
   chatHistory: Array<{type: 'user' | 'system', message: string, searchSuggestions?: Array<{id: string, label: string, query: string, description?: string}>}>;
   papers: any[];
+  drugGroups: DrugGroup[];
   currentProjectId: number | null;
   onSaveSuccess?: () => void;
   onNavigateToResearch?: () => void;
@@ -40,6 +42,7 @@ export function MarketMap({
   setSlideError,
   chatHistory,
   papers,
+  drugGroups,
   currentProjectId,
   onSaveSuccess,
   onNavigateToResearch
@@ -47,8 +50,10 @@ export function MarketMap({
   console.log('MarketMap component received props:', {
     chatHistory,
     papers,
+    drugGroups,
     chatHistoryLength: chatHistory?.length,
     papersLength: papers?.length,
+    drugGroupsLength: drugGroups?.length,
     chatHistoryType: typeof chatHistory,
     papersType: typeof papers
   });
@@ -58,13 +63,15 @@ export function MarketMap({
   const [saveError, setSaveError] = useState<string | null>(null);
 
   const handleGenerateSlide = async () => {
-    if (trials.length === 0) return;
+    // Use drugGroups if available, otherwise fall back to trials
+    if (drugGroups.length === 0 && trials.length === 0) return;
     
     setGeneratingSlide(true);
     setSlideError(null);
     
     try {
-      const slide = await SlideAPI.generateSlide(trials, query);
+      // Pass drugGroups to the slide generation API
+      const slide = await SlideAPI.generateSlide(trials, query, drugGroups);
       setSlideData(slide);
     } catch (error) {
       console.error('Error generating slide:', error);

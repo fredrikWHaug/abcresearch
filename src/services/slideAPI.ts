@@ -31,9 +31,12 @@ export interface SlideResponse {
 
 export class SlideAPI {
   /**
-   * Generate a professional slide from clinical trials data
+   * Generate a professional slide from clinical trials data and drug groups
+   * @param trials - Clinical trials data (fallback if no drug groups)
+   * @param query - Search query
+   * @param drugGroups - Organized drug groups with associated trials, papers, etc.
    */
-  static async generateSlide(trials: ClinicalTrial[], query: string): Promise<SlideData> {
+  static async generateSlide(trials: ClinicalTrial[], query: string, drugGroups?: any[]): Promise<SlideData> {
     try {
       const response = await fetch('/api/generate-slide', {
         method: 'POST',
@@ -42,7 +45,8 @@ export class SlideAPI {
         },
         body: JSON.stringify({
           trials,
-          query
+          query,
+          drugGroups: drugGroups || []
         })
       });
 
