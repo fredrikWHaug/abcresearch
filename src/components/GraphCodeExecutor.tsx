@@ -4,7 +4,7 @@
  * Auto-executes Python code and displays the graph, with collapsible code view
  */
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Play, Loader2, Image as ImageIcon, Code, ChevronDown, ChevronUp } from 'lucide-react'
 import { pyodideRenderer } from '@/services/pyodideGraphRenderer'
@@ -21,7 +21,7 @@ export function GraphCodeExecutor({ code, title = 'Efficacy Comparison Graph' }:
   const [executionTime, setExecutionTime] = useState<number | null>(null)
   const [showCode, setShowCode] = useState(false) // Code collapsed by default
 
-  const handleExecuteCode = async () => {
+  const handleExecuteCode = useCallback(async () => {
     setIsExecuting(true)
     setError(null)
     
@@ -40,12 +40,12 @@ export function GraphCodeExecutor({ code, title = 'Efficacy Comparison Graph' }:
     } finally {
       setIsExecuting(false)
     }
-  }
+  }, [code])
 
   // Auto-execute on mount
   useEffect(() => {
     handleExecuteCode()
-  }, [code]) // Re-execute if code changes
+  }, [handleExecuteCode]) // Re-execute if code changes
 
   return (
     <div className="mt-4 border border-gray-200 rounded-lg overflow-hidden bg-white">
