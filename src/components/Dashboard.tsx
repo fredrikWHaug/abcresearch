@@ -1,4 +1,6 @@
 /* eslint-disable */
+import React, { useState, useEffect, useMemo, memo, useCallback } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { LogOut, Menu } from 'lucide-react'
 import { CreateProjectModal } from '@/components/CreateProjectModal'
@@ -142,10 +144,10 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
 
     // Handler for generating efficacy comparison graph
     const handleGenerateEfficacyGraph = async () => {
-      setMessage('Generate an endpoint efficacy comparison graph from the tables in the extraction context.');
+      const message = 'Generate an endpoint efficacy comparison graph from the tables in the extraction context.';
       // Trigger the message send
       setTimeout(() => {
-        handleSendMessage();
+        handleSendMessage(message);
       }, 100);
     }
 
@@ -649,7 +651,6 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
     const messageContextPapers = [...selectedPapers]; // Snapshot current context
     const messageContextPressReleases = [...selectedPressReleases]; // Snapshot press releases context
     const messageContextExtractions = [...selectedExtractions]; // Snapshot PDF extractions context
-    setMessage('');
     setHasSearched(true); // Switch to wide screen chat interface after first message
 
     // Add user message to chat history with context papers, press releases, and extractions
@@ -1340,13 +1341,42 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
 
   type ViewVariant = 'initial' | 'default';
 
+  // Memoize DashboardLayout to prevent child components from remounting on every keystroke
+  const DashboardLayout = useCallback(({
+    variant = 'default',
+    currentProjectId,
+    children
+  }: {
+    variant?: ViewVariant;
+    currentProjectId: number | null;
+    children: React.ReactNode;
+  }) => {
+    if (variant === 'initial') {
+      return (
         <div className={showHeader ? "h-screen flex flex-col bg-gray-50" : "h-full flex flex-col bg-gray-50"}>
-          {showHeader && <Header currentProjectId={currentProjectId} />}
-          <div className="flex-1 min-h-0">
+          <div className={showHeader ? "flex-1 overflow-auto flex items-center justify-center" : "flex-1 overflow-auto flex items-center justify-center"}>
             {children}
           </div>
+          {showHeader && (
+            <div className="fixed top-0 left-0 right-0 z-50">
+              <Header currentProjectId={currentProjectId} />
+            </div>
+          )}
           <ProjectModal />
         </div>
+      )
+    }
+
+    return (
+      <div className={showHeader ? "h-screen flex flex-col bg-gray-50" : "h-full flex flex-col bg-gray-50"}>
+        {showHeader && <Header currentProjectId={currentProjectId} />}
+        <div className="flex-1 min-h-0">
+          {children}
+        </div>
+        <ProjectModal />
+      </div>
+    )
+  }, [showHeader])
 
   if (!hasSearched && viewMode !== 'pipeline' && viewMode !== 'marketmap' && viewMode !== 'dataextraction' && viewMode !== 'realtimefeed') {
     console.log('Rendering initial centered search. hasSearched:', hasSearched, 'viewMode:', viewMode);
@@ -1455,12 +1485,6 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
           onRemoveExtraction={handleRemoveExtractionFromContext}
           onClearContext={handleClearContext}
           onSendMessage={handleSendMessage}
-          onKeyPress={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault()
-              handleSendMessage()
-            }
-          }}
           handleSearchSuggestion={handleSearchSuggestion}
           loading={loading}
           selectedDrug={selectedDrug}
@@ -1498,3 +1522,28 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
         onClearContext={handleClearContext}
         handleSearchSuggestion={handleSearchSuggestion}
         onSendMessage={handleSendMessage}
+        loading={loading}
+      />
+    </DashboardLayout>
+    )
+  }
+
+  // Fallback: if no specific view mode matches, default to initial research view
+  console.log('No matching view mode, defaulting to initial research view. viewMode:', viewMode);
+  return (
+    <DashboardLayout variant="initial" currentProjectId={currentProjectId}>
+      <InitialResearchView
+        selectedPapers={selectedPapers}
+        selectedPressReleases={selectedPressReleases}
+        showContextPanel={showContextPanel}
+        onToggleContextPanel={handleToggleContextPanel}
+        onRemovePaper={handleRemovePaperFromContext}
+        onRemovePressRelease={handleRemovePressReleaseFromContext}
+        onClearContext={handleClearContext}
+        onSendMessage={handleSendMessage}
+        loading={loading}
+        hasSearched={hasSearched}
+      />
+    </DashboardLayout>
+  )
+}
