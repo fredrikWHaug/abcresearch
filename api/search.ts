@@ -459,6 +459,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           for (const item of items) {
             if (pressReleases.length >= maxResults) break;
 
+            // Filter: Only keep company press release pages, exclude news media
+            const isNewsMedia = (url: string) => {
+              const mediaDomains = [
+                'reuters.com', 'bloomberg.com', 'wsj.com', 'cnbc.com',
+                'forbes.com', 'marketwatch.com', 'yahoo.com', 'finance.yahoo.com',
+                'nytimes.com', 'ft.com', 'businessinsider.com', 'seekingalpha.com',
+                'barrons.com', 'investing.com', 'fool.com'
+              ];
+              return mediaDomains.some(domain => url.toLowerCase().includes(domain));
+            };
+
+            const isPressReleasePage = (url: string) => {
+              const validUrlPatterns = [
+                '/news/', '/press-release', '/press_release', '/pressrelease',
+                '/media/', '/newsroom/', '/news-release', '/news_release',
+                '/investor', '/ir/', '/announcement', '/press/'
+              ];
+              return validUrlPatterns.some(pattern => url.toLowerCase().includes(pattern));
+            };
+
+            // Skip if it's a news media site or not a press release page
+            if (isNewsMedia(item.link) || !isPressReleasePage(item.link)) {
+              continue;
+            }
+
             // Extract company name from domain or title
             const extractCompany = () => {
               const domain = item.displayLink || '';
