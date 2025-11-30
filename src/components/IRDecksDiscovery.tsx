@@ -23,6 +23,29 @@ export const IRDecksDiscovery: React.FC<IRDecksDiscoveryProps> = ({
     return 'bg-gray-100 text-gray-800';
   };
 
+  const getFilingTypeColor = (filingType: string) => {
+    // SEC Filings - Blue
+    if (['8-K', '10-K', '10-Q', 'DEF 14A', 'DEFA14A'].includes(filingType)) {
+      return 'bg-blue-100 text-blue-800 border-blue-300';
+    }
+    // Company Presentations - Green
+    if (filingType === 'Presentation') {
+      return 'bg-green-100 text-green-800 border-green-300';
+    }
+    // Third-party Analysis - Purple
+    return 'bg-purple-100 text-purple-800 border-purple-300';
+  };
+
+  const getFilingTypeLabel = (filingType: string) => {
+    if (['8-K', '10-K', '10-Q', 'DEF 14A', 'DEFA14A'].includes(filingType)) {
+      return `SEC Filing: ${filingType}`;
+    }
+    if (filingType === 'Presentation') {
+      return 'Company Presentation';
+    }
+    return 'Analysis Report';
+  };
+
   // Sort by filing date (most recent first)
   const sortedDecks = [...irDecks].sort((a, b) => {
     const dateA = new Date(a.filingDate);
@@ -96,21 +119,15 @@ export const IRDecksDiscovery: React.FC<IRDecksDiscoveryProps> = ({
               <CardContent>
                 <div className="space-y-3">
                   <div className="flex flex-wrap gap-2">
-                    <Badge variant="outline">
+                    <Badge variant="outline" className={getFilingTypeColor(deck.filingType)}>
                       <FileText className="h-3 w-3 mr-1" />
-                      {deck.filingType}
+                      {getFilingTypeLabel(deck.filingType)}
                     </Badge>
                     <Badge variant="secondary">{deck.filingDate}</Badge>
                     {deck.reportDate && deck.reportDate !== deck.filingDate && (
                       <Badge variant="outline">Report: {deck.reportDate}</Badge>
                     )}
                   </div>
-
-                  {deck.description && (
-                    <p className="text-sm text-muted-foreground line-clamp-2">
-                      {deck.description}
-                    </p>
-                  )}
 
                   <div className="flex items-center justify-between pt-2">
                     <div className="flex gap-2">
