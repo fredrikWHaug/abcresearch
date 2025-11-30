@@ -26,7 +26,7 @@ import {
 } from 'lucide-react'
 import { PDFExtractionJobService } from '@/services/pdfExtractionJobService'
 import type { PDFExtractionJob } from '@/types/pdf-extraction-job'
-import type { PDFExtractionResult } from '@/types/extraction'
+import type { PDFExtractionResult, TableData, GraphifyResult } from '@/types/extraction'
 import { PaperAnalysisView } from './PaperAnalysisView'
 
 const CACHE_KEY_BASE = 'extraction_history_cache'
@@ -42,25 +42,8 @@ interface ExtractionHistoryProps {
     fileName: string
     markdownContent: string
     hasTables: boolean
-    tablesData?: Array<{
-      index: number;
-      headers: string[];
-      rows: string[][];
-      rawMarkdown: string;
-    }>;
-    graphifyResults?: Array<{
-      imageName: string;
-      isGraph: boolean;
-      graphType?: string;
-      reason?: string;
-      pythonCode?: string;
-      data?: Record<string, unknown>;
-      assumptions?: string;
-      error?: string;
-      renderedImage?: string;
-      renderError?: string;
-      renderTimeMs?: number;
-    }>;
+    tablesData?: TableData[];
+    graphifyResults?: GraphifyResult[];
   }) => void
   onRemoveFromChat?: (jobId: string) => void
   isInContext?: (jobId: string) => boolean
@@ -475,30 +458,19 @@ export function ExtractionHistory({ currentProjectId = null, isVisible = true, r
                                                       response.result.markdown_content.split('\n').some(line => line.trim().startsWith('|'))
                                       
                                       // Extract structured tables data from database
-                                      const tablesData = Array.isArray(response.result.tables_data) 
-                                        ? response.result.tables_data as Array<{
-                                            index: number;
-                                            headers: string[];
-                                            rows: string[][];
-                                            rawMarkdown: string;
-                                          }>
+                                      // Backend should populate tables_data during extraction
+                                      const tablesData = Array.isArray(response.result.tables_data) && response.result.tables_data.length > 0
+                                        ? response.result.tables_data as TableData[]
                                         : undefined
                                       
+                                      if (hasTables && !tablesData) {
+                                        console.warn(`[ExtractionHistory] Job ${job.id} has tables in markdown but tables_data is not populated in database`)
+                                      }
+                                      
                                       // Extract graphify results from database
+                                      // Use canonical GraphifyResult type from extraction.ts
                                       const graphifyResults = Array.isArray(response.result.graphify_results)
-                                        ? response.result.graphify_results as Array<{
-                                            imageName: string;
-                                            isGraph: boolean;
-                                            graphType?: string;
-                                            reason?: string;
-                                            pythonCode?: string;
-                                            data?: Record<string, unknown>;
-                                            assumptions?: string;
-                                            error?: string;
-                                            renderedImage?: string;
-                                            renderError?: string;
-                                            renderTimeMs?: number;
-                                          }>
+                                        ? response.result.graphify_results as GraphifyResult[]
                                         : undefined
                                       
                                       onAddToChat({

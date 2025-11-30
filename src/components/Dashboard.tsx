@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { LogOut, Menu } from 'lucide-react'
 import { CreateProjectModal } from '@/components/CreateProjectModal'
 import { GraphCodeExecutor } from '@/components/GraphCodeExecutor'
+import type { TableData, GraphifyResult } from '@/types/extraction'
 import { GatherSearchResultsService } from '@/services/gatherSearchResults'
 import type { PubMedArticle } from '@/types/papers'
 import type { SavedMarketMap } from '@/services/marketMapService'
@@ -103,25 +104,8 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
       fileName: string, 
       markdownContent: string, 
       hasTables: boolean,
-      tablesData?: Array<{
-        index: number;
-        headers: string[];
-        rows: string[][];
-        rawMarkdown: string;
-      }>;
-      graphifyResults?: Array<{
-        imageName: string;
-        isGraph: boolean;
-        graphType?: string;
-        reason?: string;
-        pythonCode?: string;
-        data?: Record<string, unknown>;
-        assumptions?: string;
-        error?: string;
-        renderedImage?: string;
-        renderError?: string;
-        renderTimeMs?: number;
-      }>;
+      tablesData?: TableData[];
+      graphifyResults?: GraphifyResult[];
     }) => {
       // Check if extraction is already in context
       if (selectedExtractions.some(e => e.jobId === extraction.jobId)) {

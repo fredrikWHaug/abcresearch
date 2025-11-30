@@ -55,6 +55,8 @@ export interface PDFExtractionJob {
   updated_at: string
 }
 
+import type { TableData, GraphifyResult } from './extraction'
+
 export interface PDFExtractionResultRecord {
   id: string
   job_id: string
@@ -66,8 +68,8 @@ export interface PDFExtractionResultRecord {
   // JSON results
   response_json?: Record<string, unknown> | null
   original_images?: Record<string, unknown> | null
-  graphify_results?: unknown[] | null
-  tables_data?: unknown[] | null
+  graphify_results?: GraphifyResult[] | null
+  tables_data?: TableData[] | null  // Use canonical TableData type from extraction.ts
   
   // Statistics
   images_found: number

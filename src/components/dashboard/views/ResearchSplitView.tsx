@@ -10,6 +10,7 @@ import type { PressRelease } from '@/types/press-releases'
 import type { ChatMessage } from '@/types/chat'
 import type { StrategyResult } from '@/services/gatherSearchResults'
 import type { SearchSuggestion } from './types'
+import { GraphCodeExecutor } from '@/components/GraphCodeExecutor'
 
 interface ContextSummaryProps {
   selectedPapers: PubMedArticle[]
@@ -327,7 +328,24 @@ export function ResearchSplitView({
                       </div>
                     ) : (
                       <>
-                        <div className="text-sm leading-relaxed">{item.message}</div>
+                        {/* Remove Python code block from message if graphCode is present */}
+                        {item.graphCode ? (
+                          <div className="text-sm leading-relaxed">
+                            {item.message.replace(/```[Pp]ython\s*\n[\s\S]*?```/g, '').trim() || 'Generated graph code:'}
+                          </div>
+                        ) : (
+                          <div className="text-sm leading-relaxed">{item.message}</div>
+                        )}
+
+                        {/* Show GraphCodeExecutor if graphCode is present */}
+                        {item.graphCode && (
+                          <div className="mt-4">
+                            <GraphCodeExecutor 
+                              code={item.graphCode} 
+                              title="Generated Graph"
+                            />
+                          </div>
+                        )}
 
                         {((item.contextPapers && item.contextPapers.length > 0) || (item.contextPressReleases && item.contextPressReleases.length > 0) || (item.contextExtractions && item.contextExtractions.length > 0)) && (
                           <div className="mt-2 space-y-2">

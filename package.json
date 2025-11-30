@@ -38,6 +38,7 @@
     "highlight.js": "^11.11.1",
     "lucide-react": "^0.544.0",
     "mdast-util-to-string": "^4.0.0",
+    "pandas": "^0.0.3",
     "pdf-parse": "^1.1.1",
     "pdfjs-dist": "^5.4.149",
     "pptxgenjs": "^4.0.1",
