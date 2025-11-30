@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ChevronRight, Pill, FileText, FlaskConical, Search, X, Target, Loader2, Newspaper, FolderOpen } from 'lucide-react';
+import { ChevronRight, Pill, FileText, FlaskConical, Search, X, Target, Loader2, Newspaper, FolderOpen, Check } from 'lucide-react';
 import type { DrugGroup } from '@/services/drugGroupingService';
 import type { StrategyResult } from '@/services/gatherSearchResults';
 
@@ -133,6 +133,8 @@ export function DrugsList({ drugGroups, loading, query, onDrugClick, onDrugSpeci
                 className={`hover:shadow-lg transition-all cursor-pointer border-2 ${
                   hoveredDrug === drugGroup.normalizedName
                     ? 'border-blue-500 shadow-md'
+                    : drugGroup.hasBeenDeepDived
+                    ? 'border-indigo-200 bg-indigo-50/30'
                     : 'border-transparent'
                 }`}
                 onClick={() => onDrugClick(drugGroup)}
@@ -144,15 +146,28 @@ export function DrugsList({ drugGroups, loading, query, onDrugClick, onDrugSpeci
                     {/* Left: Drug Info */}
                     <div className="flex items-center gap-4 flex-1">
                       {/* Icon */}
-                      <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center shrink-0">
-                        <Pill className="h-6 w-6 text-blue-600" />
+                      <div className={`w-12 h-12 rounded-lg flex items-center justify-center shrink-0 ${
+                        drugGroup.hasBeenDeepDived ? 'bg-indigo-100 shadow-inner border border-indigo-200' : 'bg-blue-100'
+                      }`}>
+                        <Pill className={`h-6 w-6 ${
+                          drugGroup.hasBeenDeepDived 
+                            ? 'text-indigo-600 drop-shadow-sm' 
+                            : 'text-blue-600'
+                        }`} />
                       </div>
 
                       {/* Drug Name and Stats */}
                       <div className="flex-1">
-                        <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                          {drugGroup.drugName}
-                        </h3>
+                        <div className="flex items-center gap-2 mb-2">
+                          <h3 className="text-lg font-semibold text-gray-900">
+                            {drugGroup.drugName}
+                          </h3>
+                          {drugGroup.hasBeenDeepDived && (
+                            <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200 text-[10px] px-1.5 py-0 h-5">
+                              Deep Searched
+                            </Badge>
+                          )}
+                        </div>
                         <div className="flex items-center gap-3">
                           <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-blue-100 px-2.5 py-1 hover:bg-blue-100 transition-colors cursor-pointer">
                             <div className="flex items-center gap-1.5">
@@ -195,15 +210,15 @@ export function DrugsList({ drugGroups, loading, query, onDrugClick, onDrugSpeci
 
                     {/* Right: Actions */}
                     <div className="flex items-center gap-3 shrink-0">
-                      {/* Deep Dive Search Button */}
-                      {onDrugSpecificSearch && (
+                      {/* Deep Search Button */}
+                      {onDrugSpecificSearch && !drugGroup.hasBeenDeepDived && (
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={(e) => handleDrugSpecificSearch(drugGroup.drugName, e)}
                           disabled={searchingDrug === drugGroup.drugName}
-                          className="flex items-center gap-2 text-xs cursor-pointer"
-                          title="Run targeted search for this specific drug"
+                          className="flex items-center gap-2 text-xs cursor-pointer hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200"
+                          title="Run a comprehensive AI-enhanced search to find ALL trials, papers, and press releases for this drug"
                         >
                           {searchingDrug === drugGroup.drugName ? (
                             <>
@@ -213,7 +228,7 @@ export function DrugsList({ drugGroups, loading, query, onDrugClick, onDrugSpeci
                           ) : (
                             <>
                               <Target className="h-3 w-3" />
-                              Deep Dive
+                              Deep Search
                             </>
                           )}
                         </Button>

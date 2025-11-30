@@ -7,6 +7,9 @@ import { Button } from '@/components/ui/button'
 import { Plus, FolderOpen, Calendar, ArrowRight } from 'lucide-react'
 import { CreateProjectModal } from '@/components/CreateProjectModal'
 import { AnimatedGradientBackground } from '@/components/AnimatedGradientBackground'
+import { motion } from 'framer-motion'
+
+const MotionCard = motion(Card)
 
 interface Project {
   id: number
@@ -96,7 +99,7 @@ export function ProjectsHomePage() {
           <div className="text-center bg-white/70 backdrop-blur-xl rounded-3xl p-12 shadow-2xl border border-white/50">
             <div className="relative inline-block mb-8">
               <div className="absolute inset-0 bg-blue-100 rounded-full blur-3xl opacity-30" />
-              <div className="relative rounded-full bg-gradient-to-br from-blue-50 to-indigo-50 p-8 w-fit mx-auto">
+              <div className="relative rounded-full bg-linear-to-br from-blue-50 to-indigo-50 p-8 w-fit mx-auto">
                 <FolderOpen className="h-16 w-16 text-blue-500" />
               </div>
             </div>
@@ -153,60 +156,64 @@ export function ProjectsHomePage() {
           {!loading && projects.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {/* Create New Project Card */}
-              <Card
-              className="border-2 border-dashed border-white/40 hover:border-blue-400/60 hover:shadow-2xl bg-white/40 backdrop-blur-xl transition-all duration-300 cursor-pointer group relative overflow-hidden hover:scale-105"
-              onClick={() => setShowCreateModal(true)}
-            >
-              <CardHeader className="flex flex-col items-center justify-center h-48 text-center relative z-10">
-                <div className="rounded-full bg-blue-100/60 backdrop-blur-sm p-4 mb-4 group-hover:bg-blue-200/70 group-hover:scale-110 transition-all duration-300 shadow-lg">
-                  <Plus className="h-8 w-8 text-blue-600" />
-                </div>
-                <CardTitle className="text-lg font-semibold text-gray-900 mb-1">
-                  Create New Project
-                </CardTitle>
-                <CardDescription className="text-gray-600">
-                  Start a fresh research project
-                </CardDescription>
-              </CardHeader>
-              {/* Subtle gradient on hover */}
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-100/0 to-blue-100/0 group-hover:from-blue-100/40 group-hover:to-purple-100/30 transition-all duration-300 pointer-events-none" />
-            </Card>
-
-            {/* Existing Project Cards */}
-            {projects.map((project) => (
-              <Card
-                key={project.id}
-                className="group border border-white/50 hover:border-white/70 hover:shadow-2xl bg-white/50 backdrop-blur-xl transition-all duration-300 cursor-pointer relative overflow-hidden hover:-translate-y-2 hover:scale-105"
-                onClick={() => handleProjectClick(project.id)}
+              <MotionCard
+                className="border-2 border-dashed border-white/40 hover:border-blue-400/60 hover:shadow-2xl bg-white/40 backdrop-blur-xl cursor-pointer group relative overflow-hidden"
+                onClick={() => setShowCreateModal(true)}
+                whileHover={{ scale: 1.05 }}
+                transition={{ duration: 0.2, ease: "easeOut" }}
               >
-                <CardHeader className="h-48 flex flex-col justify-between p-6 relative z-10">
-                  <div>
-                    <div className="rounded-xl bg-gradient-to-br from-blue-100/70 to-indigo-100/70 backdrop-blur-sm p-2 w-fit mb-4 group-hover:from-blue-200/80 group-hover:to-indigo-200/80 transition-all duration-300 shadow-lg">
-                      <FolderOpen className="h-5 w-5 text-blue-700" />
-                    </div>
-                    <CardTitle className="text-lg font-semibold text-gray-900 line-clamp-2 mb-2 group-hover:text-blue-700 transition-colors">
-                      {project.name}
-                    </CardTitle>
+                <CardHeader className="flex flex-col items-center justify-center h-48 text-center relative z-10">
+                  <div className="rounded-full bg-blue-100/60 backdrop-blur-sm p-4 mb-4 group-hover:bg-blue-200/70 group-hover:scale-110 transition-all duration-300 shadow-lg">
+                    <Plus className="h-8 w-8 text-blue-600" />
                   </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-xs text-gray-600">
-                      <Calendar className="h-3.5 w-3.5" />
-                      <span>
-                        {new Date(project.updated_at).toLocaleDateString('en-US', {
-                          month: 'short',
-                          day: 'numeric',
-                          year: 'numeric'
-                        })}
-                      </span>
-                    </div>
-                    <ArrowRight className="h-4 w-4 text-gray-500 group-hover:text-blue-700 group-hover:translate-x-2 transition-all" />
-                  </div>
+                  <CardTitle className="text-lg font-semibold text-gray-900 mb-1">
+                    Create New Project
+                  </CardTitle>
+                  <CardDescription className="text-gray-600">
+                    Start a fresh research project
+                  </CardDescription>
                 </CardHeader>
-                {/* Dynamic gradient overlay on hover */}
-                <div className="absolute inset-0 bg-gradient-to-br from-blue-100/0 to-purple-100/0 group-hover:from-blue-100/30 group-hover:to-purple-100/30 transition-all duration-500 pointer-events-none" />
-              </Card>
-            ))}
+                {/* Subtle gradient on hover */}
+                <div className="absolute inset-0 bg-linear-to-br from-blue-100/0 to-blue-100/0 group-hover:from-blue-100/40 group-hover:to-purple-100/30 transition-all duration-300 pointer-events-none" />
+              </MotionCard>
+
+              {/* Existing Project Cards */}
+              {projects.map((project) => (
+                <MotionCard
+                  key={project.id}
+                  className="group border border-white/50 hover:border-white/70 hover:shadow-2xl bg-white/50 backdrop-blur-xl cursor-pointer relative overflow-hidden"
+                  onClick={() => handleProjectClick(project.id)}
+                  whileHover={{ scale: 1.05, y: -5 }}
+                  transition={{ duration: 0.2, ease: "easeOut" }}
+                >
+                  <CardHeader className="h-48 flex flex-col justify-between p-6 relative z-10">
+                    <div>
+                      <div className="rounded-xl bg-linear-to-br from-blue-100/70 to-indigo-100/70 backdrop-blur-sm p-2 w-fit mb-4 group-hover:from-blue-200/80 group-hover:to-indigo-200/80 transition-all duration-300 shadow-lg">
+                        <FolderOpen className="h-5 w-5 text-blue-700" />
+                      </div>
+                      <CardTitle className="text-lg font-semibold text-gray-900 line-clamp-2 mb-2 group-hover:text-blue-700 transition-colors">
+                        {project.name}
+                      </CardTitle>
+                    </div>
+                    
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-xs text-gray-600">
+                        <Calendar className="h-3.5 w-3.5" />
+                        <span>
+                          {new Date(project.updated_at).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric'
+                          })}
+                        </span>
+                      </div>
+                      <ArrowRight className="h-4 w-4 text-gray-500 group-hover:text-blue-700 group-hover:translate-x-2 transition-all" />
+                    </div>
+                  </CardHeader>
+                  {/* Dynamic gradient overlay on hover */}
+                  <div className="absolute inset-0 bg-linear-to-br from-blue-100/0 to-purple-100/0 group-hover:from-blue-100/30 group-hover:to-purple-100/30 transition-all duration-500 pointer-events-none" />
+                </MotionCard>
+              ))}
             </div>
           )}
         </div>
