@@ -1051,7 +1051,7 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
           <div className="relative menu-container">
             <button
               onClick={handleMenuToggle}
-              className="p-3 bg-white/50 rounded-full shadow-sm hover:shadow-md transition-all border border-gray-200/50 hover:bg-white hover:scale-105"
+              className="p-3 bg-white/50 rounded-full shadow-sm hover:shadow-md transition-all border border-gray-200/50 hover:bg-white hover:scale-105 cursor-pointer"
               title="Menu"
             >
               <Menu className="h-5 w-5 text-gray-600 hover:text-gray-900" />
@@ -1062,7 +1062,7 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
               <div className="absolute top-14 left-0 bg-white/90 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 py-2 min-w-[180px] z-50 animate-scale-in origin-top-left">
                 <button
                   onClick={handleSignOut}
-                  className="w-full px-4 py-3 text-left text-gray-700 hover:bg-gray-50/50 flex items-center gap-3 transition-colors"
+                  className="w-full px-4 py-3 text-left text-gray-700 hover:bg-gray-50/50 flex items-center gap-3 transition-colors cursor-pointer"
                 >
                   <LogOut className="h-4 w-4 text-gray-500" />
                   Sign Out
@@ -1087,7 +1087,7 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
             <div className="relative flex-1 projects-dropdown-container">
               <button
                 onClick={() => setShowProjectsDropdown(!showProjectsDropdown)}
-                className={`py-2 px-4 rounded-full text-sm font-medium transition-all duration-300 w-full text-center whitespace-nowrap overflow-hidden ${
+                className={`py-2 px-4 rounded-full text-sm font-medium transition-all duration-300 w-full text-center whitespace-nowrap overflow-hidden cursor-pointer ${
                   showProjectsDropdown
                     ? 'bg-primary text-primary-foreground shadow-md scale-100'
                     : 'bg-primary/90 text-primary-foreground hover:bg-primary hover:shadow-sm'
@@ -1120,7 +1120,7 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
                             setShowProjectsDropdown(false)
                             console.log('Switched to project:', project.name)
                           }}
-                          className={`w-full text-left px-4 py-3 hover:bg-gray-50/50 transition-colors ${
+                          className={`w-full text-left px-4 py-3 hover:bg-gray-50/50 transition-colors cursor-pointer ${
                             project.id === currentProjectId ? 'bg-blue-50/50' : ''
                           }`}
                         >
@@ -1159,7 +1159,7 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
                         setShowCreateProjectModal(true)
                         setShowProjectsDropdown(false)
                       }}
-                      className="w-full text-left px-4 py-3 bg-blue-50 hover:bg-blue-100 rounded-xl transition-colors group"
+                      className="w-full text-left px-4 py-3 bg-blue-50 hover:bg-blue-100 rounded-xl transition-colors group cursor-pointer"
                     >
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 bg-blue-200 group-hover:bg-blue-300 transition-colors">
@@ -1180,7 +1180,7 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
             </div>
             <button
               onClick={() => setViewMode('research')}
-              className={`py-2 px-4 rounded-full text-sm font-medium transition-all duration-300 flex-1 text-center whitespace-nowrap ${
+              className={`py-2 px-4 rounded-full text-sm font-medium transition-all duration-300 flex-1 text-center whitespace-nowrap cursor-pointer ${
                 viewMode === 'research'
                   ? 'bg-white text-gray-900 shadow-sm scale-100'
                   : 'text-gray-500 hover:text-gray-900 hover:bg-white/50'
@@ -1190,7 +1190,7 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
             </button>
             <button
               onClick={() => setViewMode('pipeline')}
-              className={`py-2 px-4 rounded-full text-sm font-medium transition-all duration-300 flex-1 text-center whitespace-nowrap ${
+              className={`py-2 px-4 rounded-full text-sm font-medium transition-all duration-300 flex-1 text-center whitespace-nowrap cursor-pointer ${
                 viewMode === 'pipeline'
                   ? 'bg-white text-gray-900 shadow-sm scale-100'
                   : 'text-gray-500 hover:text-gray-900 hover:bg-white/50'
@@ -1200,7 +1200,7 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
             </button>
             <button
               onClick={() => setViewMode('marketmap')}
-              className={`py-2 px-4 rounded-full text-sm font-medium transition-all duration-300 flex-1 text-center whitespace-nowrap ${
+              className={`py-2 px-4 rounded-full text-sm font-medium transition-all duration-300 flex-1 text-center whitespace-nowrap cursor-pointer ${
                 viewMode === 'marketmap'
                   ? 'bg-white text-gray-900 shadow-sm scale-100'
                   : 'text-gray-500 hover:text-gray-900 hover:bg-white/50'
@@ -1210,7 +1210,7 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
             </button>
             <button
               onClick={() => setViewMode('dataextraction')}
-              className={`py-2 px-4 rounded-full text-sm font-medium transition-all duration-300 flex-1 text-center whitespace-nowrap ${
+              className={`py-2 px-4 rounded-full text-sm font-medium transition-all duration-300 flex-1 text-center whitespace-nowrap cursor-pointer ${
                 viewMode === 'dataextraction'
                   ? 'bg-white text-gray-900 shadow-sm scale-100'
                   : 'text-gray-500 hover:text-gray-900 hover:bg-white/50'
@@ -1220,7 +1220,7 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
             </button>
             <button
               onClick={() => setViewMode('realtimefeed')}
-              className={`py-2 px-4 rounded-full text-sm font-medium transition-all duration-300 flex-1 text-center whitespace-nowrap ${
+              className={`py-2 px-4 rounded-full text-sm font-medium transition-all duration-300 flex-1 text-center whitespace-nowrap cursor-pointer ${
                 viewMode === 'realtimefeed'
                   ? 'bg-white text-gray-900 shadow-sm scale-100'
                   : 'text-gray-500 hover:text-gray-900 hover:bg-white/50'
@@ -1262,7 +1262,7 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
                     e.stopPropagation();
                     setIsExpanded(false);
                   }}
-                    className="absolute -top-1 -right-1 w-5 h-5 bg-gray-200 hover:bg-gray-300 rounded-full flex items-center justify-center text-gray-600 hover:text-gray-700 transition-colors"
+                    className="absolute -top-1 -right-1 w-5 h-5 bg-gray-200 hover:bg-gray-300 rounded-full flex items-center justify-center text-gray-600 hover:text-gray-700 transition-colors cursor-pointer"
                   >
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

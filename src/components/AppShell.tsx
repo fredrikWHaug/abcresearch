@@ -24,7 +24,7 @@ export function AppShell() {
           {/* Left: Logo/Home Button */}
           <button
             onClick={() => navigate('/app/home')}
-            className="group flex items-center gap-2 text-2xl font-bold tracking-tight text-gray-900 transition-opacity hover:opacity-80"
+            className="group flex items-center gap-2 text-2xl font-bold tracking-tight text-gray-900 transition-opacity hover:opacity-80 cursor-pointer"
           >
             <span className="bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
               ABCresearch
@@ -36,7 +36,7 @@ export function AppShell() {
             <div className="hidden md:flex rounded-full bg-gray-100/50 p-1.5 gap-1 border border-black/5 shadow-inner backdrop-blur-sm">
               <button
                 onClick={() => navigate(`/app/project/${projectId}/research`)}
-                className={`py-2 px-5 rounded-full text-sm font-medium transition-all duration-300 ease-out whitespace-nowrap ${
+                className={`py-2 px-5 rounded-full text-sm font-medium transition-all duration-300 ease-out whitespace-nowrap cursor-pointer ${
                   currentView === 'research'
                     ? 'bg-white text-gray-900 shadow-sm scale-100'
                     : 'text-gray-500 hover:text-gray-900 hover:bg-white/50'
@@ -46,7 +46,7 @@ export function AppShell() {
               </button>
               <button
                 onClick={() => navigate(`/app/project/${projectId}/pipeline`)}
-                className={`py-2 px-5 rounded-full text-sm font-medium transition-all duration-300 ease-out whitespace-nowrap ${
+                className={`py-2 px-5 rounded-full text-sm font-medium transition-all duration-300 ease-out whitespace-nowrap cursor-pointer ${
                   currentView === 'pipeline'
                     ? 'bg-white text-gray-900 shadow-sm scale-100'
                     : 'text-gray-500 hover:text-gray-900 hover:bg-white/50'
@@ -56,7 +56,7 @@ export function AppShell() {
               </button>
               <button
                 onClick={() => navigate(`/app/project/${projectId}/marketmap`)}
-                className={`py-2 px-5 rounded-full text-sm font-medium transition-all duration-300 ease-out whitespace-nowrap ${
+                className={`py-2 px-5 rounded-full text-sm font-medium transition-all duration-300 ease-out whitespace-nowrap cursor-pointer ${
                   currentView === 'marketmap'
                     ? 'bg-white text-gray-900 shadow-sm scale-100'
                     : 'text-gray-500 hover:text-gray-900 hover:bg-white/50'
@@ -66,7 +66,7 @@ export function AppShell() {
               </button>
               <button
                 onClick={() => navigate(`/app/project/${projectId}/extraction`)}
-                className={`py-2 px-5 rounded-full text-sm font-medium transition-all duration-300 ease-out whitespace-nowrap ${
+                className={`py-2 px-5 rounded-full text-sm font-medium transition-all duration-300 ease-out whitespace-nowrap cursor-pointer ${
                   currentView === 'extraction'
                     ? 'bg-white text-gray-900 shadow-sm scale-100'
                     : 'text-gray-500 hover:text-gray-900 hover:bg-white/50'
@@ -76,7 +76,7 @@ export function AppShell() {
               </button>
               <button
                 onClick={() => navigate(`/app/project/${projectId}/feed`)}
-                className={`py-2 px-5 rounded-full text-sm font-medium transition-all duration-300 ease-out whitespace-nowrap ${
+                className={`py-2 px-5 rounded-full text-sm font-medium transition-all duration-300 ease-out whitespace-nowrap cursor-pointer ${
                   currentView === 'feed'
                     ? 'bg-white text-gray-900 shadow-sm scale-100'
                     : 'text-gray-500 hover:text-gray-900 hover:bg-white/50'
