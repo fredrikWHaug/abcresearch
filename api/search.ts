@@ -478,10 +478,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               return validUrlPatterns.some(pattern => url.toLowerCase().includes(pattern));
             };
 
-            // Skip if it's a news media site or not a press release page
-            if (isNewsMedia(item.link) || !isPressReleasePage(item.link)) {
+            // Skip if it's a news media site (temporarily disable URL pattern check for testing)
+            if (isNewsMedia(item.link)) {
               continue;
             }
+            // Temporarily disabled: URL pattern check
+            // if (!isPressReleasePage(item.link)) {
+            //   continue;
+            // }
 
             // Extract company name from domain or title
             const extractCompany = () => {
