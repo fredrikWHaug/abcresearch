@@ -1,139 +1,162 @@
-import { motion } from 'framer-motion'
+import { motion, useReducedMotion } from 'framer-motion'
+import { useMemo } from 'react'
 
 export function AnimatedGradientBackground() {
-  // Multiple gradient blobs with different colors, positions, and animation timings
-  const blobs = [
+  // Respect user's reduced motion preference for accessibility
+  const shouldReduceMotion = useReducedMotion()
+
+  // Use SOLID colors with extreme blur - no gradients = no banding
+  // The blur creates the gradient effect naturally
+  const blobs = useMemo(() => [
     {
       id: 1,
-      colors: ['rgba(147, 197, 253, 0.4)', 'rgba(191, 219, 254, 0.3)'], // Soft blue
-      initialX: '10%',
-      initialY: '20%',
+      color: '#93C5FD', // Blue
+      size: '50vw',
+      initialX: '5%',
+      initialY: '10%',
       duration: 20,
-      delay: 0
+      delay: 0,
+      blur: 150,
     },
     {
       id: 2,
-      colors: ['rgba(196, 181, 253, 0.4)', 'rgba(221, 214, 254, 0.3)'], // Soft purple
-      initialX: '70%',
-      initialY: '30%',
+      color: '#C4B5FD', // Purple
+      size: '45vw',
+      initialX: '60%',
+      initialY: '20%',
       duration: 25,
-      delay: 2
+      delay: 2,
+      blur: 140,
     },
     {
       id: 3,
-      colors: ['rgba(252, 165, 165, 0.3)', 'rgba(254, 202, 202, 0.2)'], // Soft pink/red
-      initialX: '40%',
-      initialY: '60%',
+      color: '#FCA5A5', // Pink/Red
+      size: '40vw',
+      initialX: '30%',
+      initialY: '55%',
       duration: 22,
-      delay: 4
+      delay: 4,
+      blur: 130,
     },
     {
       id: 4,
-      colors: ['rgba(167, 243, 208, 0.3)', 'rgba(209, 250, 229, 0.2)'], // Soft green
-      initialX: '80%',
-      initialY: '70%',
+      color: '#A7F3D0', // Green
+      size: '42vw',
+      initialX: '75%',
+      initialY: '65%',
       duration: 23,
-      delay: 1
+      delay: 1,
+      blur: 135,
     },
     {
       id: 5,
-      colors: ['rgba(253, 224, 71, 0.3)', 'rgba(254, 240, 138, 0.2)'], // Soft yellow
-      initialX: '20%',
-      initialY: '80%',
+      color: '#FDE047', // Yellow
+      size: '38vw',
+      initialX: '15%',
+      initialY: '75%',
       duration: 24,
-      delay: 3
+      delay: 3,
+      blur: 125,
     },
     {
       id: 6,
-      colors: ['rgba(254, 215, 170, 0.3)', 'rgba(254, 235, 200, 0.2)'], // Soft orange
-      initialX: '60%',
-      initialY: '10%',
+      color: '#FDBA74', // Orange
+      size: '44vw',
+      initialX: '55%',
+      initialY: '5%',
       duration: 26,
-      delay: 5
+      delay: 5,
+      blur: 145,
     }
-  ]
+  ], [])
 
   return (
     <div className="fixed inset-0 overflow-hidden pointer-events-none">
-      {/* Base gradient overlay */}
-      <div className="absolute inset-0 bg-gradient-to-br from-blue-50/30 via-purple-50/20 to-pink-50/30" />
+      {/* Soft white/cream base */}
+      <div className="absolute inset-0 bg-slate-50" />
       
-      {/* Animated gradient blobs */}
+      {/* Animated solid color blobs - blur creates smooth "gradients" */}
       {blobs.map((blob) => (
         <motion.div
           key={blob.id}
-          className="absolute rounded-full"
+          className="absolute rounded-full will-change-transform"
           style={{
-            width: '40vw',
-            height: '40vw',
-            background: `radial-gradient(circle, ${blob.colors[0]}, ${blob.colors[1]})`,
-            filter: 'blur(80px)',
+            width: blob.size,
+            height: blob.size,
+            backgroundColor: blob.color,
+            opacity: 0.35,
+            filter: `blur(${blob.blur}px)`,
             left: blob.initialX,
             top: blob.initialY,
+            transform: 'translate3d(0, 0, 0)', // Force GPU layer
           }}
-          animate={{
-            x: [0, 100, -50, 50, 0],
-            y: [0, -80, 100, -60, 0],
-            scale: [1, 1.2, 0.9, 1.1, 1],
-            opacity: [0.6, 0.8, 0.5, 0.7, 0.6],
+          animate={shouldReduceMotion ? {} : {
+            x: [0, 80, -40, 60, 0],
+            y: [0, -60, 80, -40, 0],
+            scale: [1, 1.15, 0.95, 1.1, 1],
           }}
           transition={{
             duration: blob.duration,
             delay: blob.delay,
             repeat: Infinity,
             ease: 'easeInOut',
+            type: 'tween',
           }}
         />
       ))}
 
-      {/* Additional smaller accent blobs for depth */}
+      {/* Central accent blob */}
       <motion.div
-        className="absolute rounded-full"
+        className="absolute rounded-full will-change-transform"
         style={{
-          width: '30vw',
-          height: '30vw',
-          background: 'radial-gradient(circle, rgba(236, 72, 153, 0.2), rgba(251, 207, 232, 0.1))',
-          filter: 'blur(60px)',
-          left: '50%',
-          top: '50%',
+          width: '35vw',
+          height: '35vw',
+          backgroundColor: '#F9A8D4', // Pink
+          opacity: 0.25,
+          filter: 'blur(120px)',
+          left: '45%',
+          top: '45%',
+          transform: 'translate3d(0, 0, 0)',
         }}
-        animate={{
-          x: [-30, 40, -20, 30, -30],
-          y: [20, -40, 30, -20, 20],
-          scale: [1, 1.3, 0.8, 1.2, 1],
+        animate={shouldReduceMotion ? {} : {
+          x: [-20, 30, -15, 25, -20],
+          y: [15, -30, 25, -15, 15],
+          scale: [1, 1.2, 0.9, 1.15, 1],
         }}
         transition={{
           duration: 28,
           repeat: Infinity,
           ease: 'easeInOut',
+          type: 'tween',
         }}
       />
 
-      {/* Shimmer effect overlay for futuristic feel */}
+      {/* Subtle shimmer overlay */}
       <motion.div
         className="absolute inset-0"
         style={{
-          background: 'linear-gradient(45deg, transparent 30%, rgba(255, 255, 255, 0.1) 50%, transparent 70%)',
+          background: 'linear-gradient(45deg, transparent 40%, rgba(255, 255, 255, 0.15) 50%, transparent 60%)',
           backgroundSize: '200% 200%',
         }}
-        animate={{
+        animate={shouldReduceMotion ? {} : {
           backgroundPosition: ['0% 0%', '100% 100%'],
         }}
         transition={{
-          duration: 15,
+          duration: 12,
           repeat: Infinity,
           ease: 'linear',
         }}
       />
 
-      {/* Subtle noise texture for depth */}
+      {/* Film grain texture for subtle texture (helps break up any remaining banding from blur) */}
       <div 
-        className="absolute inset-0 opacity-[0.015]"
+        className="absolute inset-0 pointer-events-none"
         style={{
-          backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")`,
+          opacity: 0.04,
+          mixBlendMode: 'multiply',
+          backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E")`,
         }}
       />
     </div>
   )
 }
-
