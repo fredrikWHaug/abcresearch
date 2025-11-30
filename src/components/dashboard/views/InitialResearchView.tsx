@@ -2,7 +2,6 @@
 import React from 'react'
 import { ArrowUp } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import type { PubMedArticle } from '@/types/papers'
 import type { PressRelease } from '@/types/press-releases'
 
