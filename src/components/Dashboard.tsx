@@ -1041,7 +1041,7 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
 
   // Shared header component
   const Header = ({ currentProjectId }: { currentProjectId?: number | null } = {}) => (
-    <div className="h-16 bg-white border-b border-gray-200 z-50 flex items-center relative">
+    <div className="h-16 bg-white/80 backdrop-blur-xl border-b border-white/20 z-50 flex items-center relative shadow-sm transition-all duration-300">
       {/* Left Side - Hamburger Menu (only for authenticated users) + Guest Banner + Context Indicator */}
       {/* Only show left side if NOT inside AppShell */}
       {!insideAppShell && (
@@ -1051,18 +1051,18 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
           <div className="relative menu-container">
             <button
               onClick={handleMenuToggle}
-              className="p-3 bg-white rounded-lg shadow-lg hover:shadow-xl transition-shadow border border-gray-200 hover:bg-gray-50"
+              className="p-3 bg-white/50 rounded-full shadow-sm hover:shadow-md transition-all border border-gray-200/50 hover:bg-white hover:scale-105"
               title="Menu"
             >
-              <Menu className="h-5 w-5 text-gray-600 hover:text-gray-800" />
+              <Menu className="h-5 w-5 text-gray-600 hover:text-gray-900" />
             </button>
             
             {/* Dropdown Menu */}
             {isMenuOpen && (
-              <div className="absolute top-12 left-0 bg-white rounded-lg shadow-xl border border-gray-200 py-2 min-w-[160px] z-50">
+              <div className="absolute top-14 left-0 bg-white/90 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 py-2 min-w-[180px] z-50 animate-scale-in origin-top-left">
                 <button
                   onClick={handleSignOut}
-                  className="w-full px-4 py-3 text-left text-gray-700 hover:bg-gray-50 flex items-center gap-3 transition-colors"
+                  className="w-full px-4 py-3 text-left text-gray-700 hover:bg-gray-50/50 flex items-center gap-3 transition-colors"
                 >
                   <LogOut className="h-4 w-4 text-gray-500" />
                   Sign Out
@@ -1083,14 +1083,14 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
           className="absolute z-20"
           style={{ left: '50%', transform: 'translateX(-50%)' }}
         >
-          <div className="flex rounded-lg bg-gray-100 p-1 w-[60rem]">
+          <div className="flex rounded-full bg-gray-100/50 p-1.5 w-[60rem] border border-white/20 shadow-inner backdrop-blur-sm">
             <div className="relative flex-1 projects-dropdown-container">
               <button
                 onClick={() => setShowProjectsDropdown(!showProjectsDropdown)}
-                className={`py-2 px-4 rounded-md text-sm font-medium transition-colors w-full text-center whitespace-nowrap overflow-hidden ${
+                className={`py-2 px-4 rounded-full text-sm font-medium transition-all duration-300 w-full text-center whitespace-nowrap overflow-hidden ${
                   showProjectsDropdown
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'bg-blue-500 text-white hover:bg-blue-600'
+                    ? 'bg-primary text-primary-foreground shadow-md scale-100'
+                    : 'bg-primary/90 text-primary-foreground hover:bg-primary hover:shadow-sm'
                 }`}
                 title={currentProjectName ? `Project: ${currentProjectName}` : 'Projects'}
               >
@@ -1101,11 +1101,11 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
               
               {/* Projects Dropdown */}
               {showProjectsDropdown && (
-                <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-lg shadow-xl border border-gray-200 py-2 min-w-[250px] z-50">
-                  <div className="px-4 py-2 border-b border-gray-200">
+                <div className="absolute top-full left-0 right-0 mt-3 bg-white/90 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 py-2 min-w-[250px] z-50 animate-scale-in origin-top">
+                  <div className="px-4 py-2 border-b border-gray-100">
                     <h3 className="font-semibold text-gray-900 text-sm">Your Projects</h3>
                   </div>
-                  <div className="py-1 max-h-64 overflow-y-auto">
+                  <div className="py-1 max-h-64 overflow-y-auto custom-scrollbar">
                     {loadingProjects ? (
                       <div className="px-4 py-3 text-sm text-gray-500 text-center">
                         Loading projects...
@@ -1120,17 +1120,15 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
                             setShowProjectsDropdown(false)
                             console.log('Switched to project:', project.name)
                           }}
-                          className={`w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors ${
-                            project.id === currentProjectId ? 'bg-blue-50' : ''
+                          className={`w-full text-left px-4 py-3 hover:bg-gray-50/50 transition-colors ${
+                            project.id === currentProjectId ? 'bg-blue-50/50' : ''
                           }`}
                         >
                           <div className="flex items-center gap-3">
                             <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                              project.id === currentProjectId ? 'bg-blue-100' : 'bg-gray-100'
+                              project.id === currentProjectId ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-500'
                             }`}>
-                              <svg className={`w-4 h-4 ${
-                                project.id === currentProjectId ? 'text-blue-600' : 'text-gray-600'
-                              }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                               </svg>
                             </div>
@@ -1139,8 +1137,8 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
                                 {project.name}
                               </p>
                               {project.id === currentProjectId && (
-                                <p className="text-xs text-blue-600">
-                                  Current project
+                                <p className="text-xs text-blue-600 font-medium">
+                                  Current
                                 </p>
                               )}
                             </div>
@@ -1155,22 +1153,22 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
                   </div>
                   
                   {/* Create New Project Button */}
-                  <div className="border-t border-gray-200 pt-2">
+                  <div className="border-t border-gray-100 pt-2 p-2">
                     <button
                       onClick={() => {
                         setShowCreateProjectModal(true)
                         setShowProjectsDropdown(false)
                       }}
-                      className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors"
+                      className="w-full text-left px-4 py-3 bg-blue-50 hover:bg-blue-100 rounded-xl transition-colors group"
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 bg-blue-100">
-                          <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 bg-blue-200 group-hover:bg-blue-300 transition-colors">
+                          <svg className="w-4 h-4 text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                           </svg>
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-blue-600">
+                          <p className="text-sm font-semibold text-blue-700">
                             Create New Project
                           </p>
                         </div>
@@ -1182,50 +1180,50 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
             </div>
             <button
               onClick={() => setViewMode('research')}
-              className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
+              className={`py-2 px-4 rounded-full text-sm font-medium transition-all duration-300 flex-1 text-center whitespace-nowrap ${
                 viewMode === 'research'
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
+                  ? 'bg-white text-gray-900 shadow-sm scale-100'
+                  : 'text-gray-500 hover:text-gray-900 hover:bg-white/50'
               }`}
             >
               Research
             </button>
             <button
               onClick={() => setViewMode('pipeline')}
-              className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
+              className={`py-2 px-4 rounded-full text-sm font-medium transition-all duration-300 flex-1 text-center whitespace-nowrap ${
                 viewMode === 'pipeline'
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
+                  ? 'bg-white text-gray-900 shadow-sm scale-100'
+                  : 'text-gray-500 hover:text-gray-900 hover:bg-white/50'
               }`}
             >
               Asset Pipeline
             </button>
             <button
               onClick={() => setViewMode('marketmap')}
-              className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
+              className={`py-2 px-4 rounded-full text-sm font-medium transition-all duration-300 flex-1 text-center whitespace-nowrap ${
                 viewMode === 'marketmap'
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
+                  ? 'bg-white text-gray-900 shadow-sm scale-100'
+                  : 'text-gray-500 hover:text-gray-900 hover:bg-white/50'
               }`}
             >
               Market Map
             </button>
             <button
               onClick={() => setViewMode('dataextraction')}
-              className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
+              className={`py-2 px-4 rounded-full text-sm font-medium transition-all duration-300 flex-1 text-center whitespace-nowrap ${
                 viewMode === 'dataextraction'
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
+                  ? 'bg-white text-gray-900 shadow-sm scale-100'
+                  : 'text-gray-500 hover:text-gray-900 hover:bg-white/50'
               }`}
             >
               Data Extraction
             </button>
             <button
               onClick={() => setViewMode('realtimefeed')}
-              className={`py-2 px-4 rounded-md text-sm font-medium transition-colors flex-1 text-center whitespace-nowrap ${
+              className={`py-2 px-4 rounded-full text-sm font-medium transition-all duration-300 flex-1 text-center whitespace-nowrap ${
                 viewMode === 'realtimefeed'
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
+                  ? 'bg-white text-gray-900 shadow-sm scale-100'
+                  : 'text-gray-500 hover:text-gray-900 hover:bg-white/50'
               }`}
             >
               Realtime Feed
