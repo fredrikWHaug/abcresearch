@@ -15,6 +15,7 @@ export interface DrugGroup {
   pressReleases: PressRelease[];
   irDecks: IRDeck[];
   totalResults: number;
+  hasBeenDeepDived?: boolean;
 }
 
 export class DrugGroupingService {
