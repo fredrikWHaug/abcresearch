@@ -1,6 +1,8 @@
  
 import React from 'react'
 import { ArrowUp } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import type { PubMedArticle } from '@/types/papers'
 import type { PressRelease } from '@/types/press-releases'
 
@@ -98,15 +100,16 @@ export const InitialResearchView = React.memo(function InitialResearchView({
                   <span className="text-blue-900 font-medium line-clamp-1 max-w-[200px]" title={paper.title}>
                     {paper.title}
                   </span>
-                  <button
+                  <Button
+                    variant="ghost"
                     onClick={() => onRemovePaper(paper.pmid)}
-                    className="flex-shrink-0 text-blue-400 hover:text-blue-600 transition-colors p-0.5 hover:bg-blue-100 rounded-full cursor-pointer"
+                    className="flex-shrink-0 text-blue-400 hover:text-blue-600 h-auto w-auto p-0.5 hover:bg-blue-100 rounded-full"
                     title="Remove from context"
                   >
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                     </svg>
-                  </button>
+                  </Button>
                 </div>
               ))}
               {selectedPressReleases.map((pr) => (
@@ -120,23 +123,25 @@ export const InitialResearchView = React.memo(function InitialResearchView({
                   <span className="text-purple-900 font-medium line-clamp-1 max-w-[200px]" title={pr.title}>
                     {pr.title}
                   </span>
-                  <button
+                  <Button
+                    variant="ghost"
                     onClick={() => onRemovePressRelease(pr.id)}
-                    className="flex-shrink-0 text-purple-400 hover:text-purple-600 transition-colors p-0.5 hover:bg-purple-100 rounded-full cursor-pointer"
+                    className="flex-shrink-0 text-purple-400 hover:text-purple-600 h-auto w-auto p-0.5 hover:bg-purple-100 rounded-full"
                     title="Remove from context"
                   >
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                     </svg>
-                  </button>
+                  </Button>
                 </div>
               ))}
             </div>
           ) : (
             <div className="relative context-panel-container">
-              <button
+              <Button
+                variant="outline"
                 onClick={onToggleContextPanel}
-                className="inline-flex items-center gap-2 px-5 py-2.5 bg-white border border-gray-200/50 rounded-full shadow-sm hover:shadow-md hover:border-blue-200 transition-all duration-300 cursor-pointer"
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-white border border-gray-200/50 rounded-full shadow-sm hover:shadow-md hover:border-blue-200 transition-all duration-300 h-auto"
               >
                 <div className="flex items-center justify-center w-6 h-6 rounded-full bg-blue-50">
                   <svg className="w-3.5 h-3.5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -149,18 +154,19 @@ export const InitialResearchView = React.memo(function InitialResearchView({
                 <svg className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${showContextPanel ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
-              </button>
+              </Button>
 
               {showContextPanel && (
                 <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 bg-white/80 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 py-2 w-96 max-h-96 overflow-y-auto z-50 animate-scale-in origin-top">
                   <div className="px-4 py-2 border-b border-gray-100 flex items-center justify-between">
                     <h3 className="font-semibold text-gray-900">Research Context</h3>
-                    <button
+                    <Button
+                      variant="ghost"
                       onClick={onClearContext}
-                      className="text-xs text-red-600 hover:text-red-700 font-medium px-2 py-1 hover:bg-red-50 rounded-md transition-colors cursor-pointer"
+                      className="text-xs text-red-600 hover:text-red-700 font-medium px-2 py-1 hover:bg-red-50 rounded-md h-auto"
                     >
                       Clear All
-                    </button>
+                    </Button>
                   </div>
                   {/* ... content list remains similar but cleaner ... */}
                   <div className="py-2">
@@ -178,15 +184,16 @@ export const InitialResearchView = React.memo(function InitialResearchView({
                               {paper.journal} • {paper.publicationDate}
                             </p>
                           </div>
-                          <button
+                          <Button
+                            variant="ghost"
                             onClick={() => onRemovePaper(paper.pmid)}
-                            className="flex-shrink-0 text-gray-400 hover:text-red-600 transition-colors p-1 hover:bg-red-50 rounded-full cursor-pointer"
+                            className="flex-shrink-0 text-gray-400 hover:text-red-600 h-auto w-auto p-1 hover:bg-red-50 rounded-full"
                             title="Remove from context"
                           >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                             </svg>
-                          </button>
+                          </Button>
                         </div>
                       </div>
                     ))}
@@ -204,15 +211,16 @@ export const InitialResearchView = React.memo(function InitialResearchView({
                               Press Release • {pr.releaseDate}
                             </p>
                           </div>
-                          <button
+                          <Button
+                            variant="ghost"
                             onClick={() => onRemovePressRelease(pr.id)}
-                            className="flex-shrink-0 text-gray-400 hover:text-red-600 transition-colors p-1 hover:bg-red-50 rounded-full cursor-pointer"
+                            className="flex-shrink-0 text-gray-400 hover:text-red-600 h-auto w-auto p-1 hover:bg-red-50 rounded-full"
                             title="Remove from context"
                           >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                             </svg>
-                          </button>
+                          </Button>
                         </div>
                       </div>
                     ))}
@@ -237,18 +245,18 @@ export const InitialResearchView = React.memo(function InitialResearchView({
             className="flex h-16 w-full rounded-full border border-gray-200 bg-white pl-6 pr-16 text-lg shadow-sm transition-all duration-300 placeholder:text-gray-400 focus:border-blue-300/50 focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
             disabled={loading}
           />
-          <button
+          <Button
             type="button"
             onClick={handleSend}
             disabled={!message.trim() || loading}
-            className="absolute right-2 h-12 w-12 rounded-full bg-gray-900 hover:bg-black disabled:bg-gray-200 disabled:cursor-not-allowed flex items-center justify-center transition-all duration-300 hover:scale-105 shadow-md text-white cursor-pointer"
+            className="absolute right-2 h-12 w-12 rounded-full bg-gray-900 hover:bg-black disabled:bg-gray-200 disabled:cursor-not-allowed flex items-center justify-center transition-all duration-300 hover:scale-105 shadow-md text-white p-0"
           >
             {loading ? (
               <div className="h-5 w-5 animate-spin rounded-full border-2 border-gray-400 border-t-white" />
             ) : (
               <ArrowUp className="h-5 w-5" />
             )}
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -257,12 +265,13 @@ export const InitialResearchView = React.memo(function InitialResearchView({
           <p className="text-sm font-medium text-gray-400 mb-4 text-center uppercase tracking-wider text-xs">Suggested Research Paths</p>
           <div className="grid gap-4 sm:grid-cols-3">
             {quickSearches.map(({ id, query }, index) => (
-              <button
+              <Button
                 key={id}
                 type="button"
+                variant="ghost"
                 onClick={() => handleQuickSearch(query)}
                 disabled={loading}
-                className="group relative text-left p-6 rounded-2xl border border-white/40 bg-white/60 shadow-sm hover:shadow-xl hover:-translate-y-1 hover:bg-white transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed overflow-hidden backdrop-blur-sm cursor-pointer"
+                className="group relative text-left p-6 rounded-2xl border border-white/40 bg-white/60 shadow-sm hover:shadow-xl hover:-translate-y-1 hover:bg-white transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed overflow-hidden backdrop-blur-sm h-auto w-full block whitespace-normal"
                 style={{ animationDelay: `${0.1 + index * 0.1}s` }}
               >
                 <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-blue-400 to-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
@@ -272,7 +281,7 @@ export const InitialResearchView = React.memo(function InitialResearchView({
                 <div className="mt-4 flex items-center text-xs font-semibold text-blue-600 opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-y-2 group-hover:translate-y-0">
                   Start Research <span className="ml-1">→</span>
                 </div>
-              </button>
+              </Button>
             ))}
           </div>
         </div>

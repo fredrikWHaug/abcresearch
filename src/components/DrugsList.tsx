@@ -248,12 +248,14 @@ export function DrugsList({ drugGroups, loading, query, onDrugClick, onDrugSpeci
                 <h2 className="text-2xl font-bold text-gray-900">Initial Landscaping Search Queries</h2>
                 <p className="text-sm text-gray-600 mt-1">Broad search queries used in Stage 1 to discover all relevant drugs</p>
               </div>
-              <button
+              <Button
+                variant="ghost"
+                size="icon"
                 onClick={() => setShowSearchTermsModal(false)}
-                className="text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
+                className="text-gray-400 hover:text-gray-600 h-auto w-auto p-1"
               >
                 <X className="h-6 w-6" />
-              </button>
+              </Button>
             </div>
 
             {/* Modal Content */}
