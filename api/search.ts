@@ -416,13 +416,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           searchQuery = `${params.query} press release`;
         }
 
-        // Search for press releases on company websites and SEC
-        // We'll do multiple searches: company sites + SEC
+        // Search for press releases and announcements from companies
         const searchUrls = [
-          // Search company investor relations pages
-          `${searchQuery} site:investors OR site:investor OR site:ir`,
-          // Search SEC 8-K filings
-          `${searchQuery} site:sec.gov 8-K`
+          // Search for press releases
+          `${searchQuery} "press release"`,
+          // Search for company announcements
+          `${searchQuery} announcement`
         ];
 
         for (const query of searchUrls) {
@@ -598,13 +597,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           searchQuery = `${params.company} ${searchQuery}`;
         }
 
-        // Search for IR decks and investor presentations on SEC and company sites
+        // Search for IR decks and investor presentations - 3 categories
         const searchQueries = [
-          // SEC filings (PDFs)
+          // Category 1: SEC filings (official regulatory documents)
           `${searchQuery} site:sec.gov filetype:pdf`,
-          // Company investor relations pages
-          `${searchQuery} investor presentation filetype:pdf`,
-          `${searchQuery} "investor relations" OR "IR deck" filetype:pdf`
+
+          // Category 2: Company presentations (investor relations materials)
+          `${searchQuery} ("investor presentation" OR "earnings presentation" OR "corporate presentation" OR "financial presentation") filetype:pdf`,
+
+          // Category 3: Third-party analysis (research reports, investment analysis)
+          `${searchQuery} ("investor relations" OR "IR deck" OR "research report" OR "investment analysis" OR "analyst report") filetype:pdf`
         ];
 
         for (const query of searchQueries) {
