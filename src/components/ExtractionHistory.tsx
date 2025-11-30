@@ -466,7 +466,8 @@ export function ExtractionHistory({ currentProjectId = null, isVisible = true, r
                                   const inContext = isInContext(job.id)
                                   if (inContext && onRemoveFromChat) {
                                     onRemoveFromChat(job.id)
-                                  } else {
+                                  } else if (!inContext) {
+                                    // Only add if not already in context
                                     const response = await PDFExtractionJobService.getJob(job.id)
                                     if (response.success && response.result?.markdown_content) {
                                       // Check if markdown contains tables
