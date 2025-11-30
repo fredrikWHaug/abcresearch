@@ -302,21 +302,32 @@ export function ResearchChatView({
                 )}
 
                 {item.searchSuggestions && item.searchSuggestions.length > 0 && (
-                  <div className="mt-3 space-y-2">
+                  <div className="mt-4 space-y-3">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                      <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                      <span>Recommended Search:</span>
+                    </div>
                     {item.searchSuggestions.map((suggestion) => (
                       <button
                         key={suggestion.id}
                         onClick={() => handleSearchSuggestion(suggestion)}
-                        className="w-full text-left p-4 bg-blue-600 hover:bg-blue-700 border-2 border-blue-700 rounded-lg transition-all shadow-md hover:shadow-lg hover:scale-[1.02] cursor-pointer"
+                        className="group w-full text-left p-5 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 border-2 border-blue-800 rounded-xl transition-all duration-300 shadow-lg hover:shadow-2xl hover:scale-[1.03] cursor-pointer"
                       >
-                        <div className="flex items-center gap-3">
-                          <svg className="w-5 h-5 text-white flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                          </svg>
-                          <span className="font-semibold text-white text-base">{suggestion.label}</span>
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-3 flex-1">
+                            <svg className="w-6 h-6 text-white flex-shrink-0 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                            <span className="font-bold text-white text-lg">{suggestion.label}</span>
+                          </div>
+                          <span className="text-sm font-medium text-blue-100 bg-blue-700/50 px-3 py-1 rounded-full whitespace-nowrap">
+                            Click to Search →
+                          </span>
                         </div>
                         {suggestion.description && (
-                          <p className="text-sm text-blue-100 mt-2 ml-8">{suggestion.description}</p>
+                          <p className="text-sm text-blue-100 mt-3 ml-9">{suggestion.description}</p>
                         )}
                       </button>
                     ))}
