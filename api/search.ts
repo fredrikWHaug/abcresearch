@@ -455,8 +455,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           const data = await response.json();
           const items = data.items || [];
 
+          // Debug logging
+          console.log(`Google Search returned ${items.length} items for query: "${query}"`);
+          if (items.length > 0) {
+            console.log('First result:', items[0].link);
+          }
+
           for (const item of items) {
             if (pressReleases.length >= maxResults) break;
+
+            console.log(`Processing: ${item.link}`);
 
             // Filter: Only keep company press release pages, exclude news media
             const isNewsMedia = (url: string) => {
@@ -480,12 +488,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             // Skip if it's a news media site (temporarily disable URL pattern check for testing)
             if (isNewsMedia(item.link)) {
+              console.log(`  ✗ Filtered out (news media): ${item.link}`);
               continue;
             }
             // Temporarily disabled: URL pattern check
             // if (!isPressReleasePage(item.link)) {
             //   continue;
             // }
+
+            console.log(`  ✓ Accepted: ${item.link}`);
 
             // Extract company name from domain or title
             const extractCompany = () => {
