@@ -43,7 +43,7 @@ export function DrugDetail({
               variant="ghost"
               size="sm"
               onClick={onBack}
-              className="hover:bg-gray-100"
+              className="hover:bg-gray-100 cursor-pointer"
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Drugs
@@ -55,7 +55,7 @@ export function DrugDetail({
             variant="outline"
             size="sm"
             onClick={onExpandFullscreen}
-            className="hover:bg-gray-50"
+            className="hover:bg-gray-50 hover:shadow-md cursor-pointer shadow-sm border-gray-200 bg-white transition-all duration-200"
           >
             <Maximize2 className="h-4 w-4 mr-2" />
             Expand Fullscreen
@@ -69,7 +69,7 @@ export function DrugDetail({
               variant="ghost"
               size="sm"
               onClick={() => setActiveTab('papers')}
-              className={`rounded-full flex-1 ${
+              className={`rounded-full flex-1 cursor-pointer ${
                 activeTab === 'papers'
                   ? 'bg-white text-blue-600 shadow-sm hover:bg-white'
                   : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200/50'
@@ -81,7 +81,7 @@ export function DrugDetail({
               variant="ghost"
               size="sm"
               onClick={() => setActiveTab('trials')}
-              className={`rounded-full flex-1 ${
+              className={`rounded-full flex-1 cursor-pointer ${
                 activeTab === 'trials'
                   ? 'bg-white text-purple-600 shadow-sm hover:bg-white'
                   : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200/50'
@@ -93,7 +93,7 @@ export function DrugDetail({
               variant="ghost"
               size="sm"
               onClick={() => setActiveTab('pressReleases')}
-              className={`rounded-full flex-1 ${
+              className={`rounded-full flex-1 cursor-pointer ${
                 activeTab === 'pressReleases'
                   ? 'bg-white text-pink-600 shadow-sm hover:bg-white'
                   : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200/50'
@@ -105,7 +105,7 @@ export function DrugDetail({
               variant="ghost"
               size="sm"
               onClick={() => setActiveTab('irDecks')}
-              className={`rounded-full flex-1 ${
+              className={`rounded-full flex-1 cursor-pointer ${
                 activeTab === 'irDecks'
                   ? 'bg-white text-amber-600 shadow-sm hover:bg-white'
                   : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200/50'
