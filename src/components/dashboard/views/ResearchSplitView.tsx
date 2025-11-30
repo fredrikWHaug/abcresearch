@@ -1,6 +1,8 @@
  
 import React from 'react'
 import { ArrowUp } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { DrugsList } from '@/components/DrugsList'
 import { DrugDetail } from '@/components/DrugDetail'
 import { DrugDetailModal } from '@/components/DrugDetailModal'
@@ -468,21 +470,22 @@ export const ResearchSplitView = React.memo(function ResearchSplitView({
                     {item.searchSuggestions && item.searchSuggestions.length > 0 && (
                       <div className="mt-3 space-y-2">
                         {item.searchSuggestions.map((suggestion) => (
-                          <button
+                          <Button
                             key={suggestion.id}
+                            variant="ghost"
                             onClick={() => handleSearchSuggestion(suggestion)}
-                            className="w-full text-left p-3 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors cursor-pointer"
+                            className="w-full justify-start p-3 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors h-auto block text-left whitespace-normal"
                           >
-                            <div className="flex items-center gap-2">
-                              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                            <div className="flex items-center gap-2 mb-1">
+                              <div className="w-2 h-2 bg-blue-500 rounded-full shrink-0"></div>
                               <span className="font-medium text-blue-900">{suggestion.label}</span>
                             </div>
                             {suggestion.description && (
-                              <div className="text-xs text-blue-700 mt-1 ml-4">
+                              <div className="text-xs text-blue-700 ml-4">
                                 {suggestion.description}
                               </div>
                             )}
-                          </button>
+                          </Button>
                         ))}
                       </div>
                     )}
@@ -524,7 +527,7 @@ export const ResearchSplitView = React.memo(function ResearchSplitView({
               <div className="relative mt-4 group">
                 <div className="absolute inset-0 bg-gradient-to-r from-blue-100 via-purple-100 to-pink-100 rounded-full blur opacity-0 group-hover:opacity-40 transition-opacity duration-500"></div>
                 <div className="relative flex items-center">
-                  <input
+                  <Input
                     type="text"
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
@@ -537,7 +540,7 @@ export const ResearchSplitView = React.memo(function ResearchSplitView({
                     type="button"
                     onClick={handleSend}
                     disabled={!message.trim() || loading}
-                    className="absolute right-2 h-10 w-10 rounded-full bg-gray-900 hover:bg-black disabled:bg-gray-200 disabled:cursor-not-allowed flex items-center justify-center transition-all duration-300 hover:scale-105 shadow-md text-white cursor-pointer"
+                    className="absolute right-2 h-10 w-10 rounded-full bg-gray-900 hover:bg-black disabled:bg-gray-200 disabled:cursor-not-allowed flex items-center justify-center transition-all duration-300 hover:scale-105 shadow-md text-white"
                   >
                     {loading ? (
                       <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-400 border-t-white" />

@@ -1,6 +1,8 @@
  
 import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 interface CreateProjectModalProps {
   isOpen: boolean;
@@ -62,12 +64,14 @@ export function CreateProjectModal({ isOpen, onClose, onConfirm }: CreateProject
       {/* Modal */}
       <div className="relative bg-white rounded-lg shadow-2xl w-full max-w-md mx-4 p-6 animate-in fade-in zoom-in duration-200">
         {/* Close button */}
-        <button
+        <Button
+          variant="ghost"
+          size="icon"
           onClick={onClose}
-          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
+          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors h-auto w-auto p-1"
         >
           <X className="h-5 w-5" />
-        </button>
+        </Button>
         
         {/* Content */}
         <div className="mb-6">
@@ -87,7 +91,7 @@ export function CreateProjectModal({ isOpen, onClose, onConfirm }: CreateProject
             >
               Project Name
             </label>
-            <input
+            <Input
               id="projectName"
               type="text"
               value={projectName}
@@ -97,7 +101,7 @@ export function CreateProjectModal({ isOpen, onClose, onConfirm }: CreateProject
               }}
               onKeyDown={handleKeyDown}
               placeholder="e.g., Alzheimer's Drug Research"
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all h-auto text-base"
               autoFocus
             />
             {error && (
@@ -108,19 +112,20 @@ export function CreateProjectModal({ isOpen, onClose, onConfirm }: CreateProject
           </div>
           
           <div className="flex gap-3">
-            <button
+            <Button
               type="button"
+              variant="outline"
               onClick={onClose}
-              className="flex-1 px-4 py-3 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition-colors"
+              className="flex-1 py-6 text-gray-700 font-medium hover:bg-gray-50 transition-colors"
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               type="submit"
-              className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
+              className="flex-1 py-6 bg-blue-600 text-white font-medium hover:bg-blue-700 transition-colors hover:text-white"
             >
               Create Project
-            </button>
+            </Button>
           </div>
         </form>
       </div>

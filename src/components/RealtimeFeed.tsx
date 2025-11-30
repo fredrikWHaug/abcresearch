@@ -472,12 +472,13 @@ export function RealtimeFeed({ isVisible = true }: RealtimeFeedProps = {}) {
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    <button
+                    <Button
+                      variant="ghost"
                       onClick={() => {
                         setSelectedFeed(null);
                         loadUpdates();
                       }}
-                      className={`w-full text-left p-3 rounded-lg border transition-colors ${
+                      className={`w-full justify-start h-auto text-left p-3 rounded-lg border transition-colors whitespace-normal block ${
                         selectedFeed === null
                           ? 'bg-blue-50 border-blue-200'
                           : 'bg-white border-gray-200 hover:bg-gray-50'
@@ -487,7 +488,7 @@ export function RealtimeFeed({ isVisible = true }: RealtimeFeedProps = {}) {
                       <div className="text-xs text-gray-500 mt-1">
                         {timeline.reduce((sum, t) => sum + t.updates.length, 0)} updates
                       </div>
-                    </button>
+                    </Button>
                     {feeds.map((feed) => (
                       <div
                         key={feed.id}
@@ -497,12 +498,13 @@ export function RealtimeFeed({ isVisible = true }: RealtimeFeedProps = {}) {
                             : 'bg-white border-gray-200'
                         }`}
                       >
-                        <button
+                        <Button
+                          variant="ghost"
                           onClick={() => {
                             setSelectedFeed(feed.id);
                             loadUpdates(feed.id);
                           }}
-                          className="w-full text-left"
+                          className="w-full justify-start h-auto text-left p-0 hover:bg-transparent whitespace-normal block font-normal"
                         >
                           <div className="font-medium text-sm truncate">{feed.label}</div>
                           <div className="text-xs text-gray-500 mt-1 truncate">
@@ -539,32 +541,38 @@ export function RealtimeFeed({ isVisible = true }: RealtimeFeedProps = {}) {
                               )}
                             </div>
                           )}
-                        </button>
+                        </Button>
                         <div className="flex items-center gap-1 mt-2 flex-wrap">
-                          <button
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={() => handleRefreshFeed(feed.id)}
                             disabled={refreshingFeedId === feed.id || (refreshProgress[feed.id] && refreshProgress[feed.id].processed < refreshProgress[feed.id].total)}
-                            className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1 disabled:opacity-50"
+                            className="text-xs text-blue-600 hover:text-blue-700 h-auto p-1 gap-1 disabled:opacity-50 hover:bg-blue-50"
                           >
                             <RefreshCw className={`w-3 h-3 ${refreshingFeedId === feed.id ? 'animate-spin' : ''}`} />
                             {refreshingFeedId === feed.id ? 'Checking...' : 'Refresh'}
-                          </button>
-                          <button
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={() => handleEditFeed(feed)}
-                            className="text-xs text-gray-600 hover:text-gray-800 flex items-center gap-1"
+                            className="text-xs text-gray-600 hover:text-gray-800 h-auto p-1 gap-1 hover:bg-gray-100"
                           >
                             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                             </svg>
                             Edit
-                          </button>
-                          <button
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={() => handleDeleteFeed(feed.id)}
-                            className="text-xs text-red-600 hover:text-red-700 flex items-center gap-1"
+                            className="text-xs text-red-600 hover:text-red-700 h-auto p-1 gap-1 hover:bg-red-50"
                           >
                             <Trash2 className="w-3 h-3" />
                             Remove
-                          </button>
+                          </Button>
                         </div>
                         {refreshingFeedId === feed.id && refreshMessage && (
                           <div className="text-xs text-blue-600 mt-1">{refreshMessage}</div>

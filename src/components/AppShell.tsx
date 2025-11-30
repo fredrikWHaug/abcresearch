@@ -1,5 +1,5 @@
 import React from 'react'
-import { Outlet, useNavigate, useLocation } from 'react-router-dom'
+import { Outlet, useNavigate, useLocation, Link } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Home, LogOut } from 'lucide-react'
@@ -22,68 +22,73 @@ export function AppShell() {
       <nav className="flex-shrink-0 bg-white/70 backdrop-blur-xl border-b border-white/20 shadow-sm z-50 sticky top-0 transition-all duration-300">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           {/* Left: Logo/Home Button */}
-          <button
-            onClick={() => navigate('/app/home')}
-            className="group flex items-center gap-2 text-2xl font-bold tracking-tight text-gray-900 transition-opacity hover:opacity-80 cursor-pointer"
+          <Link
+            to="/app/home"
+            className="group flex items-center gap-2 text-2xl font-bold tracking-tight text-gray-900 transition-opacity hover:opacity-80"
           >
             <span className="bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
               ABCresearch
             </span>
-          </button>
+          </Link>
 
           {/* Center: Project View Tabs (only show when on a project page) */}
           {isProjectPage && (
             <div className="hidden md:flex rounded-full bg-gray-100/50 p-1.5 gap-1 border border-black/5 shadow-inner backdrop-blur-sm">
-              <button
+              <Button
+                variant="ghost"
                 onClick={() => navigate(`/app/project/${projectId}/research`)}
-                className={`py-2 px-5 rounded-full text-sm font-medium transition-all duration-300 ease-out whitespace-nowrap cursor-pointer ${
+                className={`rounded-full px-5 h-9 text-sm font-medium transition-all duration-300 ease-out ${
                   currentView === 'research'
-                    ? 'bg-white text-gray-900 shadow-sm scale-100'
+                    ? 'bg-white text-gray-900 shadow-sm hover:bg-white'
                     : 'text-gray-500 hover:text-gray-900 hover:bg-white/50'
                 }`}
               >
                 Research
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="ghost"
                 onClick={() => navigate(`/app/project/${projectId}/pipeline`)}
-                className={`py-2 px-5 rounded-full text-sm font-medium transition-all duration-300 ease-out whitespace-nowrap cursor-pointer ${
+                className={`rounded-full px-5 h-9 text-sm font-medium transition-all duration-300 ease-out ${
                   currentView === 'pipeline'
-                    ? 'bg-white text-gray-900 shadow-sm scale-100'
+                    ? 'bg-white text-gray-900 shadow-sm hover:bg-white'
                     : 'text-gray-500 hover:text-gray-900 hover:bg-white/50'
                 }`}
               >
                 Pipeline
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="ghost"
                 onClick={() => navigate(`/app/project/${projectId}/marketmap`)}
-                className={`py-2 px-5 rounded-full text-sm font-medium transition-all duration-300 ease-out whitespace-nowrap cursor-pointer ${
+                className={`rounded-full px-5 h-9 text-sm font-medium transition-all duration-300 ease-out ${
                   currentView === 'marketmap'
-                    ? 'bg-white text-gray-900 shadow-sm scale-100'
+                    ? 'bg-white text-gray-900 shadow-sm hover:bg-white'
                     : 'text-gray-500 hover:text-gray-900 hover:bg-white/50'
                 }`}
               >
                 Market Map
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="ghost"
                 onClick={() => navigate(`/app/project/${projectId}/extraction`)}
-                className={`py-2 px-5 rounded-full text-sm font-medium transition-all duration-300 ease-out whitespace-nowrap cursor-pointer ${
+                className={`rounded-full px-5 h-9 text-sm font-medium transition-all duration-300 ease-out ${
                   currentView === 'extraction'
-                    ? 'bg-white text-gray-900 shadow-sm scale-100'
+                    ? 'bg-white text-gray-900 shadow-sm hover:bg-white'
                     : 'text-gray-500 hover:text-gray-900 hover:bg-white/50'
                 }`}
               >
                 Extraction
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="ghost"
                 onClick={() => navigate(`/app/project/${projectId}/feed`)}
-                className={`py-2 px-5 rounded-full text-sm font-medium transition-all duration-300 ease-out whitespace-nowrap cursor-pointer ${
+                className={`rounded-full px-5 h-9 text-sm font-medium transition-all duration-300 ease-out ${
                   currentView === 'feed'
-                    ? 'bg-white text-gray-900 shadow-sm scale-100'
+                    ? 'bg-white text-gray-900 shadow-sm hover:bg-white'
                     : 'text-gray-500 hover:text-gray-900 hover:bg-white/50'
                 }`}
               >
                 Feed
-              </button>
+              </Button>
             </div>
           )}
 

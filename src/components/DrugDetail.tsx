@@ -65,46 +65,54 @@ export function DrugDetail({
         {/* Tab Toggle */}
         <div className="flex items-center justify-center mt-4">
           <div className="flex rounded-full bg-gray-100 p-1.5 w-160 border border-gray-200">
-            <button
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => setActiveTab('papers')}
-              className={`py-2 px-4 rounded-full text-sm font-medium transition-all duration-300 flex-1 text-center whitespace-nowrap cursor-pointer ${
+              className={`rounded-full flex-1 ${
                 activeTab === 'papers'
-                  ? 'bg-white text-blue-600 shadow-sm scale-100'
+                  ? 'bg-white text-blue-600 shadow-sm hover:bg-white'
                   : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200/50'
               }`}
             >
               Papers ({drugGroup.papers.length})
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => setActiveTab('trials')}
-              className={`py-2 px-4 rounded-full text-sm font-medium transition-all duration-300 flex-1 text-center whitespace-nowrap cursor-pointer ${
+              className={`rounded-full flex-1 ${
                 activeTab === 'trials'
-                  ? 'bg-white text-purple-600 shadow-sm scale-100'
+                  ? 'bg-white text-purple-600 shadow-sm hover:bg-white'
                   : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200/50'
               }`}
             >
               Trials ({drugGroup.trials.length})
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => setActiveTab('pressReleases')}
-              className={`py-2 px-4 rounded-full text-sm font-medium transition-all duration-300 flex-1 text-center whitespace-nowrap cursor-pointer ${
+              className={`rounded-full flex-1 ${
                 activeTab === 'pressReleases'
-                  ? 'bg-white text-pink-600 shadow-sm scale-100'
+                  ? 'bg-white text-pink-600 shadow-sm hover:bg-white'
                   : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200/50'
               }`}
             >
               Press Releases ({drugGroup.pressReleases.length})
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => setActiveTab('irDecks')}
-              className={`py-2 px-4 rounded-full text-sm font-medium transition-all duration-300 flex-1 text-center whitespace-nowrap cursor-pointer ${
+              className={`rounded-full flex-1 ${
                 activeTab === 'irDecks'
-                  ? 'bg-white text-amber-600 shadow-sm scale-100'
+                  ? 'bg-white text-amber-600 shadow-sm hover:bg-white'
                   : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200/50'
               }`}
             >
               IR Decks ({drugGroup.irDecks.length})
-            </button>
+            </Button>
           </div>
         </div>
       </div>
