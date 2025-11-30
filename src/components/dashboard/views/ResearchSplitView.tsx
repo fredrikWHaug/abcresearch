@@ -56,7 +56,7 @@ const ContextSummary = ({
             </span>
             <button
               onClick={() => onRemovePaper(paper.pmid)}
-              className="flex-shrink-0 text-blue-400 hover:text-blue-600 transition-colors p-0.5 hover:bg-blue-100 rounded-full"
+              className="flex-shrink-0 text-blue-400 hover:text-blue-600 transition-colors p-0.5 hover:bg-blue-100 rounded-full cursor-pointer"
               title="Remove from context"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -75,7 +75,7 @@ const ContextSummary = ({
             </span>
             <button
               onClick={() => onRemovePressRelease(pr.id)}
-              className="flex-shrink-0 text-purple-400 hover:text-purple-600 transition-colors p-0.5 hover:bg-purple-100 rounded-full"
+              className="flex-shrink-0 text-purple-400 hover:text-purple-600 transition-colors p-0.5 hover:bg-purple-100 rounded-full cursor-pointer"
               title="Remove from context"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -113,7 +113,7 @@ const ContextSummary = ({
     <div className="relative context-panel-container">
       <button
         onClick={onToggleContextPanel}
-        className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-full shadow-sm hover:shadow-md hover:border-blue-200 transition-all duration-300"
+        className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-full shadow-sm hover:shadow-md hover:border-blue-200 transition-all duration-300 cursor-pointer"
       >
         <div className="flex items-center justify-center w-5 h-5 rounded-full bg-blue-50">
           <svg className="w-3 h-3 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -134,7 +134,7 @@ const ContextSummary = ({
             <h3 className="font-semibold text-gray-900 text-sm">AI Context</h3>
             <button
               onClick={onClearContext}
-              className="text-xs text-red-600 hover:text-red-700 font-medium px-2 py-1 hover:bg-red-50 rounded-md transition-colors"
+              className="text-xs text-red-600 hover:text-red-700 font-medium px-2 py-1 hover:bg-red-50 rounded-md transition-colors cursor-pointer"
             >
               Clear All
             </button>
@@ -153,7 +153,7 @@ const ContextSummary = ({
                   </div>
                   <button
                     onClick={() => onRemovePaper(paper.pmid)}
-                    className="flex-shrink-0 text-gray-400 hover:text-red-600 transition-colors p-1 hover:bg-red-50 rounded-full"
+                    className="flex-shrink-0 text-gray-400 hover:text-red-600 transition-colors p-1 hover:bg-red-50 rounded-full cursor-pointer"
                     title="Remove from context"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -176,7 +176,7 @@ const ContextSummary = ({
                   </div>
                   <button
                     onClick={() => onRemovePressRelease(pr.id)}
-                    className="flex-shrink-0 text-gray-400 hover:text-red-600 transition-colors p-1 hover:bg-red-50 rounded-full"
+                    className="flex-shrink-0 text-gray-400 hover:text-red-600 transition-colors p-1 hover:bg-red-50 rounded-full cursor-pointer"
                     title="Remove from context"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -471,7 +471,7 @@ export const ResearchSplitView = React.memo(function ResearchSplitView({
                           <button
                             key={suggestion.id}
                             onClick={() => handleSearchSuggestion(suggestion)}
-                            className="w-full text-left p-3 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors"
+                            className="w-full text-left p-3 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors cursor-pointer"
                           >
                             <div className="flex items-center gap-2">
                               <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
@@ -537,7 +537,7 @@ export const ResearchSplitView = React.memo(function ResearchSplitView({
                     type="button"
                     onClick={handleSend}
                     disabled={!message.trim() || loading}
-                    className="absolute right-2 h-10 w-10 rounded-full bg-gray-900 hover:bg-black disabled:bg-gray-200 disabled:cursor-not-allowed flex items-center justify-center transition-all duration-300 hover:scale-105 shadow-md text-white"
+                    className="absolute right-2 h-10 w-10 rounded-full bg-gray-900 hover:bg-black disabled:bg-gray-200 disabled:cursor-not-allowed flex items-center justify-center transition-all duration-300 hover:scale-105 shadow-md text-white cursor-pointer"
                   >
                     {loading ? (
                       <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-400 border-t-white" />

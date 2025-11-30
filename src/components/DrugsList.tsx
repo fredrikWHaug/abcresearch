@@ -116,7 +116,7 @@ export function DrugsList({ drugGroups, loading, query, onDrugClick, onDrugSpeci
                   variant="outline"
                   size="sm"
                   onClick={() => setShowSearchTermsModal(true)}
-                  className="flex items-center gap-2"
+                  className="flex items-center gap-2 cursor-pointer"
                 >
                   <Search className="h-4 w-4" />
                   View Search Terms
@@ -144,7 +144,7 @@ export function DrugsList({ drugGroups, loading, query, onDrugClick, onDrugSpeci
                     {/* Left: Drug Info */}
                     <div className="flex items-center gap-4 flex-1">
                       {/* Icon */}
-                      <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center shrink-0">
                         <Pill className="h-6 w-6 text-blue-600" />
                       </div>
 
@@ -153,49 +153,48 @@ export function DrugsList({ drugGroups, loading, query, onDrugClick, onDrugSpeci
                         <h3 className="text-lg font-semibold text-gray-900 mb-2">
                           {drugGroup.drugName}
                         </h3>
-                        <div className="flex items-center gap-4">
-                          <div className="flex items-center gap-1.5">
-                            <FileText className="h-4 w-4 text-gray-500" />
-                            <span className="text-sm text-gray-600">
-                              <span className="font-semibold text-gray-900">
-                                {drugGroup.papers.length}
-                              </span>{' '}
-                              paper{drugGroup.papers.length !== 1 ? 's' : ''}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1.5">
-                            <FlaskConical className="h-4 w-4 text-gray-500" />
-                            <span className="text-sm text-gray-600">
-                              <span className="font-semibold text-gray-900">
-                                {drugGroup.trials.length}
-                              </span>{' '}
-                              trial{drugGroup.trials.length !== 1 ? 's' : ''}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1.5">
-                            <Newspaper className="h-4 w-4 text-gray-500" />
-                            <span className="text-sm text-gray-600">
-                              <span className="font-semibold text-gray-900">
-                                {drugGroup.pressReleases.length}
-                              </span>{' '}
-                              press release{drugGroup.pressReleases.length !== 1 ? 's' : ''}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1.5">
-                            <FolderOpen className="h-4 w-4 text-gray-500" />
-                            <span className="text-sm text-gray-600">
-                              <span className="font-semibold text-gray-900">
-                                {drugGroup.irDecks.length}
-                              </span>{' '}
-                              IR deck{drugGroup.irDecks.length !== 1 ? 's' : ''}
-                            </span>
-                          </div>
+                        <div className="flex items-center gap-3">
+                          <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-blue-100 px-2.5 py-1 hover:bg-blue-100 transition-colors cursor-pointer">
+                            <div className="flex items-center gap-1.5">
+                              <FileText className="h-3.5 w-3.5" />
+                              <span className="font-medium">
+                                {drugGroup.papers.length} Paper{drugGroup.papers.length !== 1 ? 's' : ''}
+                              </span>
+                            </div>
+                          </Badge>
+                          
+                          <Badge variant="secondary" className="bg-purple-50 text-purple-700 border-purple-100 px-2.5 py-1 hover:bg-purple-100 transition-colors cursor-pointer">
+                            <div className="flex items-center gap-1.5">
+                              <FlaskConical className="h-3.5 w-3.5" />
+                              <span className="font-medium">
+                                {drugGroup.trials.length} Trial{drugGroup.trials.length !== 1 ? 's' : ''}
+                              </span>
+                            </div>
+                          </Badge>
+                          
+                          <Badge variant="secondary" className="bg-pink-50 text-pink-700 border-pink-100 px-2.5 py-1 hover:bg-pink-100 transition-colors cursor-pointer">
+                            <div className="flex items-center gap-1.5">
+                              <Newspaper className="h-3.5 w-3.5" />
+                              <span className="font-medium">
+                                {drugGroup.pressReleases.length} PRs
+                              </span>
+                            </div>
+                          </Badge>
+                          
+                          <Badge variant="secondary" className="bg-amber-50 text-amber-700 border-amber-100 px-2.5 py-1 hover:bg-amber-100 transition-colors cursor-pointer">
+                            <div className="flex items-center gap-1.5">
+                              <FolderOpen className="h-3.5 w-3.5" />
+                              <span className="font-medium">
+                                {drugGroup.irDecks.length} Decks
+                              </span>
+                            </div>
+                          </Badge>
                         </div>
                       </div>
                     </div>
 
                     {/* Right: Actions */}
-                    <div className="flex items-center gap-3 flex-shrink-0">
+                    <div className="flex items-center gap-3 shrink-0">
                       {/* Deep Dive Search Button */}
                       {onDrugSpecificSearch && (
                         <Button
@@ -203,7 +202,7 @@ export function DrugsList({ drugGroups, loading, query, onDrugClick, onDrugSpeci
                           size="sm"
                           onClick={(e) => handleDrugSpecificSearch(drugGroup.drugName, e)}
                           disabled={searchingDrug === drugGroup.drugName}
-                          className="flex items-center gap-2 text-xs"
+                          className="flex items-center gap-2 text-xs cursor-pointer"
                           title="Run targeted search for this specific drug"
                         >
                           {searchingDrug === drugGroup.drugName ? (
@@ -251,7 +250,7 @@ export function DrugsList({ drugGroups, loading, query, onDrugClick, onDrugSpeci
               </div>
               <button
                 onClick={() => setShowSearchTermsModal(false)}
-                className="text-gray-400 hover:text-gray-600 transition-colors"
+                className="text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
               >
                 <X className="h-6 w-6" />
               </button>
@@ -381,7 +380,7 @@ export function DrugsList({ drugGroups, loading, query, onDrugClick, onDrugSpeci
                 {/* Info Box */}
                 <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                   <div className="flex gap-3">
-                    <div className="flex-shrink-0">
+                    <div className="shrink-0">
                       <svg className="h-5 w-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
                       </svg>
@@ -410,7 +409,7 @@ export function DrugsList({ drugGroups, loading, query, onDrugClick, onDrugSpeci
 
             {/* Modal Footer */}
             <div className="flex justify-end p-6 border-t bg-gray-50">
-              <Button onClick={() => setShowSearchTermsModal(false)}>
+              <Button onClick={() => setShowSearchTermsModal(false)} className="cursor-pointer">
                 Close
               </Button>
             </div>

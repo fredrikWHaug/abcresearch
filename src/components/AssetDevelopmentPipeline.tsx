@@ -274,7 +274,7 @@ export function AssetDevelopmentPipeline({
                 <Button
                   onClick={handleLLMExtraction}
                   disabled={isExtracting}
-                  className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white"
+                  className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white cursor-pointer"
                 >
                   {isExtracting ? (
                     <>
@@ -294,7 +294,7 @@ export function AssetDevelopmentPipeline({
                   <Button
                     onClick={handleExportPPT}
                     disabled={isExporting}
-                    className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white"
+                    className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white cursor-pointer"
                   >
                     {isExporting ? (
                       <>
@@ -310,7 +310,7 @@ export function AssetDevelopmentPipeline({
                   </Button>
                   <button
                     onClick={() => setShowFilters(!showFilters)}
-                    className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                    className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors cursor-pointer"
                   >
                     <Filter className="h-4 w-4" />
                     <span className="text-sm font-medium">Filters</span>
@@ -401,7 +401,7 @@ export function AssetDevelopmentPipeline({
                     <button
                       key={stage}
                       onClick={() => setSelectedStage(stage)}
-                      className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                      className={`px-4 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer ${
                         selectedStage === stage
                           ? 'bg-gray-800 text-white'
                           : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
@@ -489,7 +489,7 @@ export function AssetDevelopmentPipeline({
                                 <>
                                   <button
                                     onClick={() => handleDrugClick(candidate)}
-                                    className="font-semibold text-gray-900 hover:text-blue-600 transition-colors text-left"
+                                    className="font-semibold text-gray-900 hover:text-blue-600 transition-colors text-left cursor-pointer"
                                   >
                                     {candidate.commercialName}
                                   </button>
@@ -500,7 +500,7 @@ export function AssetDevelopmentPipeline({
                               ) : (
                                 <button
                                   onClick={() => handleDrugClick(candidate)}
-                                  className="font-semibold text-gray-900 hover:text-blue-600 transition-colors text-left"
+                                  className="font-semibold text-gray-900 hover:text-blue-600 transition-colors text-left cursor-pointer"
                                 >
                                   {candidate.scientificName}
                                 </button>

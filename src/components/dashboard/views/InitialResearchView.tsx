@@ -100,7 +100,7 @@ export const InitialResearchView = React.memo(function InitialResearchView({
                   </span>
                   <button
                     onClick={() => onRemovePaper(paper.pmid)}
-                    className="flex-shrink-0 text-blue-400 hover:text-blue-600 transition-colors p-0.5 hover:bg-blue-100 rounded-full"
+                    className="flex-shrink-0 text-blue-400 hover:text-blue-600 transition-colors p-0.5 hover:bg-blue-100 rounded-full cursor-pointer"
                     title="Remove from context"
                   >
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -122,7 +122,7 @@ export const InitialResearchView = React.memo(function InitialResearchView({
                   </span>
                   <button
                     onClick={() => onRemovePressRelease(pr.id)}
-                    className="flex-shrink-0 text-purple-400 hover:text-purple-600 transition-colors p-0.5 hover:bg-purple-100 rounded-full"
+                    className="flex-shrink-0 text-purple-400 hover:text-purple-600 transition-colors p-0.5 hover:bg-purple-100 rounded-full cursor-pointer"
                     title="Remove from context"
                   >
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -136,7 +136,7 @@ export const InitialResearchView = React.memo(function InitialResearchView({
             <div className="relative context-panel-container">
               <button
                 onClick={onToggleContextPanel}
-                className="inline-flex items-center gap-2 px-5 py-2.5 bg-white border border-gray-200/50 rounded-full shadow-sm hover:shadow-md hover:border-blue-200 transition-all duration-300"
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-white border border-gray-200/50 rounded-full shadow-sm hover:shadow-md hover:border-blue-200 transition-all duration-300 cursor-pointer"
               >
                 <div className="flex items-center justify-center w-6 h-6 rounded-full bg-blue-50">
                   <svg className="w-3.5 h-3.5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -157,7 +157,7 @@ export const InitialResearchView = React.memo(function InitialResearchView({
                     <h3 className="font-semibold text-gray-900">Research Context</h3>
                     <button
                       onClick={onClearContext}
-                      className="text-xs text-red-600 hover:text-red-700 font-medium px-2 py-1 hover:bg-red-50 rounded-md transition-colors"
+                      className="text-xs text-red-600 hover:text-red-700 font-medium px-2 py-1 hover:bg-red-50 rounded-md transition-colors cursor-pointer"
                     >
                       Clear All
                     </button>
@@ -180,7 +180,7 @@ export const InitialResearchView = React.memo(function InitialResearchView({
                           </div>
                           <button
                             onClick={() => onRemovePaper(paper.pmid)}
-                            className="flex-shrink-0 text-gray-400 hover:text-red-600 transition-colors p-1 hover:bg-red-50 rounded-full"
+                            className="flex-shrink-0 text-gray-400 hover:text-red-600 transition-colors p-1 hover:bg-red-50 rounded-full cursor-pointer"
                             title="Remove from context"
                           >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -206,7 +206,7 @@ export const InitialResearchView = React.memo(function InitialResearchView({
                           </div>
                           <button
                             onClick={() => onRemovePressRelease(pr.id)}
-                            className="flex-shrink-0 text-gray-400 hover:text-red-600 transition-colors p-1 hover:bg-red-50 rounded-full"
+                            className="flex-shrink-0 text-gray-400 hover:text-red-600 transition-colors p-1 hover:bg-red-50 rounded-full cursor-pointer"
                             title="Remove from context"
                           >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -241,7 +241,7 @@ export const InitialResearchView = React.memo(function InitialResearchView({
             type="button"
             onClick={handleSend}
             disabled={!message.trim() || loading}
-            className="absolute right-2 h-12 w-12 rounded-full bg-gray-900 hover:bg-black disabled:bg-gray-200 disabled:cursor-not-allowed flex items-center justify-center transition-all duration-300 hover:scale-105 shadow-md text-white"
+            className="absolute right-2 h-12 w-12 rounded-full bg-gray-900 hover:bg-black disabled:bg-gray-200 disabled:cursor-not-allowed flex items-center justify-center transition-all duration-300 hover:scale-105 shadow-md text-white cursor-pointer"
           >
             {loading ? (
               <div className="h-5 w-5 animate-spin rounded-full border-2 border-gray-400 border-t-white" />
@@ -262,7 +262,7 @@ export const InitialResearchView = React.memo(function InitialResearchView({
                 type="button"
                 onClick={() => handleQuickSearch(query)}
                 disabled={loading}
-                className="group relative text-left p-6 rounded-2xl border border-white/40 bg-white/60 shadow-sm hover:shadow-xl hover:-translate-y-1 hover:bg-white transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed overflow-hidden backdrop-blur-sm"
+                className="group relative text-left p-6 rounded-2xl border border-white/40 bg-white/60 shadow-sm hover:shadow-xl hover:-translate-y-1 hover:bg-white transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed overflow-hidden backdrop-blur-sm cursor-pointer"
                 style={{ animationDelay: `${0.1 + index * 0.1}s` }}
               >
                 <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-blue-400 to-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>

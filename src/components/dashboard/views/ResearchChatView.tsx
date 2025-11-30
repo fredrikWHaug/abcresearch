@@ -54,7 +54,7 @@ const ContextSummary = ({
             </span>
             <button
               onClick={() => onRemovePaper(paper.pmid)}
-              className="flex-shrink-0 text-blue-400 hover:text-blue-600 transition-colors p-0.5 hover:bg-blue-100 rounded-full"
+              className="flex-shrink-0 text-blue-400 hover:text-blue-600 transition-colors p-0.5 hover:bg-blue-100 rounded-full cursor-pointer"
               title="Remove from context"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -76,7 +76,7 @@ const ContextSummary = ({
             </span>
             <button
               onClick={() => onRemovePressRelease(pr.id)}
-              className="flex-shrink-0 text-purple-400 hover:text-purple-600 transition-colors p-0.5 hover:bg-purple-100 rounded-full"
+              className="flex-shrink-0 text-purple-400 hover:text-purple-600 transition-colors p-0.5 hover:bg-purple-100 rounded-full cursor-pointer"
               title="Remove from context"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -117,7 +117,7 @@ const ContextSummary = ({
     <div className="relative context-panel-container mb-4">
       <button
         onClick={onToggleContextPanel}
-        className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-full shadow-sm hover:shadow-md hover:border-blue-200 transition-all duration-300"
+        className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-full shadow-sm hover:shadow-md hover:border-blue-200 transition-all duration-300 cursor-pointer"
       >
         <div className="flex items-center justify-center w-5 h-5 rounded-full bg-blue-50">
           <svg className="w-3 h-3 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -136,7 +136,7 @@ const ContextSummary = ({
         <div className="absolute bottom-full left-0 mb-2 bg-white/90 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 py-2 w-96 max-h-96 overflow-y-auto z-50 animate-scale-in origin-bottom-left">
           <div className="px-4 py-2 border-b border-gray-100 flex items-center justify-between">
             <h3 className="font-semibold text-gray-900 text-sm">AI Context</h3>
-            <button onClick={onClearContext} className="text-xs text-red-600 hover:text-red-700 font-medium px-2 py-1 hover:bg-red-50 rounded-md transition-colors">
+            <button onClick={onClearContext} className="text-xs text-red-600 hover:text-red-700 font-medium px-2 py-1 hover:bg-red-50 rounded-md transition-colors cursor-pointer">
               Clear All
             </button>
           </div>
@@ -152,7 +152,7 @@ const ContextSummary = ({
                   </div>
                   <button
                     onClick={() => onRemovePaper(paper.pmid)}
-                    className="flex-shrink-0 text-gray-400 hover:text-red-600 transition-colors p-1 hover:bg-red-50 rounded-full"
+                    className="flex-shrink-0 text-gray-400 hover:text-red-600 transition-colors p-1 hover:bg-red-50 rounded-full cursor-pointer"
                     title="Remove from context"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -171,7 +171,7 @@ const ContextSummary = ({
                   </div>
                   <button
                     onClick={() => onRemovePressRelease(pr.id)}
-                    className="flex-shrink-0 text-gray-400 hover:text-red-600 transition-colors p-1 hover:bg-red-50 rounded-full"
+                    className="flex-shrink-0 text-gray-400 hover:text-red-600 transition-colors p-1 hover:bg-red-50 rounded-full cursor-pointer"
                     title="Remove from context"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -333,7 +333,7 @@ export const ResearchChatView = React.memo(function ResearchChatView({
                           {item.contextPapers && item.contextPapers.length > 0 && (
                             <details className="cursor-pointer group">
                               <summary
-                                className={`text-xs font-medium inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-colors ${
+                                className={`text-xs font-medium inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-colors cursor-pointer ${
                                   item.type === 'user'
                                     ? 'bg-white/20 text-white hover:bg-white/30'
                                     : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
@@ -369,7 +369,7 @@ export const ResearchChatView = React.memo(function ResearchChatView({
                           {item.contextPressReleases && item.contextPressReleases.length > 0 && (
                             <details className="cursor-pointer group">
                               <summary
-                                className={`text-xs font-medium inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-colors ${
+                                className={`text-xs font-medium inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-colors cursor-pointer ${
                                   item.type === 'user'
                                     ? 'bg-white/20 text-white hover:bg-white/30'
                                     : 'bg-purple-50 text-purple-700 hover:bg-purple-100'
@@ -448,7 +448,7 @@ export const ResearchChatView = React.memo(function ResearchChatView({
                         <button
                           key={suggestion.id}
                           onClick={() => handleSearchSuggestion(suggestion)}
-                          className="w-full text-left p-3.5 bg-blue-50/50 hover:bg-blue-100/50 border border-blue-100 rounded-xl transition-all duration-200 hover:shadow-sm group"
+                          className="w-full text-left p-3.5 bg-blue-50/50 hover:bg-blue-100/50 border border-blue-100 rounded-xl transition-all duration-200 hover:shadow-sm group cursor-pointer"
                         >
                           <div className="flex items-center gap-3">
                             <div className="w-2 h-2 bg-blue-500 rounded-full ring-4 ring-blue-100 group-hover:ring-blue-200 transition-all"></div>
@@ -501,7 +501,7 @@ export const ResearchChatView = React.memo(function ResearchChatView({
               <button
                 onClick={handleSend}
                 disabled={!message.trim() || loading}
-                className="absolute right-2 h-12 w-12 rounded-full bg-gray-900 hover:bg-black disabled:bg-gray-200 disabled:cursor-not-allowed flex items-center justify-center transition-all duration-300 hover:scale-105 shadow-md text-white"
+                className="absolute right-2 h-12 w-12 rounded-full bg-gray-900 hover:bg-black disabled:bg-gray-200 disabled:cursor-not-allowed flex items-center justify-center transition-all duration-300 hover:scale-105 shadow-md text-white cursor-pointer"
               >
                 {loading ? (
                   <div className="h-5 w-5 animate-spin rounded-full border-2 border-gray-400 border-t-white" />
