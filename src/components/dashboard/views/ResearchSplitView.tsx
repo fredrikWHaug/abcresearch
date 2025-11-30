@@ -14,23 +14,32 @@ import type { SearchSuggestion } from './types'
 interface ContextSummaryProps {
   selectedPapers: PubMedArticle[]
   selectedPressReleases: PressRelease[]
+  selectedExtractions?: Array<{
+    jobId: string
+    fileName: string
+    markdownContent: string
+    hasTables: boolean
+  }>
   showContextPanel: boolean
   onToggleContextPanel: () => void
   onRemovePaper: (pmid: string) => void
   onRemovePressRelease: (id: string) => void
+  onRemoveExtraction?: (jobId: string) => void
   onClearContext: () => void
 }
 
 const ContextSummary = ({
   selectedPapers,
   selectedPressReleases,
+  selectedExtractions = [],
   showContextPanel,
   onToggleContextPanel,
   onRemovePaper,
   onRemovePressRelease,
+  onRemoveExtraction,
   onClearContext
 }: ContextSummaryProps) => {
-  const total = selectedPapers.length + selectedPressReleases.length
+  const total = selectedPapers.length + selectedPressReleases.length + selectedExtractions.length
   if (total === 0) return null
 
   if (total <= 2) {
@@ -72,6 +81,27 @@ const ContextSummary = ({
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
+          </div>
+        ))}
+        {selectedExtractions.map((extraction) => (
+          <div key={extraction.jobId} className="inline-flex items-center gap-2 px-3 py-1.5 bg-green-50 border border-green-200 rounded-md text-sm">
+            <svg className="w-3.5 h-3.5 text-green-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+            </svg>
+            <span className="text-green-900 font-medium line-clamp-1 max-w-[200px]" title={extraction.fileName}>
+              {extraction.fileName}
+            </span>
+            {onRemoveExtraction && (
+              <button
+                onClick={() => onRemoveExtraction(extraction.jobId)}
+                className="flex-shrink-0 text-green-400 hover:text-green-600 transition-colors"
+                title="Remove from context"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
           </div>
         ))}
       </div>
@@ -153,6 +183,31 @@ const ContextSummary = ({
                 </div>
               </div>
             ))}
+            {selectedExtractions.map((extraction) => (
+              <div key={extraction.jobId} className="px-4 py-3 hover:bg-gray-50 border-b border-gray-100 last:border-b-0 bg-green-50/30">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 line-clamp-2">
+                      {extraction.fileName}
+                    </p>
+                    <p className="text-xs text-green-600 mt-1">
+                      PDF Extraction {extraction.hasTables ? '• Contains Tables' : ''}
+                    </p>
+                  </div>
+                  {onRemoveExtraction && (
+                    <button
+                      onClick={() => onRemoveExtraction(extraction.jobId)}
+                      className="flex-shrink-0 text-gray-400 hover:text-red-600 transition-colors"
+                      title="Remove from context"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -164,10 +219,17 @@ interface ResearchSplitViewProps {
   chatHistory: ChatMessage[]
   selectedPapers: PubMedArticle[]
   selectedPressReleases: PressRelease[]
+  selectedExtractions?: Array<{
+    jobId: string
+    fileName: string
+    markdownContent: string
+    hasTables: boolean
+  }>
   showContextPanel: boolean
   onToggleContextPanel: () => void
   onRemovePaper: (pmid: string) => void
   onRemovePressRelease: (id: string) => void
+  onRemoveExtraction?: (jobId: string) => void
   onClearContext: () => void
   onMessageChange: (value: string) => void
   onSendMessage: (messageOverride?: string) => void
@@ -196,10 +258,12 @@ export function ResearchSplitView({
   chatHistory,
   selectedPapers,
   selectedPressReleases,
+  selectedExtractions = [],
   showContextPanel,
   onToggleContextPanel,
   onRemovePaper,
   onRemovePressRelease,
+  onRemoveExtraction,
   onClearContext,
   onMessageChange,
   onSendMessage,
@@ -265,7 +329,7 @@ export function ResearchSplitView({
                       <>
                         <div className="text-sm leading-relaxed">{item.message}</div>
 
-                        {((item.contextPapers && item.contextPapers.length > 0) || (item.contextPressReleases && item.contextPressReleases.length > 0)) && (
+                        {((item.contextPapers && item.contextPapers.length > 0) || (item.contextPressReleases && item.contextPressReleases.length > 0) || (item.contextExtractions && item.contextExtractions.length > 0)) && (
                           <div className="mt-2 space-y-2">
                             {item.contextPapers && item.contextPapers.length > 0 && (
                               <details className="cursor-pointer">
@@ -309,7 +373,7 @@ export function ResearchSplitView({
                                     : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
                                 }`}>
                                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1ম2 13a2 2 0 01-2-2V7ম2 13a2 2 0 002-2V9a2 2 0 00-2-สองh-2ম-4-3H9M7 16h6M7 8h6v4H7V8z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
                                   </svg>
                                   Press Releases ({item.contextPressReleases.length})
                                 </summary>
@@ -328,6 +392,40 @@ export function ResearchSplitView({
                                         item.type === 'user' ? 'text-gray-400' : 'text-purple-600'
                                       }`}>
                                         {pr.company} • {pr.releaseDate}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </details>
+                            )}
+
+                            {item.contextExtractions && item.contextExtractions.length > 0 && (
+                              <details className="cursor-pointer">
+                                <summary className={`text-xs font-medium inline-flex items-center gap-1 px-2 py-1 rounded ${
+                                  item.type === 'user'
+                                    ? 'bg-green-700 text-green-100 hover:bg-green-600'
+                                    : 'bg-green-100 text-green-700 hover:bg-green-200'
+                                }`}>
+                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                  </svg>
+                                  Extracted Papers ({item.contextExtractions.length})
+                                </summary>
+                                <div className="mt-2 space-y-1">
+                                  {item.contextExtractions.map((extraction, extractionIndex) => (
+                                    <div
+                                      key={`${index}-extraction-${extraction.jobId}-${extractionIndex}`}
+                                      className={`text-xs p-2 rounded ${
+                                        item.type === 'user'
+                                          ? 'bg-gray-700 text-gray-300'
+                                          : 'bg-white border border-green-200'
+                                      }`}
+                                    >
+                                      <div className="font-medium line-clamp-2">{extraction.fileName}</div>
+                                      <div className={`text-xs mt-1 ${
+                                        item.type === 'user' ? 'text-gray-400' : 'text-green-600'
+                                      }`}>
+                                        PDF Extraction {extraction.hasTables ? '• Contains Tables' : ''}
                                       </div>
                                     </div>
                                   ))}
@@ -386,10 +484,12 @@ export function ResearchSplitView({
               <ContextSummary
                 selectedPapers={selectedPapers}
                 selectedPressReleases={selectedPressReleases}
+                selectedExtractions={selectedExtractions}
                 showContextPanel={showContextPanel}
                 onToggleContextPanel={onToggleContextPanel}
                 onRemovePaper={onRemovePaper}
                 onRemovePressRelease={onRemovePressRelease}
+                onRemoveExtraction={onRemoveExtraction}
                 onClearContext={onClearContext}
               />
 

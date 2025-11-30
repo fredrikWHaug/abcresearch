@@ -1,5 +1,6 @@
 /* eslint-disable */
 import React, { useState, useEffect } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { LogOut, Menu } from 'lucide-react'
 import { CreateProjectModal } from '@/components/CreateProjectModal'
@@ -33,6 +34,11 @@ interface DashboardProps {
 
 export function Dashboard({ initialShowSavedMaps = false, projectName = '', projectId = null, showHeader = true, insideAppShell = false, initialView = 'research' }: DashboardProps) {
   const { signOut, isGuest, exitGuestMode } = useAuth()
+  const navigate = useNavigate()
+  const urlParams = useParams<{ projectId?: string }>()
+  
+  // Get projectId from props or URL params
+  const effectiveProjectId = projectId ?? (urlParams.projectId && urlParams.projectId !== 'null' ? parseInt(urlParams.projectId, 10) : null)
   
   const handleSignOut = async () => {
     console.log('Logout button clicked!');
@@ -131,6 +137,11 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
       // Switch to research view so user can see the chat
       setViewMode('research');
       setHasSearched(true);
+      
+      // Update URL if inside AppShell
+      if (insideAppShell && effectiveProjectId !== null) {
+        navigate(`/app/project/${effectiveProjectId}/research`, { replace: true });
+      }
     }
 
     const handleRemoveExtractionFromContext = (jobId: string) => {
@@ -1457,6 +1468,9 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
         <DataExtractionView
           currentProjectId={currentProjectId}
           isVisible
+          onAddToChat={handleAddExtractionToContext}
+          onRemoveFromChat={handleRemoveExtractionFromContext}
+          isExtractionInContext={isExtractionInContext}
         />
       </DashboardLayout>
     );
@@ -1482,13 +1496,21 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
           chatHistory={chatHistory}
           selectedPapers={selectedPapers}
           selectedPressReleases={selectedPressReleases}
+          selectedExtractions={selectedExtractions}
           showContextPanel={showContextPanel}
           onToggleContextPanel={() => setShowContextPanel(prev => !prev)}
           onRemovePaper={handleRemovePaperFromContext}
           onRemovePressRelease={handleRemovePressReleaseFromContext}
+          onRemoveExtraction={handleRemoveExtractionFromContext}
           onClearContext={handleClearContext}
           onMessageChange={(value) => setMessage(value)}
           onSendMessage={handleSendMessage}
+          onKeyPress={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault()
+              handleSendMessage()
+            }
+          }}
           handleSearchSuggestion={handleSearchSuggestion}
           message={message}
           loading={loading}
@@ -1517,15 +1539,24 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
         chatHistory={chatHistory}
         selectedPapers={selectedPapers}
         selectedPressReleases={selectedPressReleases}
+        selectedExtractions={selectedExtractions}
         showContextPanel={showContextPanel}
         onToggleContextPanel={() => setShowContextPanel(prev => !prev)}
         onRemovePaper={handleRemovePaperFromContext}
         onRemovePressRelease={handleRemovePressReleaseFromContext}
+        onRemoveExtraction={handleRemoveExtractionFromContext}
         onClearContext={handleClearContext}
         handleSearchSuggestion={handleSearchSuggestion}
         message={message}
         onMessageChange={(value) => setMessage(value)}
         onSendMessage={handleSendMessage}
+        onKeyPress={(e) => {
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault()
+            handleSendMessage()
+          }
+        }}
+        loading={loading}
       />
     </DashboardLayout>
   );
