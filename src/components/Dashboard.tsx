@@ -262,16 +262,22 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
   const [, setPressReleases] = useState<PressRelease[]>([])
   const [, setIRDecks] = useState<IRDeck[]>([])
   const [, setPapersLoading] = useState(false)
-  const [viewMode, setViewMode] = useState<'research' | 'pipeline' | 'marketmap' | 'dataextraction' | 'realtimefeed'>(
+  const [viewMode, setViewModeState] = useState<'research' | 'pipeline' | 'marketmap' | 'dataextraction' | 'realtimefeed'>(
     initialShowSavedMaps ? 'marketmap' : (initialView as any) || 'research'
   )
+  
+  // Wrapper to update both state and ref immediately
+  const setViewMode = React.useCallback((mode: 'research' | 'pipeline' | 'marketmap' | 'dataextraction' | 'realtimefeed') => {
+    viewModeRef.current = mode
+    setViewModeState(mode)
+  }, [])
   
   // Sync viewMode with URL changes when inside AppShell
   useEffect(() => {
     if (insideAppShell && initialView) {
       setViewMode(initialView as any)
     }
-  }, [initialView, insideAppShell])
+  }, [initialView, insideAppShell, setViewMode])
   
   const [slideData, setSlideData] = useState<SlideData | null>(null)
   const [generatingSlide, setGeneratingSlide] = useState(false)
@@ -360,8 +366,11 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
   const previousProjectIdRef = React.useRef<number | null>(null)
   const chatHistoryRef = React.useRef(chatHistory)
   const saveChatTimeoutRef = React.useRef<NodeJS.Timeout | null>(null)
+  const viewModeRef = React.useRef<'research' | 'pipeline' | 'marketmap' | 'dataextraction' | 'realtimefeed'>(
+    initialShowSavedMaps ? 'marketmap' : (initialView as any) || 'research'
+  )
 
-  // Keep ref in sync with state
+  // Keep refs in sync with state
   React.useEffect(() => {
     chatHistoryRef.current = chatHistory
   }, [chatHistory])
@@ -474,7 +483,8 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
             // Only set viewMode to research if NOT inside AppShell with URL routing
             // When inside AppShell, the URL controls the view mode via initialView prop
             // Preserve user-selected views (dataextraction, pipeline, etc.) - only reset if currently research
-            if (!insideAppShell && (viewMode === 'research' || !viewMode)) {
+            // Use ref to get current value (not stale closure)
+            if (!insideAppShell && (viewModeRef.current === 'research' || !viewModeRef.current)) {
               setViewMode('research')
             }
           } else {
@@ -487,7 +497,8 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
               setHasSearched(true)
               // Only set viewMode to research if NOT inside AppShell with URL routing
               // Preserve user-selected views (dataextraction, pipeline, etc.) - only reset if currently research
-              if (!insideAppShell && (viewMode === 'research' || !viewMode)) {
+              // Use ref to get current value (not stale closure)
+              if (!insideAppShell && (viewModeRef.current === 'research' || !viewModeRef.current)) {
                 setViewMode('research')
               }
             } else {
@@ -496,7 +507,8 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
               setHasSearched(false)
               // Only set viewMode to research if NOT inside AppShell with URL routing
               // Preserve user-selected views (dataextraction, pipeline, etc.) - only reset if currently research or undefined
-              if (!insideAppShell && (viewMode === 'research' || !viewMode)) {
+              // Use ref to get current value (not stale closure)
+              if (!insideAppShell && (viewModeRef.current === 'research' || !viewModeRef.current)) {
                 setViewMode('research')
               }
             }
