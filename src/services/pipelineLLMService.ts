@@ -1,7 +1,3 @@
- 
-// Pipeline LLM Service
-// Uses AI to extract comprehensive drug pipeline data
-
 import type { DrugGroup } from '@/services/drugGroupingService';
 import type { PipelineDrugCandidate } from '@/types/pipeline';
 
@@ -30,11 +26,6 @@ export class PipelineLLMService {
         return bTotal - aTotal;
       });
       const topDrugs = sortedDrugs.slice(0, limit);
-      
-      console.log(`Extracting pipeline data for top ${topDrugs.length} drugs (out of ${drugGroups.length} total)`);
-      console.log('Top drugs by combined count:', topDrugs.map(d => 
-        `${d.drugName} (${d.papers.length} papers, ${d.trials.length} trials)`
-      ));
 
       // Call the API endpoint
       const response = await fetch('/api/generate-asset-pipeline-table', {
@@ -54,8 +45,7 @@ export class PipelineLLMService {
       }
 
       const data: ExtractPipelineResponse = await response.json();
-      
-      console.log(`Successfully extracted ${data.totalProcessed} drug candidates`);
+
       if (data.errors && data.errors.length > 0) {
         console.warn('Some drugs failed to process:', data.errors);
       }

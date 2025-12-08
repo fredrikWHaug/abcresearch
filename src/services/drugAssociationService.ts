@@ -227,10 +227,6 @@ export async function getIRDecksByIds(ids: number[]): Promise<IRDeck[]> {
   }))
 }
 
-// ============================================================================
-// DRUG GROUP OPERATIONS (High-Level Save/Load)
-// ============================================================================
-
 export async function saveDrugGroups(projectId: number, drugGroups: DrugGroup[]): Promise<void> {
   const { upsertDrug, linkDrugToProject } = await import('./drugService')
   const { upsertTrial } = await import('./trialService')

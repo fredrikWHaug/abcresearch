@@ -1,7 +1,3 @@
- 
-// Drug Grouping Service
-// Groups papers and clinical trials by the drugs they mention
-
 import type { PubMedArticle } from '@/types/papers';
 import type { ClinicalTrial } from '@/types/trials';
 import type { PressRelease } from '@/types/press-releases';

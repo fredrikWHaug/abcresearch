@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-explict-any */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { supabase } from '@/lib/supabase'
 import { handleSupabaseQuery } from './utils/supabaseHelpers'
 import type { PubMedArticle } from '@/types/papers'

@@ -47,22 +47,14 @@ class PyodideGraphRenderer {
 
   private async _doInitialize(): Promise<void> {
     try {
-      console.log('[Pyodide] Starting initialization...')
-      const startTime = Date.now()
-
       // Load Pyodide from CDN
       // Note: The version should match the installed pyodide package version
       this.pyodide = await loadPyodide({
         indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.29.0/full/'
       })
 
-      console.log(`[Pyodide] Core loaded in ${Date.now() - startTime}ms`)
-
       // Load required packages (pandas depends on numpy, so load numpy first)
-      console.log('[Pyodide] Loading matplotlib, numpy, and pandas...')
       await this.pyodide.loadPackage(['matplotlib', 'numpy', 'pandas'])
-
-      console.log(`[Pyodide] Packages loaded in ${Date.now() - startTime}ms`)
 
       // Configure matplotlib for non-interactive backend
       await this.pyodide.runPythonAsync(`
@@ -79,7 +71,6 @@ print("Matplotlib, numpy, and pandas ready")
 `)
 
       this.isInitialized = true
-      console.log(`[Pyodide] Initialization complete in ${Date.now() - startTime}ms`)
     } catch (error) {
       console.error('[Pyodide] Initialization failed:', error)
       this.isInitialized = false
@@ -112,8 +103,6 @@ print("Matplotlib, numpy, and pandas ready")
       if (!this.pyodide) {
         throw new Error('Pyodide not initialized')
       }
-
-      console.log('[Pyodide] Executing Python code...')
 
       // Wrap the GPT-generated code to capture output as PNG
       // The GPT code should define a recreate_plot() function or similar
@@ -182,7 +171,6 @@ img_base64
       }
 
       const executionTimeMs = Date.now() - startTime
-      console.log(`[Pyodide] Execution complete in ${executionTimeMs}ms`)
 
       return {
         success: true,
@@ -227,7 +215,6 @@ img_base64
    */
   async preload(): Promise<void> {
     if (!this.isInitialized && !this.initializationPromise) {
-      console.log('[Pyodide] Pre-loading in background...')
       // Start initialization but don't wait for it
       this.initialize().catch(err => {
         console.error('[Pyodide] Pre-load failed:', err)

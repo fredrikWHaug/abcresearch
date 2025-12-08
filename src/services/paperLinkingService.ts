@@ -1,7 +1,3 @@
- 
-// Paper Linking Service
-// Links academic papers to clinical trials based on various criteria
-
 import type { PubMedArticle, PubMedSearchParams } from '@/types/papers';
 import type { ClinicalTrial } from '@/types/trials';
 
