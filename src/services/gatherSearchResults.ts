@@ -1,8 +1,3 @@
- 
-// Gather Search Results Service
-// Orchestrates AI-enhanced search, clinical trials, and research papers
-// Contains business logic for searching across multiple data sources
-
 import type { ClinicalTrial, SearchParams } from '@/types/trials';
 import type { PubMedArticle, PubMedSearchParams } from '@/types/papers';
 import type { PressRelease } from '@/types/press-releases';
@@ -144,15 +139,7 @@ export class GatherSearchResultsService {
         throw new Error('Failed to enhance search query');
       }
 
-      // Enforce limit of 5 strategies
       const strategies = data.strategies.slice(0, 5);
-
-      console.log(`✅ Generated ${strategies.length} discovery strategies for: "${userQuery}"`);
-      strategies.forEach((s, i) => {
-        console.log(`  ${i+1}. [${s.priority}] ${s.searchType}: "${s.query}"`);
-        console.log(`      → ${s.description}`);
-      });
-
       return strategies;
     } catch (error) {
       console.error('Error enhancing search query:', error);
@@ -176,16 +163,13 @@ export class GatherSearchResultsService {
       const strategies = await this.enhanceQuery(userQuery, onProgress);
       
       onProgress?.('Gathering clinical trials, papers and other sources');
-      
-      console.log(`🔍 Executing ${strategies.length} discovery searches in parallel...`);
-      
+
       // Execute all 5 strategies in parallel (max 50 results per strategy)
       const strategyResults = await Promise.all(
         strategies.map(async (strategy) => {
           try {
             const result = await this.searchTrials({ query: strategy.query, pageSize: 50 });
-            console.log(`  ✓ "${strategy.query}": ${result.trials.length} trials`);
-            
+
             // Capture formatted queries for display
             //TODO: doesn't have to be RCT for phase 4+
             const formattedQueries = {
@@ -216,8 +200,6 @@ export class GatherSearchResultsService {
 
       // Union all results
       const allTrials = strategyResults.flatMap(r => r.trials);
-      
-      console.log(`📊 Total trials across ${strategies.length} strategies: ${allTrials.length}`);
 
       // Deduplicate by NCT ID
       const uniqueTrials = allTrials.reduce((acc: ClinicalTrial[], current: ClinicalTrial) => {
@@ -227,10 +209,7 @@ export class GatherSearchResultsService {
         }
         return acc;
       }, []);
-      
-      console.log(`✅ Unique trials after deduplication: ${uniqueTrials.length}`);
-      console.log(`   Removed ${allTrials.length - uniqueTrials.length} duplicates (${Math.round((allTrials.length - uniqueTrials.length) / allTrials.length * 100)}%)`);
-      
+
       // Apply ranking to prioritize most relevant
       // TODO: How long does this process take? Should add logging on latency of each step OR showing progress on screen
       const rankedTrials = TrialRankingService.rankTrials(uniqueTrials, userQuery);
@@ -280,9 +259,7 @@ export class GatherSearchResultsService {
       //TODO check if enhance query API has a different set of instructions for PubMed.
       //maybe you can merge the query enhancement with the searching
       const strategies = await this.enhanceQuery(userQuery, onProgress);
-      
-      console.log(`📄 Searching papers with ${strategies.length} discovery strategies...`);
-      
+
       // Execute all 5 paper searches in parallel (30 results per strategy)
       const paperSearches = await Promise.all(
         strategies.map(async (strategy) => {
@@ -291,7 +268,6 @@ export class GatherSearchResultsService {
               query: `${strategy.query} AND ("Clinical Trial"[Publication Type] OR "Randomized Controlled Trial"[Publication Type])`,
               maxResults: 30
             });
-            console.log(`  ✓ "${strategy.query}": ${papers.length} papers`);
             return papers;
           } catch (error) {
             console.error(`  ✗ "${strategy.query}" failed:`, error);
@@ -309,9 +285,7 @@ export class GatherSearchResultsService {
         }
         return acc;
       }, []);
-      
-      console.log(`📄 Total papers: ${allPapers.length}, Unique: ${uniquePapers.length} (${Math.round((allPapers.length - uniquePapers.length) / allPapers.length * 100)}% duplicates)`);
-      
+
       return uniquePapers;
     } catch (error) {
       console.error('Error searching research papers:', error);
@@ -326,8 +300,6 @@ export class GatherSearchResultsService {
    */
   private static async searchPressReleases(userQuery: string): Promise<PressRelease[]> {
     try {
-      console.log(`📰 Searching press releases...`);
-
       const response = await fetch(buildApiUrl('/api/search?type=press-releases'), {
         method: 'POST',
         headers: {
@@ -346,8 +318,6 @@ export class GatherSearchResultsService {
       const data = await response.json();
       const pressReleases = data.pressReleases || [];
 
-      console.log(`  ✓ Found ${pressReleases.length} press releases`);
-
       return pressReleases;
     } catch (error) {
       console.error('Error searching press releases:', error);
@@ -362,8 +332,6 @@ export class GatherSearchResultsService {
    */
   private static async searchIRDecks(userQuery: string): Promise<IRDeck[]> {
     try {
-      console.log(`📊 Searching IR decks...`);
-
       const response = await fetch(buildApiUrl('/api/search?type=ir-decks'), {
         method: 'POST',
         headers: {
@@ -382,8 +350,6 @@ export class GatherSearchResultsService {
       const data = await response.json();
       const irDecks = data.irDecks || [];
 
-      console.log(`  ✓ Found ${irDecks.length} IR decks`);
-
       return irDecks;
     } catch (error) {
       console.error('Error searching IR decks:', error);
@@ -399,10 +365,6 @@ export class GatherSearchResultsService {
    */
   static async gatherSearchResults(userQuery: string, onProgress?: ProgressCallback): Promise<GatherSearchResultsResponse> {
     try {
-      console.log(`\n🚀 Starting drug discovery search for: "${userQuery}"`);
-      console.log(`   Strategy: Phrase-based discovery (NOT drug-specific)`);
-      console.log('=' .repeat(80));
-      
       // Search clinical trials, research papers, press releases, and IR decks in parallel
       // Trials and papers each use 5 LLM-generated phrase-based queries
       const [trialsResult, papers, pressReleases, irDecks] = await Promise.all([
@@ -420,15 +382,6 @@ export class GatherSearchResultsService {
         irDecks: irDecks.length
       });
 
-      console.log(`\n✅ Discovery search complete!`);
-      console.log(`   Unique trials: ${trialsResult.trials.length}`);
-      console.log(`   Unique papers: ${papers.length}`);
-      console.log(`   Press releases: ${pressReleases.length}`);
-      console.log(`   IR decks: ${irDecks.length}`);
-      console.log(`   Discovery strategies: ${trialsResult.searchStrategies.length}`);
-      console.log(`   → Now extract drug names from these ${trialsResult.trials.length + papers.length + pressReleases.length + irDecks.length} results`);
-      console.log('=' .repeat(80) + '\n');
-
       return {
         trials: trialsResult.trials,
         papers: papers,
@@ -443,57 +396,4 @@ export class GatherSearchResultsService {
       throw error;
     }
   }
-
-  /**
-   * Simple search without AI enhancement (fallback)
-   * Uses LLM-based query parsing in the API layer
-   * TODO: Should remove this so that we always use the enhancement (which is currently broken)
-   */
-
-  /**
-  static async simpleSearch(userQuery: string): Promise<GatherSearchResultsResponse> {
-    try {
-      // Parse query and search directly
-      //const params = this.parseQuery(userQuery);
-      // LLM-based parsing happens in searchTrials API
-      const params: SearchParams = { query: userQuery };
-      
-      // Search trials and papers in parallel
-      const [trialsResult, papers, pressReleases, irDecks] = await Promise.all([
-        this.searchTrials(params),
-        this.searchPapers({
-          query: `${userQuery} AND ("Clinical Trial"[Publication Type] OR "Randomized Controlled Trial"[Publication Type])`,
-          maxResults: 30
-        }),
-        this.searchPressReleases(userQuery),
-        this.searchIRDecks(userQuery)
-      ]);
-
-      // Apply ranking
-      const rankedTrials = TrialRankingService.rankTrials(trialsResult.trials, userQuery);
-
-      return {
-        trials: rankedTrials,
-        papers: papers,
-        pressReleases: pressReleases,
-        irDecks: irDecks,
-        totalCount: rankedTrials.length,
-        searchStrategies: [{
-          strategy: {
-            query: userQuery,
-            description: 'Direct search with LLM-based query parsing',
-            priority: 'high',
-            searchType: 'targeted'
-          },
-          count: trialsResult.trials.length,
-          trials: trialsResult.trials
-        }],
-        strategiesUsed: 1
-      };
-    } catch (error) {
-      console.error('Error in simple search:', error);
-      throw error;
-    }
-  } */
 }
- 

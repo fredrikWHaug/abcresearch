@@ -1,7 +1,3 @@
- 
-// Pipeline Service
-// Extracts and processes drug candidate information from clinical trials
-
 import type { ClinicalTrial } from '@/types/trials';
 import type { PipelineDrugCandidate, PipelineStage } from '@/types/pipeline';
 

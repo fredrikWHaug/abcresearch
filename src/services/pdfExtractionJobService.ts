@@ -1,10 +1,4 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-/**
- * PDF Extraction Job Service (Async)
- * 
- * Handles async PDF extraction with job queue system
- */
-
 import { supabase } from '@/lib/supabase'
 import type { 
   PDFExtractionJob, 
@@ -44,9 +38,7 @@ export class PDFExtractionJobService {
       if (!fileKey) {
         throw new Error('File key not found in job')
       }
-      
-      console.log('Triggering worker from client for job:', jobId, 'with fileKey:', fileKey)
-      
+
       // Trigger the worker
       const workerResponse = await fetch('/api/process-pdf-job', {
         method: 'POST',
@@ -63,8 +55,6 @@ export class PDFExtractionJobService {
       if (!workerResponse.ok) {
         const error = await workerResponse.text()
         console.error('Worker response error:', error)
-      } else {
-        console.log('Worker triggered successfully from client')
       }
     } catch (error) {
       console.error('Error triggering worker:', error)
@@ -108,12 +98,6 @@ export class PDFExtractionJobService {
       formData.append('forceOCR', String(options.forceOCR ?? false))
       formData.append('maxGraphifyImages', String(options.maxGraphifyImages ?? 10))
 
-      console.log('Submitting PDF job...', {
-        fileName: file.name,
-        fileSize: file.size,
-        options
-      })
-
       // Submit job
       const response = await fetch('/api/submit-pdf-job', {
         method: 'POST',
@@ -129,9 +113,7 @@ export class PDFExtractionJobService {
       }
 
       const data: CreateJobResponse = await response.json()
-      
-      console.log('Job submitted:', data.job?.id)
-      
+
       // Trigger the worker from client-side (works around Vercel limitation)
       if (data.success && data.job) {
         this.triggerWorker(data.job.id, session.access_token).catch(err => {

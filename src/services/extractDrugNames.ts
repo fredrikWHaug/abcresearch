@@ -1,8 +1,3 @@
- 
-// Extract Drug Names Service
-// Business logic for extracting drug names from clinical trials and research papers
-// Calls extract-drug-names API proxy
-
 import type { ClinicalTrial } from '@/types/trials';
 import type { PubMedArticle } from '@/types/papers';
 
@@ -203,7 +198,6 @@ export class ExtractDrugNamesService {
       
       try {
         deduplicatedDrugs = await this.deduplicateDrugs(allDrugs);
-        console.log(`✅ Deduplication successful: ${allDrugs.length} → ${deduplicatedDrugs.length} drugs`);
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : 'Unknown error';
         console.warn('⚠️ Deduplication failed, using basic deduplication:', errorMsg);
@@ -219,8 +213,7 @@ export class ExtractDrugNamesService {
           }
         }
         deduplicatedDrugs = Array.from(seen.values());
-        console.log(`📋 Basic deduplication: ${allDrugs.length} → ${deduplicatedDrugs.length} drugs`);
-        
+
         // Set warning message for user
         deduplicationWarning = `⚠️ Advanced deduplication unavailable. Using basic deduplication - some duplicate drugs (brand/generic names) may appear separately in results.`;
       }
@@ -231,8 +224,6 @@ export class ExtractDrugNamesService {
       // Get unique drug names
       const uniqueDrugNames = [...new Set(highConfidenceDrugs.map(d => d.name))];
 
-      console.log(`Extracted ${uniqueDrugNames.length} high-confidence drugs from ${deduplicatedDrugs.length} total`);
-      
       // Log failed extractions if any
       if (this.failedExtractions.length > 0) {
         console.warn(`Failed to extract drugs from ${this.failedExtractions.length} items:`, this.failedExtractions);
@@ -287,7 +278,6 @@ export class ExtractDrugNamesService {
         throw new Error(data.error || 'Deduplication failed');
       }
 
-      console.log(`✅ LLM deduplication: ${data.originalCount} → ${data.deduplicatedCount} drugs`);
       return data.drugs;
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';

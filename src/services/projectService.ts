@@ -20,23 +20,13 @@ export interface Project {
  * Create a new project
  */
 export async function createProject(name: string, description?: string): Promise<Project> {
-  console.log('🔵 [ProjectService] Starting project creation:', { name, description })
-  
   const { data: { user }, error: userError } = await supabase.auth.getUser()
-  
-  console.log('🔵 [ProjectService] Auth check:', { 
-    hasUser: !!user, 
-    userId: user?.id,
-    userError: userError?.message 
-  })
-  
+
   if (!user) {
     const errorMsg = 'User must be authenticated to create a project'
     console.error('❌ [ProjectService]', errorMsg)
     throw new Error(errorMsg)
   }
-
-  console.log('🔵 [ProjectService] Inserting into database...')
 
   const { data, error } = await supabase
     .from('projects')
@@ -52,16 +42,9 @@ export async function createProject(name: string, description?: string): Promise
 
   if (error) {
     console.error('❌ [ProjectService] Database error:', error)
-    console.error('❌ [ProjectService] Error details:', {
-      message: error.message,
-      details: error.details,
-      hint: error.hint,
-      code: error.code
-    })
     throw error
   }
 
-  console.log('✅ [ProjectService] Project created successfully:', data)
   return data
 }
 
@@ -229,14 +212,9 @@ export async function loadSearchQueries(projectId: number): Promise<{
  * Save pipeline candidates for a project
  */
 export async function savePipelineCandidates(
-  projectId: number, 
+  projectId: number,
   pipelineCandidates: any[]
 ): Promise<void> {
-  console.log('[ProjectService] Saving pipeline candidates:', {
-    projectId,
-    candidatesCount: pipelineCandidates.length
-  })
-
   const { error } = await supabase
     .from('projects')
     .update({
@@ -249,16 +227,12 @@ export async function savePipelineCandidates(
     console.error('[ProjectService] Error saving pipeline candidates:', error)
     throw error
   }
-
-  console.log('[ProjectService] Pipeline candidates saved successfully')
 }
 
 /**
  * Load pipeline candidates for a project
  */
 export async function loadPipelineCandidates(projectId: number): Promise<any[]> {
-  console.log('[ProjectService] Loading pipeline candidates for project:', projectId)
-
   const { data, error } = await supabase
     .from('projects')
     .select('pipeline_candidates')
@@ -270,8 +244,6 @@ export async function loadPipelineCandidates(projectId: number): Promise<any[]> 
     return []
   }
 
-  const candidates = data?.pipeline_candidates || []
-  console.log('[ProjectService] Loaded pipeline candidates:', candidates.length)
-  return candidates
+  return data?.pipeline_candidates || []
 }
 
