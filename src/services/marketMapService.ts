@@ -38,14 +38,6 @@ export class MarketMapService {
       throw new Error('User must be authenticated to save market maps');
     }
 
-    console.log('Saving to database:', {
-      project_id: projectId,
-      chat_history: data.chat_history,
-      papers_data: data.papers_data,
-      chat_history_length: data.chat_history?.length || 0,
-      papers_data_length: data.papers_data?.length || 0
-    });
-
     const insertData = {
       user_id: user.id,
       project_id: projectId,
@@ -56,10 +48,6 @@ export class MarketMapService {
       chat_history: data.chat_history || null,
       papers_data: data.papers_data || null,
     };
-
-    console.log('Insert data being sent to database:', insertData);
-    console.log('Chat history type:', typeof insertData.chat_history);
-    console.log('Papers data type:', typeof insertData.papers_data);
 
     const { data: result, error } = await supabase
       .from('market_maps')
@@ -72,18 +60,10 @@ export class MarketMapService {
       throw new Error(`Failed to save market map: ${error.message}`);
     }
 
-    console.log('Successfully saved to database. Result:', result);
-
-    // Dual-write: Save to normalized tables in background (non-blocking)
     if (projectId) {
-      console.log('[MarketMapService] Queueing background dual-write to normalized tables...');
-      
-      // Fire-and-forget: Don't await this, let it run in background
       this.backgroundDualWrite(projectId, data).catch((error) => {
         console.error('[MarketMapService] Background dual-write failed:', error);
       });
-      
-      console.log('[MarketMapService] Market map saved, normalization in progress...');
     }
 
     return result;
@@ -95,17 +75,10 @@ export class MarketMapService {
    */
   private static async backgroundDualWrite(projectId: number, data: CreateMarketMapData): Promise<void> {
     try {
-      console.log('[MarketMapService] Starting background dual-write...');
-      
-      // Import services dynamically to avoid circular dependencies
       const { upsertTrial, linkTrialToProject } = await import('./trialService');
       const { upsertPaper, linkPaperToProject } = await import('./paperService');
-      
-      // Upsert trials and link to project
+
       if (data.trials_data && data.trials_data.length > 0) {
-        console.log('[MarketMapService] Processing', data.trials_data.length, 'trials in background...');
-        
-        // Process in batches to avoid overwhelming the database
         const batchSize = 10;
         for (let i = 0; i < data.trials_data.length; i += batchSize) {
           const batch = data.trials_data.slice(i, i + batchSize);
@@ -119,16 +92,10 @@ export class MarketMapService {
               }
             })
           );
-          console.log(`[MarketMapService] Processed ${Math.min(i + batchSize, data.trials_data.length)}/${data.trials_data.length} trials`);
         }
-        console.log('[MarketMapService] All trials processed');
       }
-      
-      // Upsert papers and link to project
+
       if (data.papers_data && data.papers_data.length > 0) {
-        console.log('[MarketMapService] Processing', data.papers_data.length, 'papers in background...');
-        
-        // Process in batches
         const batchSize = 10;
         for (let i = 0; i < data.papers_data.length; i += batchSize) {
           const batch = data.papers_data.slice(i, i + batchSize);
@@ -142,12 +109,8 @@ export class MarketMapService {
               }
             })
           );
-          console.log(`[MarketMapService] Processed ${Math.min(i + batchSize, data.papers_data.length)}/${data.papers_data.length} papers`);
         }
-        console.log('[MarketMapService] All papers processed');
       }
-      
-      console.log('[MarketMapService] Background dual-write complete');
     } catch (error) {
       console.error('[MarketMapService] Background dual-write failed:', error);
       throw error;
@@ -193,12 +156,6 @@ export class MarketMapService {
       throw new Error(`Failed to fetch market map: ${error.message}`);
     }
 
-    console.log('Fetched market map from database:', data);
-    console.log('Chat history from database:', data.chat_history);
-    console.log('Papers data from database:', data.papers_data);
-    console.log('Chat history type:', typeof data.chat_history);
-    console.log('Papers data type:', typeof data.papers_data);
-
     return data;
   }
 
@@ -210,10 +167,6 @@ export class MarketMapService {
       ...data,
       updated_at: new Date().toISOString(),
     };
-
-    console.log('Updating market map with data:', updateData);
-    console.log('Chat history type:', typeof updateData.chat_history);
-    console.log('Papers data type:', typeof updateData.papers_data);
 
     const { data: result, error } = await supabase
       .from('market_maps')
@@ -227,7 +180,6 @@ export class MarketMapService {
       throw new Error(`Failed to update market map: ${error.message}`);
     }
 
-    console.log('Successfully updated market map. Result:', result);
     return result;
   }
 

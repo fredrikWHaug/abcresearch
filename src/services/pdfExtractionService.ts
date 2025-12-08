@@ -29,12 +29,6 @@ export class PDFExtractionService {
       formData.append('forceOCR', String(options.forceOCR ?? false))
       formData.append('maxGraphifyImages', String(options.maxGraphifyImages ?? 10))
 
-      console.log('Uploading PDF to extraction API...', {
-        fileName: file.name,
-        fileSize: file.size,
-        options
-      })
-
       const response = await fetch('/api/extract-pdf-content', {
         method: 'POST',
         body: formData
@@ -46,7 +40,6 @@ export class PDFExtractionService {
       }
 
       const data = await response.json()
-      console.log('Extraction API response:', data)
 
       // Convert base64 blobs to Blob objects
       const result: PDFExtractionResult = {

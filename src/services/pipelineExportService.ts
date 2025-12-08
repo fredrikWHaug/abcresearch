@@ -1,6 +1,3 @@
-// Pipeline Export Service
-// Exports Asset Development Pipeline data to PowerPoint format
-
 import pptxgen from 'pptxgenjs'
 import type { PipelineDrugCandidate } from '@/types/pipeline'
 
@@ -243,8 +240,6 @@ export async function exportPipelineToPPT(
   // Download the presentation
   const fileName = `Asset-Pipeline-${new Date().toISOString().split('T')[0]}.pptx`
   await pptx.writeFile({ fileName })
-
-  console.log(`PowerPoint exported: ${fileName}`)
 }
 
 /**
