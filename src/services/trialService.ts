@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { supabase } from '@/lib/supabase'
+import { handleSupabaseQuery } from './utils/supabaseHelpers'
 import type { ClinicalTrial } from '@/types/trials'
 
 export interface NormalizedTrial {
@@ -25,93 +26,53 @@ export interface ProjectTrial extends NormalizedTrial {
   added_at: string
 }
 
-/**
- * Upsert a trial to the normalized trials table
- * Returns the trial ID
- */
 export async function upsertTrial(trial: ClinicalTrial): Promise<number> {
-  const { data, error } = await supabase
-    .from('trials')
-    .upsert(
-      {
-        nct_id: trial.nctId,
-        brief_title: trial.briefTitle,
-        official_title: trial.officialTitle,
-        overall_status: trial.overallStatus,
-        phase: trial.phase,
-        conditions: trial.conditions,
-        interventions: trial.interventions,
-        sponsors_lead: trial.sponsors?.lead,
-        enrollment: trial.enrollment,
-        start_date: trial.startDate,
-        completion_date: trial.completionDate,
-        locations: trial.locations,
-        study_type: trial.studyType,
-      },
-      { onConflict: 'nct_id' }
-    )
-    .select('id')
-    .single()
-
-  if (error) {
-    console.error('[TrialService] Error upserting trial:', trial.nctId, error)
-    throw error
-  }
-
+  const data = await handleSupabaseQuery<{ id: number }>(
+    supabase
+      .from('trials')
+      .upsert(
+        {
+          nct_id: trial.nctId,
+          brief_title: trial.briefTitle,
+          official_title: trial.officialTitle,
+          overall_status: trial.overallStatus,
+          phase: trial.phase,
+          conditions: trial.conditions,
+          interventions: trial.interventions,
+          sponsors_lead: trial.sponsors?.lead,
+          enrollment: trial.enrollment,
+          start_date: trial.startDate,
+          completion_date: trial.completionDate,
+          locations: trial.locations,
+          study_type: trial.studyType,
+        },
+        { onConflict: 'nct_id' }
+      )
+      .select('id')
+      .single()
+  )
   return data.id
 }
 
-/**
- * Link a trial to a project
- */
-export async function linkTrialToProject(
-  projectId: number,
-  trialId: number
-): Promise<void> {
-  const { error } = await supabase
-    .from('project_trials')
-    .upsert(
-      {
-        project_id: projectId,
-        trial_id: trialId,
-      },
+export async function linkTrialToProject(projectId: number, trialId: number): Promise<void> {
+  await handleSupabaseQuery(
+    supabase.from('project_trials').upsert(
+      { project_id: projectId, trial_id: trialId },
       { onConflict: 'project_id,trial_id' }
     )
-
-  if (error) {
-    console.error('[TrialService] Error linking trial to project:', error)
-    throw error
-  }
+  )
 }
 
-/**
- * Get all trials for a project
- */
 export async function getProjectTrials(projectId: number): Promise<ClinicalTrial[]> {
-  console.log('[TrialService] Fetching trials for project:', projectId)
+  const data = await handleSupabaseQuery<any[]>(
+    supabase
+      .from('project_trials')
+      .select('added_at, trials (*)')
+      .eq('project_id', projectId)
+      .order('added_at', { ascending: false })
+  )
 
-  const { data, error } = await supabase
-    .from('project_trials')
-    .select(`
-      added_at,
-      trials (*)
-    `)
-    .eq('project_id', projectId)
-    .order('added_at', { ascending: false })
-
-  if (error) {
-    console.error('[TrialService] Error fetching project trials:', error)
-    throw error
-  }
-
-  // Handle case where data is null or undefined
-  if (!data) {
-    console.log('[TrialService] No trials data returned for project:', projectId)
-    return []
-  }
-
-  // Map database columns to ClinicalTrial interface (snake_case → camelCase)
-  const trials: ClinicalTrial[] = data.map((row: any) => ({
+  return data?.map((row: any) => ({
     nctId: row.trials.nct_id,
     briefTitle: row.trials.brief_title,
     officialTitle: row.trials.official_title,
@@ -125,49 +86,18 @@ export async function getProjectTrials(projectId: number): Promise<ClinicalTrial
     completionDate: row.trials.completion_date,
     locations: row.trials.locations,
     studyType: row.trials.study_type,
-  }))
-
-  console.log('[TrialService] Found', trials.length, 'trials for project')
-  return trials
+  })) ?? []
 }
 
-/**
- * Get a single trial by NCT ID
- */
 export async function getTrialByNctId(nctId: string): Promise<NormalizedTrial | null> {
-  const { data, error } = await supabase
-    .from('trials')
-    .select('*')
-    .eq('nct_id', nctId)
-    .single()
-
-  if (error && error.code !== 'PGRST116') {
-    // PGRST116 is "no rows found"
-    console.error('[TrialService] Error fetching trial:', error)
-    throw error
-  }
-
+  const { data, error } = await supabase.from('trials').select('*').eq('nct_id', nctId).single()
+  if (error && error.code !== 'PGRST116') throw error
   return data
 }
 
-/**
- * Delete a trial from a project (doesn't delete the trial itself)
- */
-export async function unlinkTrialFromProject(
-  projectId: number,
-  trialId: number
-): Promise<void> {
-  const { error } = await supabase
-    .from('project_trials')
-    .delete()
-    .eq('project_id', projectId)
-    .eq('trial_id', trialId)
-
-  if (error) {
-    console.error('[TrialService] Error unlinking trial:', error)
-    throw error
-  }
-
-  console.log('[TrialService] Trial unlinked from project')
+export async function unlinkTrialFromProject(projectId: number, trialId: number): Promise<void> {
+  await handleSupabaseQuery(
+    supabase.from('project_trials').delete().eq('project_id', projectId).eq('trial_id', trialId)
+  )
 }
 
