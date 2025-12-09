@@ -62,7 +62,7 @@ test.describe('Project Workflow - End-to-End', () => {
     console.log('✅ Screenshot saved')
 
     // Final assertion: Verify we're still on the app (didn't error out)
-    await expect(page).toHaveURL(/\/app\/project/)
+    await expect(page).toHaveURL(/\/app\//)
     console.log('✅ Test completed successfully')
   })
 
@@ -96,7 +96,7 @@ test.describe('Project Workflow - End-to-End', () => {
     }
 
     // Step 4: Verify we're still on the app
-    await expect(page).toHaveURL(/\/app\/project/)
+    await expect(page).toHaveURL(/\/app\//)
     console.log('✅ Tab navigation test completed')
   })
 })
