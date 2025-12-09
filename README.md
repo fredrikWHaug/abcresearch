@@ -7,5 +7,3 @@ AI research assistant that searches clinical trials and papers for wide and accu
 ## Google Drive Link
 
 https://drive.google.com/drive/folders/1PO6NvJXQP3kbibnGkiQYnaSsArhg8rRU
-
-trigger change
