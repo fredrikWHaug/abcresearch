@@ -79,7 +79,8 @@ jobs:
 
     - name: Link and Pull Vercel Environment
       run: |
-        npx vercel link --yes --scope=team_ohK20Hkf1CDsy8ArExcqsld3 --project=abcresearch --token=${{ secrets.VERCEL_TOKEN }}
+        mkdir -p .vercel
+        echo '{"projectId":"prj_P1KgTAsXlb9TUtIiKsIyCZ04tQFE","orgId":"team_ohK20Hkf1CDsy8ArExcqsld3","projectName":"abcresearch"}' > .vercel/project.json
         npx vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
 
     - name: Build Project for Vercel Dev
