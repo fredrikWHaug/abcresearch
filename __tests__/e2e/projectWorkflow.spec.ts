@@ -25,8 +25,8 @@ test.describe('Project Workflow - End-to-End', () => {
       console.log('✅ Clicked guest mode button')
     }
 
-    // Step 4: Wait for dashboard to load
-    await page.waitForURL(/\/(dashboard|app)/, { timeout: 10000 })
+    // Step 4: Wait for dashboard to load (guests go to /app/project/null/research)
+    await page.waitForURL(/\/app\/project/, { timeout: 10000 })
     console.log('✅ Reached dashboard/app')
 
     // Step 5: Verify we can see the search interface
@@ -74,7 +74,7 @@ test.describe('Project Workflow - End-to-End', () => {
     console.log('✅ Screenshot saved')
 
     // Final assertion: Verify we're still on the app (didn't error out)
-    await expect(page).toHaveURL(/\/(dashboard|app)/)
+    await expect(page).toHaveURL(/\/app\/project/)
     console.log('✅ Test completed successfully')
   })
 
@@ -89,7 +89,7 @@ test.describe('Project Workflow - End-to-End', () => {
     }
 
     // Step 2: Wait for dashboard
-    await page.waitForURL(/\/(dashboard|app)/, { timeout: 10000 })
+    await page.waitForURL(/\/app\/project/, { timeout: 10000 })
 
     // Step 3: Look for navigation tabs/buttons
     // Common patterns: Research, Pipeline, Market Map, Data Extraction, etc.
@@ -117,7 +117,7 @@ test.describe('Project Workflow - End-to-End', () => {
     }
 
     // Step 4: Verify we're still on the app
-    await expect(page).toHaveURL(/\/(dashboard|app)/)
+    await expect(page).toHaveURL(/\/app\/project/)
     console.log('✅ Tab navigation test completed')
   })
 })
