@@ -46,13 +46,13 @@ export async function loginWithTestUser(page: Page): Promise<void> {
       // Check current URL
       console.log(`URL after login attempt: ${page.url()}`)
 
-      // Wait for redirect to dashboard
-      await page.waitForURL(/\/app\/project/, { timeout: 15000 })
+      // Wait for redirect to dashboard (could be /app/home or /app/project)
+      await page.waitForURL(/\/app\/(home|project)/, { timeout: 15000 })
       console.log('✅ Successfully logged in and redirected to dashboard')
     } else {
       console.log('⚠️ Auth form not visible, checking if already logged in...')
       // Maybe already on dashboard?
-      const isOnDashboard = page.url().includes('/app/project')
+      const isOnDashboard = page.url().includes('/app/')
       if (isOnDashboard) {
         console.log('✅ Already on dashboard')
       } else {
@@ -73,7 +73,7 @@ export async function loginWithTestUser(page: Page): Promise<void> {
       console.log('✅ Successfully entered guest mode')
     } else {
       // Check if already on dashboard
-      const isOnDashboard = page.url().includes('/app/project')
+      const isOnDashboard = page.url().includes('/app/')
       if (isOnDashboard) {
         console.log('✅ Already on dashboard')
       } else {
