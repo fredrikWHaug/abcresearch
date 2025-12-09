@@ -158,7 +158,7 @@ startxref
 
     // Find the file input element
     const fileInput = page.locator('input[type="file"]#pdf-upload')
-    const hasFileInput = await fileInput.isAttached({ timeout: 5000 }).catch(() => false)
+    const hasFileInput = await fileInput.count().then(c => c > 0).catch(() => false)
 
     if (hasFileInput) {
       // Set the file
