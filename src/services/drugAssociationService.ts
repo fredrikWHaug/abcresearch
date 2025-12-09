@@ -2,8 +2,6 @@
 import { supabase } from '@/lib/supabase'
 import { handleSupabaseQuery, linkDrugToEntity, getDrugEntityIds } from './utils/supabaseHelpers'
 import type { DrugGroup } from './drugGroupingService'
-import type { ClinicalTrial } from '@/types/trials'
-import type { PubMedArticle } from '@/types/papers'
 import type { PressRelease } from '@/types/press-releases'
 import type { IRDeck } from '@/types/ir-decks'
 

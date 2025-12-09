@@ -20,7 +20,7 @@ export interface Project {
  * Create a new project
  */
 export async function createProject(name: string, description?: string): Promise<Project> {
-  const { data: { user }, error: userError } = await supabase.auth.getUser()
+  const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) {
     const errorMsg = 'User must be authenticated to create a project'
