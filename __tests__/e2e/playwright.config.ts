@@ -47,12 +47,13 @@ export default defineConfig({
   ],
 
   // Run your local dev server before starting the tests
-  webServer: {
-    command: process.env.CI
-      ? `npx vercel dev --listen 3000 --yes --token=${process.env.VERCEL_TOKEN}`
-      : 'npx vercel dev --listen 3000 --yes',
-    port: 3000, // Using port instead of url - fixes Playwright timeout bug
-    reuseExistingServer: !process.env.CI,
-    timeout: 120000, // 2 minutes to start server
-  },
+  // In CI, we start the server manually before running Playwright
+  webServer: process.env.CI
+    ? undefined
+    : {
+        command: 'npx vercel dev --listen 3000 --yes',
+        port: 3000,
+        reuseExistingServer: true,
+        timeout: 120000,
+      },
 })
