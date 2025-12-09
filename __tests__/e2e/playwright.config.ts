@@ -53,6 +53,6 @@ export default defineConfig({
       : 'npx vercel dev --listen 3000 --yes',
     url: 'http://localhost:3000',
     reuseExistingServer: !process.env.CI,
-    timeout: 120000, // 2 minutes to start server
+    timeout: 300000, // 5 minutes to start server (Vercel dev can be slow in CI)
   },
 })
