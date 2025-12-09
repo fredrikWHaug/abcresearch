@@ -48,7 +48,9 @@ export default defineConfig({
 
   // Run your local dev server before starting the tests
   webServer: {
-    command: 'npx vercel dev --listen 3000 --yes',
+    command: process.env.CI
+      ? `npx vercel dev --listen 3000 --yes --token=${process.env.VERCEL_TOKEN}`
+      : 'npx vercel dev --listen 3000 --yes',
     url: 'http://localhost:3000',
     reuseExistingServer: !process.env.CI,
     timeout: 120000, // 2 minutes to start server
