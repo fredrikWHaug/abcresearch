@@ -29,26 +29,44 @@ test.describe('Market Map Workflow - End-to-End', () => {
     await page.waitForURL(/\/(dashboard|app)/, { timeout: 10000 })
     console.log('✅ Dashboard loaded')
 
-    // Step 4: Perform a search to get some data
-    const searchInput = page.getByPlaceholder(/search|enter|query/i).first()
-    if (await searchInput.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await searchInput.fill('GLP-1 agonist')
-      console.log('✅ Entered search query')
+    // Step 4: Chat with AI to get search suggestion
+    await page.waitForTimeout(2000)
 
-      // Submit search
-      const searchButton = page.getByRole('button', { name: /search|go/i }).first()
-      if (await searchButton.isVisible({ timeout: 2000 }).catch(() => false)) {
+    const chatInput = page.getByPlaceholder(/how can i help|respond to/i).first()
+    const isChatVisible = await chatInput.isVisible({ timeout: 5000 }).catch(() => false)
+
+    if (isChatVisible) {
+      await chatInput.fill('GLP-1')
+      console.log('✅ Entered chat message: GLP-1')
+
+      // Submit message (press Enter)
+      await chatInput.press('Enter')
+      console.log('✅ Sent message to AI')
+
+      // Wait for AI to respond with search suggestions
+      console.log('⏳ Waiting for AI response...')
+      await page.waitForTimeout(5000)
+
+      // Step 5: Click the search suggestion button
+      const searchButton = page.getByRole('button').filter({ hasText: /click to search/i })
+      const isSearchButtonVisible = await searchButton.isVisible({ timeout: 10000 }).catch(() => false)
+
+      if (isSearchButtonVisible) {
         await searchButton.click()
-      } else {
-        await searchInput.press('Enter')
-      }
-      console.log('✅ Submitted search')
+        console.log('✅ Clicked "Click to Search" button')
 
-      // Wait for results
-      await page.waitForTimeout(3000)
+        // Wait for search to complete - takes ~60-90 seconds
+        console.log('⏳ Waiting for search to complete (this can take up to 90 seconds)...')
+        await page.waitForTimeout(90000)
+        console.log('✅ Search completed')
+      } else {
+        console.log('⚠️  Search button not found in AI response')
+      }
+    } else {
+      console.log('⚠️  Chat input not found')
     }
 
-    // Step 5: Navigate to Market Map tab
+    // Step 6: Navigate to Market Map tab
     const marketMapTab = page.getByRole('button', { name: /market map/i }).or(
       page.getByRole('tab', { name: /market map/i })
     )
@@ -56,19 +74,45 @@ test.describe('Market Map Workflow - End-to-End', () => {
     if (await marketMapTab.isVisible({ timeout: 5000 }).catch(() => false)) {
       await marketMapTab.click()
       console.log('✅ Clicked Market Map tab')
-      await page.waitForTimeout(1000)
+      await page.waitForTimeout(2000)
     } else {
       console.log('⚠️  Market Map tab not found, checking if already on market map view')
     }
 
-    // Step 6: Look for "Save Map" or similar button
-    const saveButton = page.getByRole('button', { name: /save.*map|save|create.*map/i })
+    // Step 7: Click "Generate Market Map" button
+    const generateButton = page.getByRole('button', { name: /generate market map/i })
 
-    if (await saveButton.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await saveButton.click()
-      console.log('✅ Clicked Save Map button')
+    if (await generateButton.isVisible({ timeout: 5000 }).catch(() => false)) {
+      await generateButton.click()
+      console.log('✅ Clicked Generate Market Map button (first time)')
 
-      // Step 7: Fill in map name if there's a dialog/modal
+      // Wait for slide generation to start (AI processing can take time)
+      await page.waitForTimeout(3000)
+
+      // Sometimes the button needs to be clicked twice - check if it's still visible
+      const generateButtonStillVisible = await generateButton.isVisible({ timeout: 2000 }).catch(() => false)
+      if (generateButtonStillVisible) {
+        await generateButton.click()
+        console.log('✅ Clicked Generate Market Map button again (second click needed)')
+      }
+
+      // Wait for slide generation to complete (AI processing)
+      console.log('⏳ Waiting for AI to generate market analysis (15 seconds)...')
+      await page.waitForTimeout(15000)
+      console.log('✅ Slide generation wait completed')
+    } else {
+      console.log('⚠️  Generate Market Map button not found - may already have slide or no trials')
+    }
+
+    // Step 8: Look for "Save Map" button in the Slide modal
+    // The Slide modal appears on top, so we need to click the Save button within it
+    const saveButtonInModal = page.locator('.slide-light-theme').getByRole('button', { name: /save.*map/i })
+
+    if (await saveButtonInModal.isVisible({ timeout: 5000 }).catch(() => false)) {
+      await saveButtonInModal.click()
+      console.log('✅ Clicked Save Map button in modal')
+
+      // Step 8: Fill in map name if there's a dialog/modal
       await page.waitForTimeout(500)
 
       const nameInput = page.getByLabel(/name|title/i).or(
@@ -84,50 +128,71 @@ test.describe('Market Map Workflow - End-to-End', () => {
         if (await confirmButton.isVisible({ timeout: 2000 }).catch(() => false)) {
           await confirmButton.click()
           console.log('✅ Confirmed save')
-          await page.waitForTimeout(1000)
+          await page.waitForTimeout(2000)
         }
       }
     } else {
       console.log('⚠️  Save button not found - user may need to be authenticated')
     }
 
-    // Step 8: Take screenshot of saved state
+    // Step 9: Close the slide modal to see the saved maps list
+    const closeButton = page.locator('button').filter({ hasText: /^×$|close/i }).first()
+    if (await closeButton.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await closeButton.click()
+      console.log('✅ Closed slide modal')
+      await page.waitForTimeout(1000)
+    }
+
+    // Step 10: Take screenshot of saved state
     await page.screenshot({
       path: '__tests__/e2e/screenshots/market-map-saved.png',
       fullPage: true,
     })
     console.log('✅ Screenshot taken')
 
-    // Step 9: Reload the page to verify persistence
+    // Step 11: Reload the page to verify persistence
     await page.reload()
     await page.waitForLoadState('networkidle')
     console.log('✅ Page reloaded')
 
-    // Step 10: Look for "Load Map" or "Saved Maps" button
-    const loadButton = page.getByRole('button', { name: /load.*map|saved.*map|my.*map/i })
-
-    if (await loadButton.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await loadButton.click()
-      console.log('✅ Clicked Load Map button')
+    // Re-enter guest mode after reload
+    const guestButtonAfterReload = page.getByRole('button', { name: /continue as guest|guest mode/i })
+    if (await guestButtonAfterReload.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await guestButtonAfterReload.click()
+      console.log('✅ Re-entered guest mode')
       await page.waitForTimeout(1000)
-
-      // Step 11: Look for our saved map in the list
-      const savedMap = page.getByText(/test market map e2e/i)
-      if (await savedMap.isVisible({ timeout: 3000 }).catch(() => false)) {
-        console.log('✅ Found saved map in list')
-
-        // Click to load it
-        await savedMap.click()
-        await page.waitForTimeout(1000)
-        console.log('✅ Loaded saved map')
-      } else {
-        console.log('⚠️  Saved map not found in list (may require authentication)')
-      }
-    } else {
-      console.log('⚠️  Load Map button not found')
     }
 
-    // Step 12: Final screenshot
+    // Navigate back to Market Map tab
+    const marketMapTabAfterReload = page.getByRole('button', { name: /market map/i }).or(
+      page.getByRole('tab', { name: /market map/i })
+    )
+    if (await marketMapTabAfterReload.isVisible({ timeout: 5000 }).catch(() => false)) {
+      await marketMapTabAfterReload.click()
+      console.log('✅ Navigated back to Market Map tab')
+      await page.waitForTimeout(2000)
+    }
+
+    // Step 12: Look for our saved map in the "Saved Market Maps" section
+    const savedMapCard = page.getByText(/test market map e2e/i)
+    if (await savedMapCard.isVisible({ timeout: 5000 }).catch(() => false)) {
+      console.log('✅ Found saved map in list')
+
+      // Look for Load button within the saved map card
+      const loadButton = savedMapCard.locator('..').getByRole('button', { name: /load/i })
+      if (await loadButton.isVisible({ timeout: 2000 }).catch(() => false)) {
+        await loadButton.click()
+        console.log('✅ Clicked Load button')
+
+        // Wait for map to load
+        await page.waitForTimeout(3000)
+        console.log('✅ Loaded saved map')
+      }
+    } else {
+      console.log('⚠️  Saved map not found in list (may require authentication)')
+    }
+
+    // Step 13: Final screenshot
     await page.screenshot({
       path: '__tests__/e2e/screenshots/market-map-loaded.png',
       fullPage: true,
