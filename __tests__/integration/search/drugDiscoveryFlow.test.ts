@@ -66,6 +66,10 @@ describe('Search & Drug Discovery - Gather Results', () => {
         publicationDate: '2023-06-15',
         journal: 'N Engl J Med',
         doi: '10.1056/NEJMoa123456',
+        relevanceScore: 0.9,
+        fullTextLinks: {
+          pubmed: 'https://pubmed.ncbi.nlm.nih.gov/123456/',
+        },
       },
     ]
 
@@ -366,6 +370,10 @@ describe('Search & Drug Discovery - Drug Grouping', () => {
             publicationDate: '2023-01-01',
             journal: 'Test Journal',
             doi: '10.1234/test',
+            relevanceScore: 0.85,
+            fullTextLinks: {
+              pubmed: 'https://pubmed.ncbi.nlm.nih.gov/1/',
+            },
           },
         ],
         trials: [],
@@ -432,6 +440,10 @@ describe('Search & Drug Discovery - Drug Grouping', () => {
             publicationDate: '2023-01-01',
             journal: 'Cardio Journal',
             doi: '10.1234/cardio',
+            relevanceScore: 0.8,
+            fullTextLinks: {
+              pubmed: 'https://pubmed.ncbi.nlm.nih.gov/1/',
+            },
           },
         ],
         trials: [],
@@ -451,6 +463,10 @@ describe('Search & Drug Discovery - Drug Grouping', () => {
             publicationDate: '2023-01-01',
             journal: 'Diabetes Journal',
             doi: '10.1234/diabetes',
+            relevanceScore: 0.9,
+            fullTextLinks: {
+              pubmed: 'https://pubmed.ncbi.nlm.nih.gov/2/',
+            },
           },
         ],
         trials: [],
