@@ -245,7 +245,7 @@ export async function exportPipelineToPPT(
 /**
  * Get stage badge color for PowerPoint (hex color)
  */
-function getStageBadgeColor(stage: string): string {
+export function getStageBadgeColor(stage: string): string {
   switch (stage) {
     case 'Marketed':
       return '10B981' // green-500
@@ -265,7 +265,7 @@ function getStageBadgeColor(stage: string): string {
 /**
  * Truncate text to a maximum length
  */
-function truncateText(text: string, maxLength: number): string {
+export function truncateText(text: string, maxLength: number): string {
   if (text.length <= maxLength) return text
   return text.substring(0, maxLength) + '...'
 }
@@ -273,7 +273,7 @@ function truncateText(text: string, maxLength: number): string {
 /**
  * Split array into chunks
  */
-function chunkArray<T>(array: T[], chunkSize: number): T[][] {
+export function chunkArray<T>(array: T[], chunkSize: number): T[][] {
   const chunks: T[][] = []
   for (let i = 0; i < array.length; i += chunkSize) {
     chunks.push(array.slice(i, i + chunkSize))
