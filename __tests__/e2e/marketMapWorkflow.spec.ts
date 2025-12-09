@@ -1,19 +1,22 @@
 import { test, expect } from '@playwright/test'
 
 /**
- * E2E Test: Market Map Save/Load Workflow
+ * E2E Test: Market Map Workflow
  *
- * This test verifies the complete market map journey:
- * 1. User performs a search to get data
- * 2. User navigates to Market Map view
- * 3. User creates/saves a market map
- * 4. User reloads the page
- * 5. User loads the saved market map
- * 6. System persists data across sessions
+ * This test verifies the complete market map journey in guest mode:
+ * 1. User chats with AI about a drug (e.g., "GLP-1")
+ * 2. AI responds with search suggestions
+ * 3. User clicks search suggestion to trigger deep dive search
+ * 4. Search completes (~60-90 seconds)
+ * 5. User navigates to Market Map view
+ * 6. User generates market analysis with AI
+ * 7. User saves the market map
+ *
+ * Note: Guest users cannot persist maps across sessions (authentication required)
  */
 
 test.describe('Market Map Workflow - End-to-End', () => {
-  test('user can create, save, and reload a market map', async ({ page }) => {
+  test('user can chat, search, generate, and save a market map', async ({ page }) => {
     // Step 1: Navigate to the application
     await page.goto('/')
     await page.waitForLoadState('networkidle')
@@ -143,64 +146,19 @@ test.describe('Market Map Workflow - End-to-End', () => {
       await page.waitForTimeout(1000)
     }
 
-    // Step 10: Take screenshot of saved state
+    // Step 10: Take final screenshot showing saved market map
     await page.screenshot({
-      path: '__tests__/e2e/screenshots/market-map-saved.png',
+      path: '__tests__/e2e/screenshots/market-map-workflow-complete.png',
       fullPage: true,
     })
     console.log('✅ Screenshot taken')
 
-    // Step 11: Reload the page to verify persistence
-    await page.reload()
-    await page.waitForLoadState('networkidle')
-    console.log('✅ Page reloaded')
-
-    // Re-enter guest mode after reload
-    const guestButtonAfterReload = page.getByRole('button', { name: /continue as guest|guest mode/i })
-    if (await guestButtonAfterReload.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await guestButtonAfterReload.click()
-      console.log('✅ Re-entered guest mode')
-      await page.waitForTimeout(1000)
-    }
-
-    // Navigate back to Market Map tab
-    const marketMapTabAfterReload = page.getByRole('button', { name: /market map/i }).or(
-      page.getByRole('tab', { name: /market map/i })
-    )
-    if (await marketMapTabAfterReload.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await marketMapTabAfterReload.click()
-      console.log('✅ Navigated back to Market Map tab')
-      await page.waitForTimeout(2000)
-    }
-
-    // Step 12: Look for our saved map in the "Saved Market Maps" section
-    const savedMapCard = page.getByText(/test market map e2e/i)
-    if (await savedMapCard.isVisible({ timeout: 5000 }).catch(() => false)) {
-      console.log('✅ Found saved map in list')
-
-      // Look for Load button within the saved map card
-      const loadButton = savedMapCard.locator('..').getByRole('button', { name: /load/i })
-      if (await loadButton.isVisible({ timeout: 2000 }).catch(() => false)) {
-        await loadButton.click()
-        console.log('✅ Clicked Load button')
-
-        // Wait for map to load
-        await page.waitForTimeout(3000)
-        console.log('✅ Loaded saved map')
-      }
-    } else {
-      console.log('⚠️  Saved map not found in list (may require authentication)')
-    }
-
-    // Step 13: Final screenshot
-    await page.screenshot({
-      path: '__tests__/e2e/screenshots/market-map-loaded.png',
-      fullPage: true,
-    })
-
     // Final assertion: Verify we're still on the app
     await expect(page).toHaveURL(/\/(dashboard|app)/)
     console.log('✅ Market Map workflow test completed')
+
+    // Note: Guest users cannot persist or reload saved maps across sessions
+    // This is expected behavior - authentication is required for persistence
   })
 
   test('user can view list of saved market maps', async ({ page }) => {
