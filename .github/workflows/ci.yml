@@ -89,12 +89,27 @@ jobs:
         VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
         VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
 
-    - name: Run E2E tests
-      run: npm run test:e2e:playwright
+    - name: Start Preview Server and Run E2E tests
+      run: |
+        # Start the preview server in background
+        npx vite preview --port 3000 &
+        SERVER_PID=$!
+
+        # Wait for server to be ready
+        echo "Waiting for server to start..."
+        npx wait-on http://localhost:3000 --timeout 60000
+
+        # Run the E2E tests
+        npx playwright test --config=__tests__/e2e/playwright.config.ts
+        TEST_EXIT_CODE=$?
+
+        # Cleanup
+        kill $SERVER_PID 2>/dev/null || true
+
+        exit $TEST_EXIT_CODE
       env:
         VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
         VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
-        VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         TEST_USER_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
         TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
 
