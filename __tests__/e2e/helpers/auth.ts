@@ -12,11 +12,22 @@ export async function loginWithTestUser(page: Page): Promise<void> {
   await page.goto('/')
   await page.waitForLoadState('networkidle')
 
+  // Wait a moment for any redirects to complete
+  await page.waitForTimeout(1000)
+
   console.log(`Current URL: ${page.url()}`)
 
   if (email && password) {
     // CI mode: Use test credentials
     console.log('🔑 Using test credentials for authentication')
+
+    // If we're at root, wait for redirect to /auth
+    if (page.url().endsWith('/') || page.url() === 'http://localhost:3000') {
+      console.log('⏳ Waiting for redirect to auth page...')
+      await page.waitForURL(/\/auth/, { timeout: 5000 }).catch(() => {
+        console.log('⚠️  No redirect to /auth, checking current state...')
+      })
+    }
 
     // Wait for the auth form to be visible
     const emailInput = page.locator('input#email')
