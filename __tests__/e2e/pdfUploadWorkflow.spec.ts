@@ -2,6 +2,10 @@ import { test, expect } from '@playwright/test'
 import { loginWithTestUser } from './helpers/auth'
 import * as path from 'path'
 import * as fs from 'fs'
+import { fileURLToPath } from 'url'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 /**
  * E2E Test: PDF Upload and Extraction Workflow
