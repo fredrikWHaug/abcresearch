@@ -1,32 +1,20 @@
 import { test, expect } from '@playwright/test'
+import { loginWithTestUser } from './helpers/auth'
 
 /**
  * E2E Test: Complete Project Workflow
  *
  * This test verifies the entire user journey:
- * 1. User enters guest mode
+ * 1. User logs in (with test credentials in CI, guest mode locally)
  * 2. User performs a search for drug candidates
  * 3. User sees search results (trials, papers, or drug groups)
  * 4. System handles the complete flow from UI → API → Backend
  */
 
 test.describe('Project Workflow - End-to-End', () => {
-  test('user can enter guest mode and perform a search', async ({ page }) => {
-    // Step 1: Navigate to the application
-    await page.goto('/')
-
-    // Step 2: Wait for the page to load and check we're on auth page or dashboard
-    await page.waitForLoadState('networkidle')
-
-    // Step 3: Enter guest mode if on auth page
-    const guestButton = page.getByRole('button', { name: /continue as guest|guest mode/i })
-    if (await guestButton.isVisible()) {
-      await guestButton.click()
-      console.log('✅ Clicked guest mode button')
-    }
-
-    // Step 4: Wait for dashboard to load (guests go to /app/project/null/research)
-    await page.waitForURL(/\/app\/project/, { timeout: 10000 })
+  test('user can login and perform a search', async ({ page }) => {
+    // Step 1: Login (uses test credentials in CI, guest mode locally)
+    await loginWithTestUser(page)
     console.log('✅ Reached dashboard/app')
 
     // Step 5: Verify we can see the search interface
@@ -79,17 +67,8 @@ test.describe('Project Workflow - End-to-End', () => {
   })
 
   test('user can navigate between different views/tabs', async ({ page }) => {
-    // Step 1: Navigate and enter guest mode
-    await page.goto('/')
-    await page.waitForLoadState('networkidle')
-
-    const guestButton = page.getByRole('button', { name: /continue as guest|guest mode/i })
-    if (await guestButton.isVisible()) {
-      await guestButton.click()
-    }
-
-    // Step 2: Wait for dashboard
-    await page.waitForURL(/\/app\/project/, { timeout: 10000 })
+    // Step 1: Login (uses test credentials in CI, guest mode locally)
+    await loginWithTestUser(page)
 
     // Step 3: Look for navigation tabs/buttons
     // Common patterns: Research, Pipeline, Market Map, Data Extraction, etc.
