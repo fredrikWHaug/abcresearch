@@ -32,6 +32,20 @@ export async function loginWithTestUser(page: Page): Promise<void> {
       await page.getByRole('button', { name: /sign in/i }).click()
       console.log('✅ Clicked Sign In')
 
+      // Wait a moment for the auth response
+      await page.waitForTimeout(2000)
+
+      // Check for error messages
+      const errorMessage = page.locator('.text-red-700, [class*="error"]')
+      if (await errorMessage.isVisible({ timeout: 1000 }).catch(() => false)) {
+        const errorText = await errorMessage.textContent()
+        console.log(`❌ Login error: ${errorText}`)
+        throw new Error(`Login failed: ${errorText}`)
+      }
+
+      // Check current URL
+      console.log(`URL after login attempt: ${page.url()}`)
+
       // Wait for redirect to dashboard
       await page.waitForURL(/\/app\/project/, { timeout: 15000 })
       console.log('✅ Successfully logged in and redirected to dashboard')
