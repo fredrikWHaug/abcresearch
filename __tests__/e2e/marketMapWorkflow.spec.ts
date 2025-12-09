@@ -22,10 +22,22 @@ test.describe('Market Map Workflow - End-to-End', () => {
     await page.waitForLoadState('networkidle')
 
     // Step 2: Enter guest mode
+    console.log(`Current URL before guest: ${page.url()}`)
     const guestButton = page.getByRole('button', { name: /continue as guest|guest mode/i })
-    if (await guestButton.isVisible()) {
+    const isVisible = await guestButton.isVisible({ timeout: 5000 }).catch(() => false)
+
+    if (isVisible) {
+      console.log('✅ Guest button found, clicking...')
       await guestButton.click()
-      console.log('✅ Entered guest mode')
+      console.log('✅ Clicked guest button')
+
+      // Wait for navigation to complete
+      await page.waitForLoadState('networkidle', { timeout: 15000 })
+      console.log(`URL after clicking guest: ${page.url()}`)
+    } else {
+      console.log(`⚠️  Guest button not visible. Current URL: ${page.url()}`)
+      // Maybe already on dashboard? Take screenshot
+      await page.screenshot({ path: '__tests__/e2e/screenshots/no-guest-button.png' })
     }
 
     // Step 3: Wait for dashboard (guests go to /app/project/null/research)
