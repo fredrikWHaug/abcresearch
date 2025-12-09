@@ -28,8 +28,8 @@ test.describe('Market Map Workflow - End-to-End', () => {
       console.log('✅ Entered guest mode')
     }
 
-    // Step 3: Wait for dashboard
-    await page.waitForURL(/\/(dashboard|app)/, { timeout: 10000 })
+    // Step 3: Wait for dashboard (guests go to /app/project/null/research)
+    await page.waitForURL(/\/app\/project/, { timeout: 10000 })
     console.log('✅ Dashboard loaded')
 
     // Step 4: Chat with AI to get search suggestion
@@ -154,7 +154,7 @@ test.describe('Market Map Workflow - End-to-End', () => {
     console.log('✅ Screenshot taken')
 
     // Final assertion: Verify we're still on the app
-    await expect(page).toHaveURL(/\/(dashboard|app)/)
+    await expect(page).toHaveURL(/\/app\/project/)
     console.log('✅ Market Map workflow test completed')
 
     // Note: Guest users cannot persist or reload saved maps across sessions
@@ -171,7 +171,7 @@ test.describe('Market Map Workflow - End-to-End', () => {
       await guestButton.click()
     }
 
-    await page.waitForURL(/\/(dashboard|app)/, { timeout: 10000 })
+    await page.waitForURL(/\/app\/project/, { timeout: 10000 })
 
     // Step 2: Navigate to Market Map view
     const marketMapTab = page.getByRole('button', { name: /market map/i }).or(
@@ -202,7 +202,7 @@ test.describe('Market Map Workflow - End-to-End', () => {
     }
 
     // Final assertion
-    await expect(page).toHaveURL(/\/(dashboard|app)/)
+    await expect(page).toHaveURL(/\/app\/project/)
     console.log('✅ Saved maps list test completed')
   })
 })
