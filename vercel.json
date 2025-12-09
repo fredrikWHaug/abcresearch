@@ -16,6 +16,12 @@
       "schedule": "0 14 * * *"
     }
   ],
+  "rewrites": [
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
+    }
+  ],
   "headers": [
     {
       "source": "/api/(.*)",
