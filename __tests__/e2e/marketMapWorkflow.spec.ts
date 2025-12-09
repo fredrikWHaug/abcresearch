@@ -1,47 +1,24 @@
 import { test, expect } from '@playwright/test'
+import { loginWithTestUser } from './helpers/auth'
 
 /**
  * E2E Test: Market Map Workflow
  *
- * This test verifies the complete market map journey in guest mode:
- * 1. User chats with AI about a drug (e.g., "GLP-1")
- * 2. AI responds with search suggestions
- * 3. User clicks search suggestion to trigger deep dive search
- * 4. Search completes (~60-90 seconds)
- * 5. User navigates to Market Map view
- * 6. User generates market analysis with AI
- * 7. User saves the market map
- *
- * Note: Guest users cannot persist maps across sessions (authentication required)
+ * This test verifies the complete market map journey:
+ * 1. User logs in (with test credentials in CI, guest mode locally)
+ * 2. User chats with AI about a drug (e.g., "GLP-1")
+ * 3. AI responds with search suggestions
+ * 4. User clicks search suggestion to trigger deep dive search
+ * 5. Search completes (~60-90 seconds)
+ * 6. User navigates to Market Map view
+ * 7. User generates market analysis with AI
+ * 8. User saves the market map
  */
 
 test.describe('Market Map Workflow - End-to-End', () => {
   test('user can chat, search, generate, and save a market map', async ({ page }) => {
-    // Step 1: Navigate to the application
-    await page.goto('/')
-    await page.waitForLoadState('networkidle')
-
-    // Step 2: Enter guest mode
-    console.log(`Current URL before guest: ${page.url()}`)
-    const guestButton = page.getByRole('button', { name: /continue as guest|guest mode/i })
-    const isVisible = await guestButton.isVisible({ timeout: 5000 }).catch(() => false)
-
-    if (isVisible) {
-      console.log('✅ Guest button found, clicking...')
-      await guestButton.click()
-      console.log('✅ Clicked guest button')
-
-      // Wait for navigation to complete
-      await page.waitForLoadState('networkidle', { timeout: 15000 })
-      console.log(`URL after clicking guest: ${page.url()}`)
-    } else {
-      console.log(`⚠️  Guest button not visible. Current URL: ${page.url()}`)
-      // Maybe already on dashboard? Take screenshot
-      await page.screenshot({ path: '__tests__/e2e/screenshots/no-guest-button.png' })
-    }
-
-    // Step 3: Wait for dashboard (guests go to /app/project/null/research)
-    await page.waitForURL(/\/app\/project/, { timeout: 10000 })
+    // Step 1: Login (uses test credentials in CI, guest mode locally)
+    await loginWithTestUser(page)
     console.log('✅ Dashboard loaded')
 
     // Step 4: Chat with AI to get search suggestion
@@ -174,16 +151,8 @@ test.describe('Market Map Workflow - End-to-End', () => {
   })
 
   test('user can view list of saved market maps', async ({ page }) => {
-    // Step 1: Navigate to app in guest mode
-    await page.goto('/')
-    await page.waitForLoadState('networkidle')
-
-    const guestButton = page.getByRole('button', { name: /continue as guest|guest mode/i })
-    if (await guestButton.isVisible()) {
-      await guestButton.click()
-    }
-
-    await page.waitForURL(/\/app\/project/, { timeout: 10000 })
+    // Step 1: Login (uses test credentials in CI, guest mode locally)
+    await loginWithTestUser(page)
 
     // Step 2: Navigate to Market Map view
     const marketMapTab = page.getByRole('button', { name: /market map/i }).or(
