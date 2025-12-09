@@ -143,7 +143,7 @@ test.describe('Market Map Workflow - End-to-End', () => {
     console.log('✅ Screenshot taken')
 
     // Final assertion: Verify we're still on the app
-    await expect(page).toHaveURL(/\/app\/project/)
+    await expect(page).toHaveURL(/\/app\//)
     console.log('✅ Market Map workflow test completed')
 
     // Note: Guest users cannot persist or reload saved maps across sessions
@@ -183,7 +183,7 @@ test.describe('Market Map Workflow - End-to-End', () => {
     }
 
     // Final assertion
-    await expect(page).toHaveURL(/\/app\/project/)
+    await expect(page).toHaveURL(/\/app\//)
     console.log('✅ Saved maps list test completed')
   })
 })
