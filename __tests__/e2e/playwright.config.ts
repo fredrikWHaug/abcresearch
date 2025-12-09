@@ -51,8 +51,8 @@ export default defineConfig({
     command: process.env.CI
       ? `npx vercel dev --listen 3000 --yes --token=${process.env.VERCEL_TOKEN}`
       : 'npx vercel dev --listen 3000 --yes',
-    url: 'http://localhost:3000',
+    port: 3000, // Using port instead of url - fixes Playwright timeout bug
     reuseExistingServer: !process.env.CI,
-    timeout: 300000, // 5 minutes to start server (Vercel dev can be slow in CI)
+    timeout: 120000, // 2 minutes to start server
   },
 })
