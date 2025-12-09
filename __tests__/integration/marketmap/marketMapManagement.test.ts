@@ -65,10 +65,18 @@ describe('Market Map Management - Save Market Map', () => {
     ]
 
     const mockSlideData: SlideData = {
-      theme: 'light',
       title: 'Diabetes Drug Landscape',
-      categories: [],
-      items: [],
+      subtitle: '',
+      keyMetrics: [],
+      competitiveLandscape: [],
+      trendAnalysis: '',
+      recommendation: '',
+      chartData: {
+        phaseChart: [],
+        statusChart: [],
+        sponsorChart: [],
+        yearChart: [],
+      },
     }
 
     const marketMapData: CreateMarketMapData = {
@@ -130,7 +138,7 @@ describe('Market Map Management - Save Market Map', () => {
       name: 'Project Map',
       query: 'test query',
       trials_data: [],
-      slide_data: { theme: 'light', title: 'Test', categories: [], items: [] },
+      slide_data: { title: "", subtitle: "", keyMetrics: [], competitiveLandscape: [], trendAnalysis: "", recommendation: "", chartData: { phaseChart: [], statusChart: [], sponsorChart: [], yearChart: [] } },
     }
 
     const mockSavedMap: SavedMarketMap = {
@@ -140,7 +148,7 @@ describe('Market Map Management - Save Market Map', () => {
       name: 'Project Map',
       query: 'test query',
       trials_data: [],
-      slide_data: { theme: 'light', title: 'Test', categories: [], items: [] },
+      slide_data: { title: "", subtitle: "", keyMetrics: [], competitiveLandscape: [], trendAnalysis: "", recommendation: "", chartData: { phaseChart: [], statusChart: [], sponsorChart: [], yearChart: [] } },
       chat_history: null,
       papers_data: null,
       created_at: '2024-01-02T00:00:00Z',
@@ -184,7 +192,7 @@ describe('Market Map Management - Save Market Map', () => {
       name: 'Map with Chat',
       query: 'diabetes',
       trials_data: [],
-      slide_data: { theme: 'light', title: 'Test', categories: [], items: [] },
+      slide_data: { title: "", subtitle: "", keyMetrics: [], competitiveLandscape: [], trendAnalysis: "", recommendation: "", chartData: { phaseChart: [], statusChart: [], sponsorChart: [], yearChart: [] } },
       chat_history: chatHistory,
     }
 
@@ -195,7 +203,7 @@ describe('Market Map Management - Save Market Map', () => {
       name: 'Map with Chat',
       query: 'diabetes',
       trials_data: [],
-      slide_data: { theme: 'light', title: 'Test', categories: [], items: [] },
+      slide_data: { title: "", subtitle: "", keyMetrics: [], competitiveLandscape: [], trendAnalysis: "", recommendation: "", chartData: { phaseChart: [], statusChart: [], sponsorChart: [], yearChart: [] } },
       chat_history: chatHistory,
       papers_data: null,
       created_at: '2024-01-03T00:00:00Z',
@@ -228,7 +236,7 @@ describe('Market Map Management - Save Market Map', () => {
       name: 'Test Map',
       query: 'test',
       trials_data: [],
-      slide_data: { theme: 'light', title: 'Test', categories: [], items: [] },
+      slide_data: { title: "", subtitle: "", keyMetrics: [], competitiveLandscape: [], trendAnalysis: "", recommendation: "", chartData: { phaseChart: [], statusChart: [], sponsorChart: [], yearChart: [] } },
     }
 
     // When/Then: Should throw authentication error
@@ -260,7 +268,7 @@ describe('Market Map Management - Save Market Map', () => {
       name: 'Test Map',
       query: 'test',
       trials_data: [],
-      slide_data: { theme: 'light', title: 'Test', categories: [], items: [] },
+      slide_data: { title: "", subtitle: "", keyMetrics: [], competitiveLandscape: [], trendAnalysis: "", recommendation: "", chartData: { phaseChart: [], statusChart: [], sponsorChart: [], yearChart: [] } },
     }
 
     // When/Then: Should throw database error
@@ -285,7 +293,7 @@ describe('Market Map Management - Get Market Maps', () => {
         name: 'Map A',
         query: 'query a',
         trials_data: [],
-        slide_data: { theme: 'light', title: 'A', categories: [], items: [] },
+        slide_data: { title: "", subtitle: "", keyMetrics: [], competitiveLandscape: [], trendAnalysis: "", recommendation: "", chartData: { phaseChart: [], statusChart: [], sponsorChart: [], yearChart: [] } },
         chat_history: null,
         papers_data: null,
         created_at: '2024-01-01T00:00:00Z',
@@ -298,7 +306,7 @@ describe('Market Map Management - Get Market Maps', () => {
         name: 'Map B',
         query: 'query b',
         trials_data: [],
-        slide_data: { theme: 'light', title: 'B', categories: [], items: [] },
+        slide_data: { title: "", subtitle: "", keyMetrics: [], competitiveLandscape: [], trendAnalysis: "", recommendation: "", chartData: { phaseChart: [], statusChart: [], sponsorChart: [], yearChart: [] } },
         chat_history: null,
         papers_data: null,
         created_at: '2024-01-02T00:00:00Z',
@@ -332,7 +340,7 @@ describe('Market Map Management - Get Market Maps', () => {
         name: 'Project 10 Map',
         query: 'query',
         trials_data: [],
-        slide_data: { theme: 'light', title: 'Test', categories: [], items: [] },
+        slide_data: { title: "", subtitle: "", keyMetrics: [], competitiveLandscape: [], trendAnalysis: "", recommendation: "", chartData: { phaseChart: [], statusChart: [], sponsorChart: [], yearChart: [] } },
         chat_history: null,
         papers_data: null,
         created_at: '2024-01-01T00:00:00Z',
@@ -387,7 +395,7 @@ describe('Market Map Management - Get Single Market Map', () => {
       name: 'Specific Map',
       query: 'test query',
       trials_data: [],
-      slide_data: { theme: 'dark', title: 'Dark Theme', categories: [], items: [] },
+      slide_data: { title: "", subtitle: "", keyMetrics: [], competitiveLandscape: [], trendAnalysis: "", recommendation: "", chartData: { phaseChart: [], statusChart: [], sponsorChart: [], yearChart: [] } },
       chat_history: null,
       papers_data: null,
       created_at: '2024-01-01T00:00:00Z',
@@ -442,7 +450,7 @@ describe('Market Map Management - Update Market Map', () => {
       name: 'Updated Name',
       query: 'original query',
       trials_data: [],
-      slide_data: { theme: 'light', title: 'Test', categories: [], items: [] },
+      slide_data: { title: "", subtitle: "", keyMetrics: [], competitiveLandscape: [], trendAnalysis: "", recommendation: "", chartData: { phaseChart: [], statusChart: [], sponsorChart: [], yearChart: [] } },
       chat_history: null,
       papers_data: null,
       created_at: '2024-01-01T00:00:00Z',
@@ -472,10 +480,18 @@ describe('Market Map Management - Update Market Map', () => {
   it('should update slide data', async () => {
     // Given: Existing market map
     const newSlideData: SlideData = {
-      theme: 'dark',
       title: 'New Title',
-      categories: ['Cat1', 'Cat2'],
-      items: [],
+      subtitle: 'Updated subtitle',
+      keyMetrics: [],
+      competitiveLandscape: [],
+      trendAnalysis: '',
+      recommendation: '',
+      chartData: {
+        phaseChart: [],
+        statusChart: [],
+        sponsorChart: [],
+        yearChart: [],
+      },
     }
 
     const updatedMap: SavedMarketMap = {

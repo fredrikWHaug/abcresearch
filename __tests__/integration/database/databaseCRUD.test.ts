@@ -262,6 +262,9 @@ describe('Database CRUD - Papers', () => {
       doi: '10.1056/NEJMoa123456',
       nctNumber: 'NCT12345678',
       relevanceScore: 0.95,
+      fullTextLinks: {
+        pubmed: 'https://pubmed.ncbi.nlm.nih.gov/12345678/',
+      },
     }
 
     const mockFrom = {
@@ -487,6 +490,10 @@ describe('Database CRUD - Upsert Behavior', () => {
       publicationDate: '2023-01-01',
       journal: 'Test Journal',
       doi: '10.1234/test',
+      relevanceScore: 0.85,
+      fullTextLinks: {
+        pubmed: 'https://pubmed.ncbi.nlm.nih.gov/12345/',
+      },
     }
 
     const mockFrom = {
