@@ -12,6 +12,13 @@
 - All environment variables properly configured
 - Linting integrated (non-blocking for legacy warnings)
 
+**UPDATED (Dec 8, 2025)**:
+- Comprehensive test suite: 171 tests (39 unit + 128 integration + 4 E2E)
+- Playwright E2E tests integrated into CI pipeline
+- All three test levels (unit, integration, E2E) run in parallel in CI
+- Deployment blocked if ANY test level fails
+- E2E tests run in headless Chromium on CI infrastructure
+
 ---
 
 ## Table of Contents
@@ -54,36 +61,33 @@ ABCresearch uses a **test-gated deployment** strategy where:
 ```
 Push to GitHub
      ↓
-┌────────────────────────────────────┐
-│  GitHub Actions Workflow           │
-│                                    │
-│  ┌──────────────────────────────┐ │
-│  │  Test Job (Matrix Strategy)   │ │
-│  │  - Node 20.x                  │ │
-│  │  - Node 22.x                  │ │
-│  │  - Run Vitest tests           │ │
-│  │  - Collect coverage           │ │
-│  └──────────────────────────────┘ │
-│            ↓                       │
-│     Tests Pass? ────No──→ STOP   │
-│            ↓                       │
-│           Yes                      │
-│            ↓                       │
-│  ┌──────────────────────────────┐ │
-│  │  Lint Job (Parallel)          │ │
-│  │  - Run ESLint                 │ │
-│  │  - Non-blocking for warnings  │ │
-│  └──────────────────────────────┘ │
-│            ↓                       │
-│  ┌──────────────────────────────┐ │
-│  │  Deploy Job                   │ │
-│  │  (Only on main branch)        │ │
-│  │  - Install Vercel CLI         │ │
-│  │  - Pull env variables         │ │
-│  │  - Build project              │ │
-│  │  - Deploy to production       │ │
-│  └──────────────────────────────┘ │
-└────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────┐
+│  GitHub Actions Workflow (Parallel Jobs)                       │
+│                                                                │
+│  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────┐ │
+│  │ Test Job         │  │ Lint Job         │  │ E2E Job      │ │
+│  │ (Matrix)         │  │                  │  │              │ │
+│  │ - Node 20.x      │  │ - ESLint         │  │ - Chromium   │ │
+│  │ - Node 22.x      │  │ - Non-blocking   │  │ - Playwright │ │
+│  │ - 167 tests      │  │   warnings       │  │ - 4 tests    │ │
+│  │ - Coverage       │  │                  │  │ - Screenshots│ │
+│  └──────────────────┘  └──────────────────┘  └──────────────┘ │
+│         ↓                      ↓                     ↓         │
+│         └──────────────────────┴─────────────────────┘         │
+│                            ↓                                   │
+│                 All Jobs Pass? ────No──→ STOP                 │
+│                            ↓                                   │
+│                           Yes                                  │
+│                            ↓                                   │
+│              ┌──────────────────────────────┐                 │
+│              │  Deploy Job                  │                 │
+│              │  (Only on main branch)       │                 │
+│              │  - Install Vercel CLI        │                 │
+│              │  - Pull env variables        │                 │
+│              │  - Build project             │                 │
+│              │  - Deploy to production      │                 │
+│              └──────────────────────────────┘                 │
+└────────────────────────────────────────────────────────────────┘
      ↓
 Production Deployment
 ```
@@ -175,9 +179,41 @@ jobs:
     - name: Run linter
       run: npm run lint
       continue-on-error: true
-      
+
+  e2e:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Install Playwright Browsers
+      run: npx playwright install --with-deps chromium
+
+    - name: Run E2E tests
+      run: npm run test:e2e:playwright
+      env:
+        VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+        VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+
+    - name: Upload test screenshots
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: playwright-screenshots
+        path: __tests__/e2e/screenshots/
+        if-no-files-found: ignore
+
   deploy:
-    needs: [test, lint]
+    needs: [test, lint, e2e]
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     
@@ -218,8 +254,15 @@ jobs:
 - `continue-on-error: true` makes it non-blocking for pre-existing warnings
 - Still reports linting issues but doesn't block deployment
 
-**3. Deploy Job - Conditional**
-- `needs: [test, lint]` - Only runs if both jobs succeed
+**3. E2E Job - Playwright Browser Tests**
+- Runs in parallel with test and lint jobs
+- Installs Chromium browser with system dependencies (`--with-deps`)
+- Executes 4 end-to-end tests in headless browser
+- Uploads screenshots as artifacts if tests fail (for debugging)
+- Passes Supabase environment variables for app functionality
+
+**4. Deploy Job - Conditional**
+- `needs: [test, lint, e2e]` - Only runs if ALL jobs succeed
 - `if: github.ref == 'refs/heads/main'` - Only deploys from main/master
 - Uses Vercel CLI for controlled deployment
 - **Critical**: `env:` block in Build step passes Supabase vars at BUILD time
@@ -828,10 +871,11 @@ npm run preview
    - Use Husky or lint-staged
    - Catch issues before pushing to CI
 
-2. **E2E Tests with Playwright**
-   - Test complete user workflows in real browser
-   - Run in CI before deployment
-   - Visual regression testing
+2. **E2E Tests with Playwright** ✅ IMPLEMENTED (Dec 8, 2025)
+   - 4 E2E tests running in CI with headless Chromium
+   - Tests complete user workflows (guest mode, search, market map, navigation)
+   - Screenshots uploaded as artifacts on failure
+   - Future: Add visual regression testing
 
 3. **Deployment Notifications**
    - Slack/Discord webhook on deployment success/failure
