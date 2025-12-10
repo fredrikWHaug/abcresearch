@@ -2,31 +2,59 @@
 
 **Last Updated**: December 9th, 2025
 
-## Quick Start
+## Quick Start (Fresh Clone)
+
+### Step 1: Clone and Install
 
 ```bash
-# Clone the repo and install dependencies
 git clone https://github.com/fredrikWHaug/abcresearch.git
 cd abcresearch
 npm install
-
-# Run unit + integration tests (no API keys needed)
-npm test
-
-# Run all tests including E2E (requires setup - see below)
-npm run test:e2e:playwright
 ```
 
-**Important**: Unit and integration tests work immediately after cloning. E2E tests require additional setup.
+### Step 2: Create Environment File
+
+Create `.env.local` with Supabase credentials (required for all tests):
+
+```bash
+echo "VITE_SUPABASE_URL=https://your-project.supabase.co" >> .env.local
+echo "VITE_SUPABASE_ANON_KEY=your-anon-key" >> .env.local
+```
+
+### Step 3: Run Unit + Integration Tests (167 tests)
+
+```bash
+npm test
+```
+
+Press `q` to quit after tests pass.
+
+### Step 4: Run E2E Tests (6 tests)
+
+**Terminal 1** - Start the preview server:
+
+```bash
+npm run build
+npx vite preview --port 3000
+```
+
+**Terminal 2** - Run E2E tests:
+
+```bash
+npx playwright install chromium
+CI=true npm run test:e2e:playwright
+```
+
+**Expected Results:** 167 unit/integration + 6 E2E = **173 tests passing**
 
 ---
 
 ## Test Suite Overview
 
-| Type | Tests | Time | API Keys Required? |
-|------|-------|------|-------------------|
-| Unit | 39 | ~1s | No |
-| Integration | 128 | ~8s | No |
+| Type | Tests | Time | Requires `.env.local`? |
+|------|-------|------|------------------------|
+| Unit | 39 | ~1s | Yes |
+| Integration | 128 | ~8s | Yes |
 | E2E | 6 | ~30s | Yes |
 | **Total** | **173** | ~40s | |
 
@@ -34,44 +62,33 @@ npm run test:e2e:playwright
 
 ## Running Tests
 
-### Unit + Integration Tests (No Setup Required)
-
-These tests use mocks and work immediately after `npm install`:
+### Unit + Integration Tests
 
 ```bash
-npm test              # Run unit + integration tests
-npm run test:unit     # Unit tests only (39 tests)
+npm test                  # Run all unit + integration tests
+npm run test:unit         # Unit tests only (39 tests)
 npm run test:integration  # Integration tests only (128 tests)
 ```
 
-### E2E Tests (Requires Setup)
+### E2E Tests
 
-E2E tests run in a real browser and need the app running with Supabase credentials.
+E2E tests require a running server. Use the two-terminal approach:
 
-**Option 1: Use Guest Mode (Simplest)**
-
+**Terminal 1:**
 ```bash
-# Create a minimal .env.local file
-echo "VITE_SUPABASE_URL=https://your-project.supabase.co" >> .env.local
-echo "VITE_SUPABASE_ANON_KEY=your-anon-key" >> .env.local
-
-# Run E2E tests (uses guest mode)
-npm run test:e2e:playwright
+npm run build
+npx vite preview --port 3000
 ```
 
-**Option 2: Pull Credentials from Vercel (Team Members)**
-
+**Terminal 2:**
 ```bash
-npx vercel env pull .env.local
-npm run test:e2e:playwright
+CI=true npm run test:e2e:playwright
 ```
 
-**E2E Test Commands:**
-
+**Other E2E Commands:**
 ```bash
-npm run test:e2e:playwright  # Headless mode
-npm run test:e2e:headed      # Visible browser
-npm run test:e2e:ui          # Interactive UI
+CI=true npm run test:e2e:headed  # Visible browser
+CI=true npm run test:e2e:ui      # Interactive UI
 ```
 
 ---
@@ -160,22 +177,26 @@ E2E tests run in a real browser (Chromium) against the full application.
 
 ## Troubleshooting
 
-### "Command not found: vitest"
+### "Missing Supabase environment variables"
+
+Create `.env.local` with your credentials:
 
 ```bash
-npm install
+echo "VITE_SUPABASE_URL=https://your-project.supabase.co" >> .env.local
+echo "VITE_SUPABASE_ANON_KEY=your-anon-key" >> .env.local
 ```
 
-### E2E tests fail to connect
+### E2E tests show 404 errors
 
-Make sure you have `.env.local` with Supabase credentials:
+You must use the two-terminal approach:
 
 ```bash
-# Check if file exists
-cat .env.local
+# Terminal 1: Build and serve
+npm run build
+npx vite preview --port 3000
 
-# If missing, create it or pull from Vercel
-npx vercel env pull .env.local
+# Terminal 2: Run tests with CI flag
+CI=true npm run test:e2e:playwright
 ```
 
 ### "Chromium not installed"
@@ -184,11 +205,10 @@ npx vercel env pull .env.local
 npx playwright install chromium
 ```
 
-### Port already in use
+### Port 3000 already in use
 
 ```bash
-# Kill processes on common ports
-lsof -ti:3000,5173 | xargs kill -9
+lsof -ti:3000 | xargs kill -9
 ```
 
 ---
