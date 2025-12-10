@@ -61,7 +61,7 @@ test.describe('Project Workflow - End-to-End', () => {
         page.getByRole('tab', { name: tabPattern })
       ).or(
         page.locator(`[data-view="${tabPattern.source.replace(/\\\\/g, '').replace(/i/g, '')}"]`)
-      )
+      ).first()
 
       if (await tab.isVisible({ timeout: 1000 }).catch(() => false)) {
         await tab.click()
