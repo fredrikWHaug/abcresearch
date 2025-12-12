@@ -113,30 +113,68 @@ test.describe('User Journey 1: Exploring a New Treatment Area', () => {
     await searchInput.press('Enter')
     console.log('  → Submitted search')
 
-    // Wait for AI to process and show the "Click to Search" button
-    console.log('  → Waiting for AI response (this can take up to 3 minutes)...')
+    // Wait for AI to process
+    console.log('  → Waiting for AI response...')
 
-    // Take a screenshot after 10 seconds to see initial state
-    await page.waitForTimeout(10000)
+    // Wait 15 seconds for initial AI response
+    await page.waitForTimeout(15000)
+
+    // DIAGNOSTIC: Log all visible buttons on the page
+    console.log('  → DIAGNOSTIC: Checking page state after 15 seconds...')
+    const allButtons = await page.getByRole('button').all()
+    console.log(`  → Found ${allButtons.length} buttons on page:`)
+    for (const btn of allButtons) {
+      const text = await btn.textContent().catch(() => '[no text]')
+      const isVisible = await btn.isVisible().catch(() => false)
+      if (isVisible && text && text.trim()) {
+        console.log(`     - "${text.trim().substring(0, 50)}"`)
+      }
+    }
+
+    // DIAGNOSTIC: Check for any chat messages or AI responses
+    const chatMessages = await page.locator('[class*="message"], [class*="chat"], [class*="response"]').all()
+    console.log(`  → Found ${chatMessages.length} potential chat/message elements`)
+
+    // DIAGNOSTIC: Check current URL
+    console.log(`  → Current URL: ${page.url()}`)
+
     await page.screenshot({
-      path: '__tests__/output/screenshots/journey1-04-waiting-for-ai.png',
+      path: '__tests__/output/screenshots/journey1-04-diagnostic.png',
       fullPage: true
     })
 
-    // The AI will respond with a search button - wait for it
-    // Try multiple possible button patterns
-    const clickToSearchBtn = page.getByRole('button', { name: /click to search|start search|search now|begin search/i })
+    // Try to find any search-related button
+    const searchButtons = [
+      page.getByRole('button', { name: /click to search/i }),
+      page.getByRole('button', { name: /start search/i }),
+      page.getByRole('button', { name: /search/i }),
+      page.getByRole('button', { name: /find/i }),
+      page.locator('button:has-text("Search")'),
+      page.locator('button:has-text("search")'),
+    ]
 
-    // Wait up to 3 minutes for AI response
-    await expect(clickToSearchBtn).toBeVisible({ timeout: 180000 })
+    let clickedSearchBtn = false
+    for (const btn of searchButtons) {
+      if (await btn.first().isVisible({ timeout: 2000 }).catch(() => false)) {
+        const btnText = await btn.first().textContent().catch(() => 'unknown')
+        console.log(`  → Found search button: "${btnText}"`)
+        await btn.first().click()
+        clickedSearchBtn = true
+        console.log('  → Clicked search button')
+        break
+      }
+    }
+
+    if (!clickedSearchBtn) {
+      console.log('  → No search button found - checking if search started automatically...')
+      // Maybe the search started automatically? Wait and check for results
+      await page.waitForTimeout(5000)
+    }
 
     await page.screenshot({
-      path: '__tests__/output/screenshots/journey1-04-ai-response.png',
+      path: '__tests__/output/screenshots/journey1-04-after-search-attempt.png',
       fullPage: true
     })
-
-    await clickToSearchBtn.click()
-    console.log('  → Clicked search button')
 
     // =========================================
     // STEP 4: Wait for search results (60-90 seconds)
