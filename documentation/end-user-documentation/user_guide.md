@@ -18,7 +18,7 @@ When you first visit ABCresearch, you will see the login screen with three optio
 
 For this guide, use the test credentials provided above.
 
-[Screenshot placeholder: Login screen showing all three options]
+![Login screen showing all three options](screenshots/login-screen.png)
 
 ---
 
@@ -30,13 +30,13 @@ This workflow helps you rapidly assess a therapeutic area and identify promising
 
 After logging in, you will be directed to the projects home page.
 
-1. Click **"Create New Project"**
+1. Click **"Create Your First Project"**
 2. Enter a descriptive project name (e.g., "GLP-1 Landscape Analysis")
 3. Click **"Create"**
 
 You will see a welcome screen with a search input labeled "Good afternoon" and several suggested queries.
 
-[Screenshot placeholder: Project dashboard with search input and suggested queries]
+![Project dashboard with search input and suggested queries](screenshots/project-search-input.png)
 
 ### Step 2: Initiate Research Search
 
@@ -63,7 +63,7 @@ Once processing completes, the right-side panel will populate with:
 
 Drugs are ranked by information volume, with the most extensively documented compounds appearing first.
 
-[Screenshot placeholder: Right panel showing grouped drugs and associated data]
+![Right panel showing grouped drugs and associated data](screenshots/results-panel-drugs.png)
 
 ### Step 4: Generate Asset Development Pipeline
 
@@ -71,19 +71,19 @@ To synthesize findings into a presentation-ready format:
 
 1. Click the **"Asset Pipeline"** tab in the top navigation
 
-2. Click **"AI Extract"** to generate a structured table containing:
+2. Click **"AI Extract"** but reduce the count to 3 (to save time) to generate a structured table containing:
    - Drug names and sponsors
    - Development stages (Phase I/II/III, approved)
    - Key clinical endpoints
    - Competitive positioning
 
-3. Review the generated table and adjust as needed
+3. Review the generated table based on your interest
 
 4. Click **"Download as PowerPoint"** to export a formatted presentation
 
 You can now share this PowerPoint with your team to prioritize drugs for deeper investigation.
 
-[Screenshot placeholder: Asset Pipeline table with download button]
+![Asset Pipeline table with download button](screenshots/asset-pipeline-table.png)
 
 ---
 
@@ -104,9 +104,9 @@ Follow Steps 1-3 from User Journey 1, using a specific drug name as your search 
 3. Click a **PubMed link** to open the paper in a new tab
 
 4. Download the **full-text PDF** from the publisher site
-   - For this guide, you can use a tirzepatide vs. semaglutide comparison paper
+   - For this guide, you can use a tirzepatide vs. semaglutide comparison paper (located at https://drive.google.com/drive/folders/165VQhLQDty0-nvTgcClc6AQ6-YGgylnN?dmr=1&ec=wgc-drive-globalnav-goto)
 
-[Screenshot placeholder: Drug expanded with Papers section visible]
+![Drug expanded with Papers section visible](screenshots/results-panel-drugs.png)
 
 ### Step 3: Extract Data from PDF
 
@@ -114,46 +114,41 @@ Follow Steps 1-3 from User Journey 1, using a specific drug name as your search 
 
 2. Click **"Upload PDF"** and select your downloaded paper
 
-3. Click **"Extract"** to begin processing
+3. Click **"Extract Content"** to begin processing
    - This extracts text, tables, and graphs from the PDF
+   - Keep the default number of images to be analyzed for normal processing (assuming you're using the provided paper. If not, select the number of figures present in the paper you want to upload)
    - Processing takes 30-60 seconds
 
 4. Once complete, a green card will appear under **"Extraction History"**
 
-5. Click **"View Analysis"** to review:
+5. Click **"View Comprehensive Analysis"** to review:
    - Extracted markdown text
    - Parsed data tables
    - Editable graph data
 
-[Screenshot placeholder: Extraction history with green completed card]
+![Extraction history with green completed card](screenshots/pdf-extraction-history.png)
 
-### Step 4: Add Extraction to Chat Context
+### Step 4: Return and Add Extraction to Chat Context
 
-1. In the extraction detail view, click **"Add to Chat"**
+1. Click on 'Back to Upload'
 
-2. You will be redirected to the Research Chat view
+2. Scroll down to 'Extraction History'
 
-3. The extraction now appears as an attachment, providing context for AI analysis
+3. In the extraction detail view, click **"Add to Chat"**
 
-### Step 5: Generate Custom Graphs
+4. You will be redirected to the Research Chat view
 
-With the extraction attached, you can request visualizations:
+5. The extraction now appears as an attachment, providing context for AI analysis
 
-1. In the chat input, type:
-   ```
-   Graph the primary outcome measure of Tirzepatide vs. Semaglutide
-   ```
+6. Ask the AI to write a python script creating a graph comparing the drugs from the paper (if you used the template paper. If not, you might find a bug and we'd love to hear from you!)
 
-2. Click the blue search button
+7. Please note the spinning circle in the searchbar ensuring that processing is happening. 
 
-3. The AI will generate a Python-rendered graph comparing the two drugs
+8. Review the graph and copy the code for your own use if you wish. 
 
-4. Review the graph to assess comparative efficacy
-   - In this example, tirzepatide demonstrates superior performance
+![Generated graph comparing drug efficacy](screenshots/generated-graph.png)
 
-[Screenshot placeholder: Generated graph comparing drug efficacy]
-
-### Step 6: Monitor Real-Time Clinical Trial Updates
+### Step 5: Monitor Real-Time Clinical Trial Updates
 
 To track ongoing developments that may impact investment decisions:
 
@@ -161,12 +156,12 @@ To track ongoing developments that may impact investment decisions:
 
 2. Click **"Watch New Feed"**
 
-3. In the search field, enter the drug name (e.g., "Tirzepatide")
+3. In the search field, enter the drug name (e.g., "Tirzepatide"). You can leave the custom label field blank and leave email notifications off for now.
 
-4. Click **"Start Watching"**
-   - Processing takes approximately 60 seconds as the system scrapes ClinicalTrials.gov
+4. Click on the **"Start Watching"**
+   - Processing takes approximately 60-120 seconds as the system scrapes ClinicalTrials.gov
 
-5. Review the timeline of trial updates from the past 14 days
+5. Review the timeline of trial updates from the past 14 days by clicking on the card on the left side of the screen you just generated.
 
 6. Click **"AI Investment Insights"** to generate a summary analyzing whether recent updates signal:
    - **Buy signals** - Positive trial results, expanded indications, regulatory progress
@@ -174,7 +169,7 @@ To track ongoing developments that may impact investment decisions:
 
 This real-time monitoring allows you to react quickly to material changes in a drug's development trajectory.
 
-[Screenshot placeholder: Realtime Feed timeline with investment insights panel]
+![Realtime Feed timeline with investment insights panel](screenshots/realtime-feed-timeline.png)
 
 ---
 
