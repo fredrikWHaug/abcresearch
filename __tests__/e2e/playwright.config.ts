@@ -1,5 +1,9 @@
 import { defineConfig, devices } from '@playwright/test'
 
+// Test credentials for E2E tests (safe to commit - this is a test account)
+process.env.TEST_USER_EMAIL = process.env.TEST_USER_EMAIL || 'e2e@test.com'
+process.env.TEST_USER_PASSWORD = process.env.TEST_USER_PASSWORD || 'abcresearch'
+
 /**
  * Playwright configuration for E2E tests
  * See https://playwright.dev/docs/test-configuration

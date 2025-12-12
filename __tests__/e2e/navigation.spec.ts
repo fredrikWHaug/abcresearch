@@ -22,12 +22,24 @@ test.describe('Navigation', () => {
 
     // Page should have loaded (body should be visible)
     await expect(page.locator('body')).toBeVisible()
+
+    // Screenshot proof
+    await page.screenshot({
+      path: '__tests__/output/screenshots/dashboard-loaded.png',
+      fullPage: true
+    })
   })
 
   test('logo/brand is visible', async ({ page }) => {
     // The ABCresearch logo/brand should be visible
     const logo = page.getByText('ABCresearch')
     await expect(logo.first()).toBeVisible()
+
+    // Screenshot proof
+    await page.screenshot({
+      path: '__tests__/output/screenshots/logo-visible.png',
+      fullPage: true
+    })
   })
 
   test('can navigate to a project and see navigation tabs', async ({ page }) => {
@@ -62,5 +74,11 @@ test.describe('Navigation', () => {
     const hasMarketMap = await marketMapTab.first().isVisible({ timeout: 5000 }).catch(() => false)
 
     expect(hasResearch || hasPipeline || hasMarketMap).toBe(true)
+
+    // Screenshot proof of navigation tabs
+    await page.screenshot({
+      path: '__tests__/output/screenshots/navigation-tabs.png',
+      fullPage: true
+    })
   })
 })
