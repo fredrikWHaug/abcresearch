@@ -53,6 +53,8 @@ env/
 
 # Test outputs (centralized in __tests__/output/)
 __tests__/output/
+__tests__/e2e/screenshots/
+__tests__/e2e/test-files/
 playwright-report/
 test-results/
 coverage/

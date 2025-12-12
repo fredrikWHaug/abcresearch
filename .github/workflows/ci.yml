@@ -118,7 +118,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: playwright-screenshots
-        path: __tests__/e2e/screenshots/
+        path: __tests__/output/screenshots/
         if-no-files-found: ignore
       
   deploy:
