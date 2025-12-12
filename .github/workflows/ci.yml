@@ -89,15 +89,15 @@ jobs:
         VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
         VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
 
-    - name: Start Preview Server and Run E2E tests
+    - name: Start Vercel Dev Server and Run E2E tests
       run: |
-        # Start the preview server in background
-        npx vite preview --port 3000 &
+        # Start vercel dev server (runs both frontend AND API routes)
+        npx vercel dev --listen 3000 --yes &
         SERVER_PID=$!
 
-        # Wait for server to be ready
+        # Wait for server to be ready (vercel dev takes longer to start)
         echo "Waiting for server to start..."
-        npx wait-on http://localhost:3000 --timeout 60000
+        npx wait-on http://localhost:3000 --timeout 120000
 
         # Run the E2E tests
         npx playwright test --config=__tests__/e2e/playwright.config.ts
