@@ -92,7 +92,7 @@ jobs:
     - name: Start Vercel Dev Server and Run E2E tests
       run: |
         # Start vercel dev server (runs both frontend AND API routes)
-        npx vercel dev --listen 3000 --yes &
+        npx vercel dev --listen 3000 --yes --token=${{ secrets.VERCEL_TOKEN }} &
         SERVER_PID=$!
 
         # Wait for server to be ready (vercel dev takes longer to start)
