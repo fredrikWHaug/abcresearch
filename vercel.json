@@ -1,4 +1,10 @@
 {
+  "rewrites": [
+    {
+      "source": "/((?!api/|@vite|@react-refresh|src/|node_modules/).*)",
+      "destination": "/index.html"
+    }
+  ],
   "functions": {
     "api/extract-pdf-content.ts": {
       "maxDuration": 300
@@ -14,12 +20,6 @@
     {
       "path": "/api/cron-check-rss-feeds",
       "schedule": "0 14 * * *"
-    }
-  ],
-  "rewrites": [
-    {
-      "source": "/((?!api/).*)",
-      "destination": "/index.html"
     }
   ],
   "headers": [
