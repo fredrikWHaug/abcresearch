@@ -55,12 +55,13 @@ export default defineConfig({
 
   // Run your local dev server before starting the tests
   // In CI, we start the server manually before running Playwright
+  // NOTE: We run `npm run build` first because vercel dev serves the built dist/
   webServer: process.env.CI
     ? undefined
     : {
-        command: 'npx vercel dev --listen 3000 --yes',
+        command: 'npm run build && npx vercel dev --listen 3000 --yes',
         port: 3000,
         reuseExistingServer: true,
-        timeout: 120000,
+        timeout: 180000, // 3 minutes to allow for build + server start
       },
 })
