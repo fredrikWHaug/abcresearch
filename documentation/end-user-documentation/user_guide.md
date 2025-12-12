@@ -18,7 +18,7 @@ When you first visit ABCresearch, you will see the login screen with three optio
 
 For this guide, use the test credentials provided above.
 
-![Login screen showing all three options](screenshots/login-screen.png)
+![Login screen showing all three options](../screenshots/login-screen.png)
 
 ---
 
@@ -36,7 +36,7 @@ After logging in, you will be directed to the projects home page.
 
 You will see a welcome screen with a search input labeled "Good afternoon" and several suggested queries.
 
-![Project dashboard with search input and suggested queries](screenshots/project-search-input.png)
+![Project dashboard with search input and suggested queries](../screenshots/project-search-input.png)
 
 ### Step 2: Initiate Research Search
 
@@ -63,7 +63,7 @@ Once processing completes, the right-side panel will populate with:
 
 Drugs are ranked by information volume, with the most extensively documented compounds appearing first.
 
-![Right panel showing grouped drugs and associated data](screenshots/results-panel-drugs.png)
+![Right panel showing grouped drugs and associated data](../screenshots/results-panel-drugs.png)
 
 ### Step 4: Generate Asset Development Pipeline
 
@@ -83,7 +83,7 @@ To synthesize findings into a presentation-ready format:
 
 You can now share this PowerPoint with your team to prioritize drugs for deeper investigation.
 
-![Asset Pipeline table with download button](screenshots/asset-pipeline-table.png)
+![Asset Pipeline table with download button](../screenshots/asset-pipeline-table.png)
 
 ---
 
@@ -106,7 +106,7 @@ Follow Steps 1-3 from User Journey 1, using a specific drug name as your search 
 4. Download the **full-text PDF** from the publisher site
    - For this guide, you can use a tirzepatide vs. semaglutide comparison paper (located at https://drive.google.com/drive/folders/165VQhLQDty0-nvTgcClc6AQ6-YGgylnN?dmr=1&ec=wgc-drive-globalnav-goto)
 
-![Drug expanded with Papers section visible](screenshots/results-panel-drugs.png)
+![Drug expanded with Papers section visible](../screenshots/results-panel-drugs.png)
 
 ### Step 3: Extract Data from PDF
 
@@ -126,7 +126,7 @@ Follow Steps 1-3 from User Journey 1, using a specific drug name as your search 
    - Parsed data tables
    - Editable graph data
 
-![Extraction history with green completed card](screenshots/pdf-extraction-history.png)
+![Extraction history with green completed card](../screenshots/pdf-extraction-history.png)
 
 ### Step 4: Return and Add Extraction to Chat Context
 
@@ -146,7 +146,7 @@ Follow Steps 1-3 from User Journey 1, using a specific drug name as your search 
 
 8. Review the graph and copy the code for your own use if you wish. 
 
-![Generated graph comparing drug efficacy](screenshots/generated-graph.png)
+![Generated graph comparing drug efficacy](../screenshots/generated-graph.png)
 
 ### Step 5: Monitor Real-Time Clinical Trial Updates
 
@@ -169,7 +169,7 @@ To track ongoing developments that may impact investment decisions:
 
 This real-time monitoring allows you to react quickly to material changes in a drug's development trajectory.
 
-![Realtime Feed timeline with investment insights panel](screenshots/realtime-feed-timeline.png)
+![Realtime Feed timeline with investment insights panel](../screenshots/realtime-feed-timeline.png)
 
 ---
 
