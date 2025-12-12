@@ -27,6 +27,12 @@ test.describe('Authentication', () => {
     await expect(page.locator('input#password')).toBeVisible()
     await expect(page.getByRole('button', { name: /sign in/i })).toBeVisible()
     await expect(page.getByRole('button', { name: /continue as guest/i })).toBeVisible()
+
+    // Screenshot proof
+    await page.screenshot({
+      path: '__tests__/output/screenshots/auth-form.png',
+      fullPage: true
+    })
   })
 
   test('shows error for invalid credentials', async ({ page }) => {
@@ -43,6 +49,12 @@ test.describe('Authentication', () => {
     // The error message contains text-red-700 class
     const errorMessage = page.locator('.text-red-700')
     await expect(errorMessage).toBeVisible({ timeout: 10000 })
+
+    // Screenshot proof of error message
+    await page.screenshot({
+      path: '__tests__/output/screenshots/auth-error.png',
+      fullPage: true
+    })
   })
 
   test('successful login redirects to dashboard', async ({ page }) => {
@@ -66,6 +78,12 @@ test.describe('Authentication', () => {
 
     // Should redirect to /app/home after successful login
     await expect(page).toHaveURL(/\/app\//, { timeout: 15000 })
+
+    // Screenshot proof of successful login
+    await page.screenshot({
+      path: '__tests__/output/screenshots/auth-success.png',
+      fullPage: true
+    })
   })
 
   test('guest mode allows access without credentials', async ({ page }) => {
@@ -80,5 +98,11 @@ test.describe('Authentication', () => {
     // Should see guest indicator
     const guestIndicator = page.getByText(/guest/i)
     await expect(guestIndicator.first()).toBeVisible()
+
+    // Screenshot proof of guest mode
+    await page.screenshot({
+      path: '__tests__/output/screenshots/guest-mode.png',
+      fullPage: true
+    })
   })
 })
