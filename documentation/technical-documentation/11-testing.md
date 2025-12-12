@@ -1,6 +1,6 @@
 # ABCresearch - Testing Documentation
 
-**Last Updated**: December 9th, 2025
+**Last Updated**: December 12th, 2025
 
 ## Quick Start (Fresh Clone)
 
@@ -29,23 +29,27 @@ npm test
 
 Press `q` to quit after tests pass.
 
-### Step 4: Run E2E Tests (6 tests)
+### Step 4: Run E2E Tests (12 tests)
 
-**Terminal 1** - Start the preview server:
+E2E tests require `vercel dev` for API routes to work.
 
+**One-time setup:**
 ```bash
-npm run build
-npx vite preview --port 3000
-```
-
-**Terminal 2** - Run E2E tests:
-
-```bash
+vercel login          # Free Vercel account required
 npx playwright install chromium
-CI=true npm run test:e2e:playwright
 ```
 
-**Expected Results:** 167 unit/integration + 6 E2E = **173 tests passing**
+**Terminal 1** - Start the dev server:
+```bash
+npm run build && npx vercel dev --listen 3000
+```
+
+**Terminal 2** - Run E2E tests (after server shows "Ready!"):
+```bash
+npx playwright test --config=__tests__/e2e/playwright.config.ts
+```
+
+**Expected Results:** 167 unit/integration + 11 E2E = **178 tests passing** (1 skipped)
 
 ---
 
@@ -55,8 +59,8 @@ CI=true npm run test:e2e:playwright
 |------|-------|------|------------------------|
 | Unit | 39 | ~1s | Yes |
 | Integration | 128 | ~8s | Yes |
-| E2E | 6 | ~30s | Yes |
-| **Total** | **173** | ~40s | |
+| E2E | 12 | ~3min | Yes + `vercel login` |
+| **Total** | **179** | ~3.5min | |
 
 ---
 
@@ -72,23 +76,28 @@ npm run test:integration  # Integration tests only (128 tests)
 
 ### E2E Tests
 
-E2E tests require a running server. Use the two-terminal approach:
+E2E tests require `vercel dev` (not `vite preview`) because the tests need API routes.
 
-**Terminal 1:**
+**One-time setup:**
 ```bash
-npm run build
-npx vite preview --port 3000
+vercel login          # Free Vercel account required
+npx playwright install chromium
 ```
 
-**Terminal 2:**
+**Terminal 1** - Start server:
 ```bash
-CI=true npm run test:e2e:playwright
+npm run build && npx vercel dev --listen 3000
+```
+
+**Terminal 2** - Run tests (after "Ready!" appears):
+```bash
+npx playwright test --config=__tests__/e2e/playwright.config.ts
 ```
 
 **Other E2E Commands:**
 ```bash
-CI=true npm run test:e2e:headed  # Visible browser
-CI=true npm run test:e2e:ui      # Interactive UI
+npx playwright test --config=__tests__/e2e/playwright.config.ts --headed  # Visible browser
+npx playwright test --config=__tests__/e2e/playwright.config.ts --ui      # Interactive UI
 ```
 
 ---
@@ -119,9 +128,10 @@ __tests__/
     ├── playwright.config.ts
     ├── helpers/
     │   └── auth.ts
-    ├── projectWorkflow.spec.ts
-    ├── marketMapWorkflow.spec.ts
-    └── pdfUploadWorkflow.spec.ts
+    ├── auth.spec.ts
+    ├── navigation.spec.ts
+    ├── smoke.spec.ts
+    └── userJourney1.spec.ts
 ```
 
 ---
@@ -165,13 +175,15 @@ E2E tests run in a real browser (Chromium) against the full application.
 
 | File | Tests | Description |
 |------|-------|-------------|
-| projectWorkflow.spec.ts | 2 | Login, home page, navigation |
-| marketMapWorkflow.spec.ts | 2 | Chat, search, market map generation |
-| pdfUploadWorkflow.spec.ts | 2 | PDF upload interface |
+| auth.spec.ts | 5 | Login, auth redirects, guest mode |
+| navigation.spec.ts | 3 | Dashboard, logo, navigation tabs |
+| smoke.spec.ts | 3 | Page loads, no JS errors |
+| userJourney1.spec.ts | 1 | Full journey: login → project → search → pipeline → export |
 
-**Authentication Behavior:**
-- **With credentials** (`TEST_USER_EMAIL`, `TEST_USER_PASSWORD`): Uses real login
-- **Without credentials**: Falls back to guest mode
+**Test Credentials:**
+- Email: `e2e@test.com`
+- Password: `abcresearch`
+- These are hardcoded in `playwright.config.ts` for convenience
 
 ---
 
@@ -188,16 +200,19 @@ echo "VITE_SUPABASE_ANON_KEY=your-anon-key" >> .env.local
 
 ### E2E tests show 404 errors
 
-You must use the two-terminal approach:
+E2E tests require `vercel dev` (not `vite preview`) for API routes:
 
 ```bash
-# Terminal 1: Build and serve
-npm run build
-npx vite preview --port 3000
+# One-time: vercel login
 
-# Terminal 2: Run tests with CI flag
-CI=true npm run test:e2e:playwright
+# Terminal 1: Build and start vercel dev
+npm run build && npx vercel dev --listen 3000
+
+# Terminal 2: Run tests after "Ready!" appears
+npx playwright test --config=__tests__/e2e/playwright.config.ts
 ```
+
+**Note:** The auto-start in Playwright config doesn't work reliably - always start the server manually.
 
 ### "Chromium not installed"
 
@@ -226,6 +241,9 @@ Tests run automatically on every PR via GitHub Actions.
 - `VITE_SUPABASE_ANON_KEY`
 - `TEST_USER_EMAIL`
 - `TEST_USER_PASSWORD`
+- `VERCEL_TOKEN` (for vercel dev in CI)
+- `ANTHROPIC_API_KEY` (for AI features)
+- `GOOGLE_GEMINI_API_KEY` (for AI features)
 
 ---
 
