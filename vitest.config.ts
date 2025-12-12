@@ -13,6 +13,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html', 'lcov'],
+      reportsDirectory: './__tests__/output/coverage',
       exclude: [
         'node_modules/',
         'dist/',
