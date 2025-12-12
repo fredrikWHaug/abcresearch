@@ -126,6 +126,12 @@ export class ExtractDrugNamesService {
         paper.abstract
       ].filter(Boolean).join(' ');
 
+      // Validate that we have text content before calling API (Issue 1 Fix)
+      if (!text || text.trim().length === 0) {
+        console.warn(`Skipping paper ${paper.pmid}: No text content available`);
+        return [];
+      }
+
       const drugs = await this.callExtractAPI(text, 'research_paper', userQuery);
       
       // Add source information

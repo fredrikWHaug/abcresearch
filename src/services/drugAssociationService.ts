@@ -67,7 +67,10 @@ export async function batchLinkDrugEntities(
       const ids = entities[key]
       if (!ids?.length) return
 
-      const links = ids.map((id) => ({
+      // Issue 3 Fix: Deduplicate entity IDs to prevent "cannot affect row a second time" error
+      const uniqueIds = [...new Set(ids)]
+
+      const links = uniqueIds.map((id) => ({
         drug_id: drugId,
         [`${type === 'trial' ? 'trial' : type === 'paper' ? 'paper' : type === 'pressRelease' ? 'press_release' : 'ir_deck'}_id`]: id,
         project_id: projectId,
@@ -125,12 +128,17 @@ export async function upsertPressRelease(pressRelease: {
   url?: string
   content?: string
 }): Promise<number> {
-  const { data: existing } = await supabase
+  // Issue 2 Fix: Use truncated title for lookup to avoid 406 errors with long URLs
+  const titlePrefix = pressRelease.title.substring(0, 150);
+
+  const { data: candidates } = await supabase
     .from('press_releases')
-    .select('id')
-    .eq('title', pressRelease.title)
+    .select('id, title')
+    .ilike('title', `${titlePrefix}%`)
     .eq('company', pressRelease.company || '')
-    .single()
+
+  // Filter in-memory for exact match
+  const existing = candidates?.find(c => c.title === pressRelease.title);
 
   if (existing) return existing.id
 
@@ -179,12 +187,17 @@ export async function upsertIRDeck(irDeck: {
   deckDate?: string
   content?: string
 }): Promise<number> {
-  const { data: existing } = await supabase
+  // Issue 2 Fix: Use truncated title for lookup to avoid 406 errors with long URLs
+  const titlePrefix = irDeck.title.substring(0, 150);
+
+  const { data: candidates } = await supabase
     .from('ir_decks')
-    .select('id')
-    .eq('title', irDeck.title)
+    .select('id, title')
+    .ilike('title', `${titlePrefix}%`)
     .eq('company', irDeck.company || '')
-    .single()
+
+  // Filter in-memory for exact match
+  const existing = candidates?.find(c => c.title === irDeck.title);
 
   if (existing) return existing.id
 
@@ -235,6 +248,9 @@ export async function saveDrugGroups(projectId: number, drugGroups: DrugGroup[])
   const pressReleaseIdMap = new Map<string, number>()
   const irDeckIdMap = new Map<string, number>()
 
+  // Issue 5 Fix: Track failed drugs for better error reporting
+  const failedDrugs: Array<{ drugName: string; error: string }> = []
+
   for (const drugGroup of drugGroups) {
     try {
       const drugId = await upsertDrug({
@@ -244,23 +260,24 @@ export async function saveDrugGroups(projectId: number, drugGroups: DrugGroup[])
 
       await linkDrugToProject(projectId, drugId)
 
-      const trialIds: number[] = []
+      // Issue 4 Fix: Use Sets to prevent duplicate IDs from being added
+      const trialIds = new Set<number>()
       for (const trial of drugGroup.trials) {
         if (!trialIdMap.has(trial.nctId)) {
           trialIdMap.set(trial.nctId, await upsertTrial(trial))
         }
-        trialIds.push(trialIdMap.get(trial.nctId)!)
+        trialIds.add(trialIdMap.get(trial.nctId)!)
       }
 
-      const paperIds: number[] = []
+      const paperIds = new Set<number>()
       for (const paper of drugGroup.papers) {
         if (!paperIdMap.has(paper.pmid)) {
           paperIdMap.set(paper.pmid, await upsertPaper(paper))
         }
-        paperIds.push(paperIdMap.get(paper.pmid)!)
+        paperIds.add(paperIdMap.get(paper.pmid)!)
       }
 
-      const pressReleaseIds: number[] = []
+      const pressReleaseIds = new Set<number>()
       for (const pr of drugGroup.pressReleases) {
         const key = `${pr.title}-${pr.company}`
         if (!pressReleaseIdMap.has(key)) {
@@ -272,10 +289,10 @@ export async function saveDrugGroups(projectId: number, drugGroups: DrugGroup[])
             url: pr.url,
           }))
         }
-        pressReleaseIds.push(pressReleaseIdMap.get(key)!)
+        pressReleaseIds.add(pressReleaseIdMap.get(key)!)
       }
 
-      const irDeckIds: number[] = []
+      const irDeckIds = new Set<number>()
       for (const irDeck of drugGroup.irDecks) {
         const key = `${irDeck.title}-${irDeck.company}`
         if (!irDeckIdMap.has(key)) {
@@ -287,14 +304,27 @@ export async function saveDrugGroups(projectId: number, drugGroups: DrugGroup[])
             deckDate: irDeck.filingDate,
           }))
         }
-        irDeckIds.push(irDeckIdMap.get(key)!)
+        irDeckIds.add(irDeckIdMap.get(key)!)
       }
 
-      await batchLinkDrugEntities(drugId, projectId, { trialIds, paperIds, pressReleaseIds, irDeckIds })
+      await batchLinkDrugEntities(drugId, projectId, { 
+        trialIds: Array.from(trialIds), 
+        paperIds: Array.from(paperIds), 
+        pressReleaseIds: Array.from(pressReleaseIds), 
+        irDeckIds: Array.from(irDeckIds) 
+      })
     } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error'
       console.error('[DrugAssociationService] Error saving drug group:', drugGroup.drugName, error)
+      failedDrugs.push({ drugName: drugGroup.drugName, error: errorMsg })
     }
   }
+
+  // Issue 5 Fix: Log summary of results
+  if (failedDrugs.length > 0) {
+    console.warn(`[DrugAssociationService] ${failedDrugs.length} drug group(s) failed to save:`, failedDrugs)
+  }
+  console.log(`[DrugAssociationService] Successfully saved ${drugGroups.length - failedDrugs.length}/${drugGroups.length} drug groups`)
 }
 
 export async function loadDrugGroups(projectId: number): Promise<DrugGroup[]> {
@@ -371,3 +401,4 @@ export async function loadDrugGroups(projectId: number): Promise<DrugGroup[]> {
   const drugGroups = drugGroupResults.filter(dg => dg !== null) as DrugGroup[]
   return drugGroups.sort((a, b) => b.totalResults - a.totalResults)
 }
+
