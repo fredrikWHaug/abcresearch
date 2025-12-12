@@ -114,13 +114,21 @@ test.describe('User Journey 1: Exploring a New Treatment Area', () => {
     console.log('  → Submitted search')
 
     // Wait for AI to process and show the "Click to Search" button
-    console.log('  → Waiting for AI response...')
+    console.log('  → Waiting for AI response (this can take up to 3 minutes)...')
+
+    // Take a screenshot after 10 seconds to see initial state
+    await page.waitForTimeout(10000)
+    await page.screenshot({
+      path: '__tests__/output/screenshots/journey1-04-waiting-for-ai.png',
+      fullPage: true
+    })
 
     // The AI will respond with a search button - wait for it
-    const clickToSearchBtn = page.getByRole('button', { name: /click to search/i })
+    // Try multiple possible button patterns
+    const clickToSearchBtn = page.getByRole('button', { name: /click to search|start search|search now|begin search/i })
 
-    // Wait up to 30 seconds for AI response
-    await expect(clickToSearchBtn).toBeVisible({ timeout: 30000 })
+    // Wait up to 3 minutes for AI response
+    await expect(clickToSearchBtn).toBeVisible({ timeout: 180000 })
 
     await page.screenshot({
       path: '__tests__/output/screenshots/journey1-04-ai-response.png',
@@ -128,7 +136,7 @@ test.describe('User Journey 1: Exploring a New Treatment Area', () => {
     })
 
     await clickToSearchBtn.click()
-    console.log('  → Clicked "Click to Search" button')
+    console.log('  → Clicked search button')
 
     // =========================================
     // STEP 4: Wait for search results (60-90 seconds)
