@@ -1,5 +1,7 @@
 # ABCresearch - Testing Documentation
 
+# Vercel is in the way of getting this to work elegantly
+
 **Last Updated**: December 12th, 2025
 
 ## Quick Start (Fresh Clone)
