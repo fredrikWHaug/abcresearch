@@ -7,6 +7,9 @@ import { defineConfig, devices } from '@playwright/test'
 export default defineConfig({
   testDir: './',
 
+  // Output directories (centralized in __tests__/output/)
+  outputDir: '../output/test-results',
+
   // Run tests in files in parallel
   fullyParallel: true,
 
@@ -19,8 +22,8 @@ export default defineConfig({
   // Opt out of parallel tests on CI
   workers: process.env.CI ? 1 : undefined,
 
-  // Reporter to use
-  reporter: 'html',
+  // Reporter to use - output HTML report to centralized location
+  reporter: [['html', { outputFolder: '../output/playwright-report' }]],
 
   // Increase test timeout for long-running operations (search takes ~60s, slide generation ~15s)
   timeout: 180000, // 3 minutes per test

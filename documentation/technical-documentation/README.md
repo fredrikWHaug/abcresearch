@@ -17,31 +17,31 @@ The documentation is organized sequentially for easy navigation:
 
 ### Core Documentation
 
-**[0. Overview](./0-overview.md)** - Start here for a high-level understanding of the platform
+**[0. Overview](./00-overview.md)** - Start here for a high-level understanding of the platform
 
-**[1. Frontend](./1-frontend.md)** - React architecture, components, and client-side services
+**[1. Frontend](./01-frontend.md)** - React architecture, components, and client-side services
 
-**[2. Backend](./2-backend.md)** - API endpoints, serverless functions, and AI integration
+**[2. Backend](./02-backend.md)** - API endpoints, serverless functions, and AI integration
 
-**[3. Database](./3-database.md)** - Project-centric database design (Supabase/PostgreSQL)
+**[3. Database](./03-database.md)** - Project-centric database design (Supabase/PostgreSQL)
 
 ### Asset Pipeline Documentation
 
-**[4. Asset Pipeline](./4-asset-pipeline.md)** - Drug candidate table view and automatic classification
+**[4. Asset Pipeline](./04-asset-pipeline.md)** - Drug candidate table view and automatic classification
 
-**[5. Pipeline Drug Matching](./5-pipeline-drug-matching.md)** - How drug modals connect to pipeline data
+**[5. Pipeline Drug Matching](./05-pipeline-drug-matching.md)** - How drug modals connect to pipeline data
 
-**[6. Pipeline LLM Strategy](./6-pipeline-llm-strategy.md)** - AI extraction approaches and implementation
+**[6. Pipeline LLM Strategy](./06-pipeline-llm-strategy.md)** - AI extraction approaches and implementation
 
-**[7. Pipeline Model Options](./7-pipeline-model-options.md)** - Claude model selection and optimization
+**[7. Pipeline Model Options](./07-pipeline-model-options.md)** - Claude model selection and optimization
 
 ### Design System
 
-**[8. Design Scheme](./8-design-scheme.md)** - UI/UX design system and component guidelines
+**[8. Design Scheme](./08-design-scheme.md)** - UI/UX design system and component guidelines
 
 ### Additional Documentation
 
-**[9. PDF Extraction](./9-pdf-extraction-(to-be-added-to-main-doc-later).md)** - PDF table extraction and processing
+**[9. PDF Extraction](./09-pdf-extraction-(to-be-added-to-main-doc-later).md)** - PDF table extraction and processing
 
 **[10. Real-time Feed Schema](./10-realtime-feed-schema.md)** - RSS feed monitoring and real-time updates
 

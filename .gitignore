@@ -50,3 +50,9 @@ env/
 
 # cursor
 .cursor/
+
+# Test outputs (centralized in __tests__/output/)
+__tests__/output/
+playwright-report/
+test-results/
+coverage/
