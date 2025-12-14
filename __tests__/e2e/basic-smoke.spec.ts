@@ -131,5 +131,41 @@ test('app launches, login works, and dashboard loads', async ({ page }) => {
 
   // Verify we're on a project page
   await expect(page).toHaveURL(/\/app\/project\/\d+/)
+
+  // =========================================
+  // STEP 9: Enter search term
+  // =========================================
+  console.log('📍 Entering search term...')
+
+  // Find the search input
+  const searchInput = page.getByPlaceholder('How can I help you today?')
+  await expect(searchInput).toBeVisible({ timeout: 10000 })
+
+  // Enter "GLP1" into the search bar
+  await searchInput.fill('GLP1')
+  console.log('  → Entered "GLP1" into search bar')
+
+  // Take screenshot showing the search term entered
+  await page.screenshot({
+    path: '__tests__/output/screenshots/05-search-entered.png',
+    fullPage: true
+  })
+  console.log('✅ Screenshot: Search term entered')
+
+  // Press Enter to submit the search
+  await searchInput.press('Enter')
+  console.log('  → Pressed Enter to submit search')
+
+  // Wait 5 seconds for the search to process
+  await page.waitForTimeout(5000)
+  console.log('  → Waited 5 seconds')
+
+  // Take screenshot of what's displayed after search submission
+  await page.screenshot({
+    path: '__tests__/output/screenshots/06-after-search-submit.png',
+    fullPage: true
+  })
+  console.log('✅ Screenshot: After search submission')
+
   console.log('🎉 Basic smoke test complete!')
 })
