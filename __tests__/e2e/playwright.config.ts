@@ -55,20 +55,10 @@ export default defineConfig({
       name: 'chromium',
       use: {
         ...devices['Desktop Chrome'],
-        // NUCLEAR OPTION: Force completely fresh browser with NO persistent storage
-        // This matches CI behavior where each run starts with a fresh container
+        // Fresh browser state to match CI behavior
         launchOptions: {
-          args: [
-            '--incognito',                    // No persistent storage whatsoever
-            '--disable-extensions',           // No extensions that might cache data
-            '--disable-background-networking', // No background network requests
-            '--disable-sync',                 // No Chrome sync
-            '--disable-translate',            // No translate features
-            '--disable-features=IsolateOrigins,site-per-process',
-            '--no-first-run',                 // Skip first run wizards
-          ],
+          args: ['--incognito', '--disable-extensions', '--no-first-run'],
         },
-        // Explicitly empty storage state
         storageState: { cookies: [], origins: [] },
       },
     },

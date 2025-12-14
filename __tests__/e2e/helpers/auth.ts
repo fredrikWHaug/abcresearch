@@ -8,89 +8,40 @@ export async function loginWithTestUser(page: Page): Promise<void> {
   const email = process.env.TEST_USER_EMAIL
   const password = process.env.TEST_USER_PASSWORD
 
-  // With incognito mode in playwright.config.ts, we should have a fresh browser
-  // Just navigate directly to the auth page
+  // Navigate to auth page
   await page.goto('/auth')
   await page.waitForLoadState('networkidle')
-  
-  // Wait for the page to fully render
-  await page.waitForTimeout(1000)
 
   console.log(`Current URL: ${page.url()}`)
 
   if (email && password) {
-    // CI mode: Use test credentials
     console.log('🔑 Using test credentials for authentication')
 
-    // If we're at root, wait for redirect to /auth
-    if (page.url().endsWith('/') || page.url() === 'http://localhost:3000') {
-      console.log('⏳ Waiting for redirect to auth page...')
-      await page.waitForURL(/\/auth/, { timeout: 5000 }).catch(() => {
-        console.log('⚠️  No redirect to /auth, checking current state...')
-      })
-    }
-
-    // Wait for the auth form to be visible
+    // Wait for the auth form
     const emailInput = page.locator('input#email')
-    const isAuthFormVisible = await emailInput.isVisible({ timeout: 10000 }).catch(() => false)
+    await emailInput.waitFor({ state: 'visible', timeout: 10000 })
 
-    if (isAuthFormVisible) {
-      // Fill in credentials
-      await emailInput.fill(email)
-      await page.locator('input#password').fill(password)
-      console.log('✅ Filled in credentials')
+    // Fill in credentials and submit
+    await emailInput.fill(email)
+    await page.locator('input#password').fill(password)
+    console.log('✅ Filled in credentials')
 
-      // Click Sign In button
-      await page.getByRole('button', { name: /sign in/i }).click()
-      console.log('✅ Clicked Sign In')
+    await page.getByRole('button', { name: /sign in/i }).click()
+    console.log('✅ Clicked Sign In')
 
-      // Wait a moment for the auth response
-      await page.waitForTimeout(2000)
-
-      // Check for error messages
-      const errorMessage = page.locator('.text-red-700, [class*="error"]')
-      if (await errorMessage.isVisible({ timeout: 1000 }).catch(() => false)) {
-        const errorText = await errorMessage.textContent()
-        console.log(`❌ Login error: ${errorText}`)
-        throw new Error(`Login failed: ${errorText}`)
-      }
-
-      // Check current URL
-      console.log(`URL after login attempt: ${page.url()}`)
-
-      // Wait for redirect to dashboard (could be /app/home or /app/project)
-      await page.waitForURL(/\/app\/(home|project)/, { timeout: 15000 })
-      console.log('✅ Successfully logged in and redirected to dashboard')
-    } else {
-      console.log('⚠️ Auth form not visible, checking if already logged in...')
-      // Maybe already on dashboard?
-      const isOnDashboard = page.url().includes('/app/')
-      if (isOnDashboard) {
-        console.log('✅ Already on dashboard')
-      } else {
-        throw new Error(`Auth form not visible and not on dashboard. URL: ${page.url()}`)
-      }
-    }
+    // Wait for redirect to dashboard
+    await page.waitForURL(/\/app\/(home|project)/, { timeout: 15000 })
+    console.log(`URL after login attempt: ${page.url()}`)
+    console.log('✅ Successfully logged in and redirected to dashboard')
   } else {
-    // Local mode: Use guest mode
     console.log('👤 No test credentials found, using guest mode')
 
     const guestButton = page.getByRole('button', { name: /continue as guest|guest mode/i })
-    const isGuestButtonVisible = await guestButton.isVisible({ timeout: 5000 }).catch(() => false)
+    await guestButton.waitFor({ state: 'visible', timeout: 5000 })
+    await guestButton.click()
+    console.log('✅ Clicked guest mode button')
 
-    if (isGuestButtonVisible) {
-      await guestButton.click()
-      console.log('✅ Clicked guest mode button')
-      await page.waitForURL(/\/app\/project/, { timeout: 10000 })
-      console.log('✅ Successfully entered guest mode')
-    } else {
-      // Check if already on dashboard
-      const isOnDashboard = page.url().includes('/app/')
-      if (isOnDashboard) {
-        console.log('✅ Already on dashboard')
-      } else {
-        throw new Error(`Guest button not visible and not on dashboard. URL: ${page.url()}`)
-      }
-    }
+    await page.waitForURL(/\/app\/project/, { timeout: 10000 })
+    console.log('✅ Successfully entered guest mode')
   }
 }
