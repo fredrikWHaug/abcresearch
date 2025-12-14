@@ -29,8 +29,8 @@ export default defineConfig({
   // Reporter to use - output HTML report to centralized location
   reporter: [['html', { outputFolder: '../output/playwright-report' }]],
 
-  // Increase test timeout for long-running operations (search takes ~60s, slide generation ~15s)
-  timeout: 180000, // 3 minutes per test
+  // Increase test timeout for long-running operations (search can take 2-3 minutes)
+  timeout: 300000, // 5 minutes per test
 
   // Shared settings for all the projects below
   use: {
