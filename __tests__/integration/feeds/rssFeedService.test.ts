@@ -213,16 +213,21 @@ describe('RSS Feed - Date Filtering', () => {
   })
 
   it('should handle edge case (exactly N days ago)', () => {
-    // Given: Date exactly 7 days ago (subtract 1 second to avoid millisecond timing issues)
-    const exactDate = new Date()
-    exactDate.setDate(exactDate.getDate() - 7)
-    exactDate.setSeconds(exactDate.getSeconds() - 1)
+    // Mock Date to control "now"
+    const mockNow = new Date('2024-01-08T12:00:00Z')
+    vi.setSystemTime(mockNow)
+
+    // Given: Date exactly 7 days ago
+    const exactDate = new Date('2024-01-01T12:00:00Z') // Exactly 7 days before mockNow
 
     // When: Checking if within 7 days
     const result = isWithinDays(exactDate, 7)
 
     // Then: Should be true (inclusive)
     expect(result).toBe(true)
+
+    // Cleanup
+    vi.useRealTimers()
   })
 })
 
