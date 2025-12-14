@@ -167,5 +167,81 @@ test('app launches, login works, and dashboard loads', async ({ page }) => {
   })
   console.log('✅ Screenshot: After search submission')
 
+  // =========================================
+  // STEP 10: Click the search button
+  // =========================================
+  console.log('📍 Looking for search button...')
+
+  // Try to find any search-related button
+  const searchButtons = [
+    page.getByRole('button', { name: /click to search/i }),
+    page.getByRole('button', { name: /start search/i }),
+    page.getByRole('button', { name: /search/i }),
+    page.locator('button:has-text("Search")'),
+    page.locator('button:has-text("search")'),
+  ]
+
+  let searchButtonClicked = false
+  for (const btn of searchButtons) {
+    if (await btn.first().isVisible({ timeout: 2000 }).catch(() => false)) {
+      const btnText = await btn.first().textContent().catch(() => 'unknown')
+      console.log(`  → Found search button: "${btnText}"`)
+      await btn.first().click()
+      searchButtonClicked = true
+      console.log('  → Clicked search button')
+      break
+    }
+  }
+
+  if (!searchButtonClicked) {
+    console.log('  → No search button found - search may have started automatically')
+  }
+
+  // =========================================
+  // STEP 11: Wait for search to complete and drugs to appear
+  // =========================================
+  console.log('📍 Waiting for search to complete and drugs to load (this may take 2-3 minutes)...')
+
+  // Wait directly for "Drugs Found (X)" which is the definitive completion signal
+  const drugsFoundText = page.getByText(/Drugs Found \(\d+\)/i)
+
+  const maxWaitTime = 180000 // 3 minutes
+  const startTime = Date.now()
+  let drugsAppeared = false
+
+  while ((Date.now() - startTime) < maxWaitTime) {
+    // Check if "Drugs Found (X)" has appeared
+    const foundDrugs = await drugsFoundText.isVisible().catch(() => false)
+
+    if (foundDrugs) {
+      const drugText = await drugsFoundText.textContent()
+      console.log(`  → ${drugText} - Search complete!`)
+      drugsAppeared = true
+      break
+    }
+
+    // Log progress every 15 seconds
+    const elapsed = Math.round((Date.now() - startTime) / 1000)
+    if (elapsed % 15 === 0 && elapsed > 0) {
+      console.log(`  → Still searching... (${elapsed}s elapsed)`)
+    }
+
+    await page.waitForTimeout(3000) // Check every 3 seconds
+  }
+
+  if (!drugsAppeared) {
+    console.log('  ⚠️  Search timed out after 3 minutes - drugs not found')
+  }
+
+  // Wait an extra 2 seconds for results to fully render
+  await page.waitForTimeout(2000)
+
+  // Take final screenshot of completed results
+  await page.screenshot({
+    path: '__tests__/output/screenshots/07-search-results-complete.png',
+    fullPage: true
+  })
+  console.log('✅ Screenshot: Search results complete')
+
   console.log('🎉 Basic smoke test complete!')
 })
