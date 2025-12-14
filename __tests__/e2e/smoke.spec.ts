@@ -10,6 +10,9 @@ import { loginWithTestUser } from './helpers/auth'
  */
 
 test.describe('Smoke Tests', () => {
+  // With incognito mode configured in playwright.config.ts,
+  // each test gets a fresh browser context with no cached data
+
   test('auth page loads without errors', async ({ page }) => {
     // Collect console errors
     const errors: string[] = []

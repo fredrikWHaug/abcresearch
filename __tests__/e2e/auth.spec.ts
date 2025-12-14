@@ -11,6 +11,9 @@ import { test, expect } from '@playwright/test'
  */
 
 test.describe('Authentication', () => {
+  // With incognito mode configured in playwright.config.ts,
+  // each test gets a fresh browser context with no cached data
+
   test('redirects unauthenticated users to /auth', async ({ page }) => {
     // Try to access the app directly
     await page.goto('/app/home')

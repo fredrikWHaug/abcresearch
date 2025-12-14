@@ -8,11 +8,12 @@ export async function loginWithTestUser(page: Page): Promise<void> {
   const email = process.env.TEST_USER_EMAIL
   const password = process.env.TEST_USER_PASSWORD
 
-  // Navigate to the app
-  await page.goto('/')
+  // With incognito mode in playwright.config.ts, we should have a fresh browser
+  // Just navigate directly to the auth page
+  await page.goto('/auth')
   await page.waitForLoadState('networkidle')
-
-  // Wait a moment for any redirects to complete
+  
+  // Wait for the page to fully render
   await page.waitForTimeout(1000)
 
   console.log(`Current URL: ${page.url()}`)
