@@ -23,8 +23,8 @@ export default defineConfig({
   // Retry on CI only
   retries: process.env.CI ? 2 : 0,
 
-  // Opt out of parallel tests on CI
-  workers: process.env.CI ? 1 : undefined,
+  // Use single worker to match CI behavior and avoid overwhelming vercel dev
+  workers: 1,
 
   // Reporter to use - output HTML report to centralized location
   reporter: [['html', { outputFolder: '../output/playwright-report' }]],
@@ -43,25 +43,46 @@ export default defineConfig({
 
     // Screenshot on failure
     screenshot: 'only-on-failure',
+
+    // CRITICAL: Ensure fresh browser state for each test (no cached sessions)
+    // This prevents locally cached Supabase sessions from affecting tests
+    storageState: undefined,
   },
 
   // Configure projects for major browsers
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: {
+        ...devices['Desktop Chrome'],
+        // NUCLEAR OPTION: Force completely fresh browser with NO persistent storage
+        // This matches CI behavior where each run starts with a fresh container
+        launchOptions: {
+          args: [
+            '--incognito',                    // No persistent storage whatsoever
+            '--disable-extensions',           // No extensions that might cache data
+            '--disable-background-networking', // No background network requests
+            '--disable-sync',                 // No Chrome sync
+            '--disable-translate',            // No translate features
+            '--disable-features=IsolateOrigins,site-per-process',
+            '--no-first-run',                 // Skip first run wizards
+          ],
+        },
+        // Explicitly empty storage state
+        storageState: { cookies: [], origins: [] },
+      },
     },
   ],
 
   // Run your local dev server before starting the tests
   // In CI, we start the server manually before running Playwright
-  // NOTE: We run `npm run build` first because vercel dev serves the built dist/
+  // Use vite directly for simpler local testing (vercel dev can be flaky)
   webServer: process.env.CI
     ? undefined
     : {
-        command: 'npm run build && npx vercel dev --listen 3000 --yes',
+        command: 'npm run dev -- --port 3000',
         port: 3000,
         reuseExistingServer: true,
-        timeout: 180000, // 3 minutes to allow for build + server start
+        timeout: 60000,
       },
 })
