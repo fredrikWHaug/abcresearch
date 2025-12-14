@@ -8,6 +8,8 @@ import { test, expect } from '@playwright/test'
  * 2. Login portal renders
  * 3. Authentication works
  * 4. Dashboard loads after login
+ * 5. Can create a new project
+ * 6. Project page loads after creation
  */
 
 test('app launches, login works, and dashboard loads', async ({ page }) => {
@@ -61,5 +63,73 @@ test('app launches, login works, and dashboard loads', async ({ page }) => {
 
   // Verify we're actually on the app
   await expect(page).toHaveURL(/\/app\//)
+
+  // =========================================
+  // STEP 5: Create a new project
+  // =========================================
+  console.log('📍 Creating a new project...')
+
+  // Generate unique project name using timestamp
+  const projectNumber = Date.now()
+  const projectName = `GLP Research ${projectNumber}`
+
+  // Click create project button (could be "Create Your First Project" or "Create New Project")
+  const createFirstProjectBtn = page.getByRole('button', { name: 'Create Your First Project' })
+  const createNewProjectCard = page.getByText('Create New Project')
+
+  if (await createFirstProjectBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
+    await createFirstProjectBtn.click()
+    console.log('  → Clicked "Create Your First Project"')
+  } else if (await createNewProjectCard.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await createNewProjectCard.click()
+    console.log('  → Clicked "Create New Project" card')
+  } else {
+    throw new Error('Could not find create project button or card')
+  }
+
+  // Wait for modal to appear
+  await page.waitForTimeout(500)
+
+  // =========================================
+  // STEP 6: Screenshot the create project modal
+  // =========================================
+  await page.screenshot({
+    path: '__tests__/output/screenshots/03-create-project-modal.png',
+    fullPage: true
+  })
+  console.log('✅ Screenshot: Create project modal')
+
+  // =========================================
+  // STEP 7: Fill in project details and submit
+  // =========================================
+  const projectNameInput = page.locator('input#projectName')
+  await expect(projectNameInput).toBeVisible({ timeout: 5000 })
+  await projectNameInput.fill(projectName)
+  console.log(`  → Entered project name: ${projectName}`)
+
+  // Click "Create Project" button
+  const createProjectBtn = page.getByRole('button', { name: 'Create Project' })
+  await expect(createProjectBtn).toBeVisible()
+  await createProjectBtn.click()
+  console.log('  → Clicked "Create Project"')
+
+  // Wait for navigation to the new project page
+  await page.waitForURL(/\/app\/project\/\d+/, { timeout: 15000 })
+  console.log('✅ Navigated to project page')
+
+  // =========================================
+  // STEP 8: Screenshot the created project
+  // =========================================
+  // Wait for project page to fully render
+  await page.waitForTimeout(2000)
+
+  await page.screenshot({
+    path: '__tests__/output/screenshots/04-project-created.png',
+    fullPage: true
+  })
+  console.log('✅ Screenshot: Project page after creation')
+
+  // Verify we're on a project page
+  await expect(page).toHaveURL(/\/app\/project\/\d+/)
   console.log('🎉 Basic smoke test complete!')
 })
