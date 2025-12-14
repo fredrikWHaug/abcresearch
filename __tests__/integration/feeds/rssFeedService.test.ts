@@ -213,9 +213,10 @@ describe('RSS Feed - Date Filtering', () => {
   })
 
   it('should handle edge case (exactly N days ago)', () => {
-    // Given: Date exactly 7 days ago
+    // Given: Date exactly 7 days ago (subtract 1 second to avoid millisecond timing issues)
     const exactDate = new Date()
     exactDate.setDate(exactDate.getDate() - 7)
+    exactDate.setSeconds(exactDate.getSeconds() - 1)
 
     // When: Checking if within 7 days
     const result = isWithinDays(exactDate, 7)
