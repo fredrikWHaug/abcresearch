@@ -65,8 +65,9 @@ export default defineConfig({
   ],
 
   // Run your local dev server before starting the tests
-  // In CI, we start the server manually before running Playwright
-  // Use vite directly for simpler local testing (vercel dev can be flaky)
+  // In CI, vercel dev is started manually (supports API routes)
+  // Locally, use vite directly (faster, more reliable - API routes won't work)
+  // Full E2E with API routes runs in CI
   webServer: process.env.CI
     ? undefined
     : {
