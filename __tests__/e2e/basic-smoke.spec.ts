@@ -289,5 +289,31 @@ test('app launches, login works, and dashboard loads', async ({ page }) => {
     console.log('✅ Screenshot: Drug detail view with papers')
   }
 
+  // =========================================
+  // STEP 13: Click Pipeline tab to view asset pipeline
+  // =========================================
+  console.log('📍 Clicking Pipeline tab...')
+
+  // Look for the Pipeline button/tab in the navigation
+  const pipelineTab = page.getByRole('button', { name: /pipeline/i })
+  const pipelineTabVisible = await pipelineTab.first().isVisible({ timeout: 5000 }).catch(() => false)
+
+  if (pipelineTabVisible) {
+    await pipelineTab.first().click()
+    console.log('  → Clicked Pipeline tab')
+
+    // Wait for pipeline view to render
+    await page.waitForTimeout(3000)
+
+    // Take screenshot of the asset pipeline
+    await page.screenshot({
+      path: '__tests__/output/screenshots/09-asset-pipeline.png',
+      fullPage: true
+    })
+    console.log('✅ Screenshot: Asset pipeline view')
+  } else {
+    console.log('  ⚠️  Pipeline tab not found')
+  }
+
   console.log('🎉 Basic smoke test complete!')
 })
