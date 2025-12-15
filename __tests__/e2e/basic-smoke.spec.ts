@@ -305,12 +305,82 @@ test('app launches, login works, and dashboard loads', async ({ page }) => {
     // Wait for pipeline view to render
     await page.waitForTimeout(3000)
 
-    // Take screenshot of the asset pipeline
+    // Take screenshot of the asset pipeline (before extraction)
     await page.screenshot({
-      path: '__tests__/output/screenshots/09-asset-pipeline.png',
+      path: '__tests__/output/screenshots/09-asset-pipeline-before.png',
       fullPage: true
     })
-    console.log('✅ Screenshot: Asset pipeline view')
+    console.log('✅ Screenshot: Asset pipeline view (before extraction)')
+
+    // =========================================
+    // STEP 14: Set drug count to 3 and run AI Extract
+    // =========================================
+    console.log('📍 Setting drug count and running AI Extract...')
+
+    // Find the number input field (likely id="drugLimit" or similar)
+    const drugCountInput = page.locator('input[type="number"]').first()
+    const inputVisible = await drugCountInput.isVisible({ timeout: 5000 }).catch(() => false)
+
+    if (inputVisible) {
+      // Clear and set to 3
+      await drugCountInput.click()
+      await drugCountInput.fill('3')
+      console.log('  → Set drug count to 3')
+
+      // Find and click the "AI Extract" button
+      const aiExtractButton = page.getByRole('button', { name: /ai extract/i })
+      const buttonVisible = await aiExtractButton.isVisible({ timeout: 3000 }).catch(() => false)
+
+      if (buttonVisible) {
+        await aiExtractButton.click()
+        console.log('  → Clicked "AI Extract" button')
+
+        // Wait for extraction to complete
+        console.log('  → Waiting for AI extraction to complete...')
+
+        // Poll for the "No pipeline data extracted yet" text to disappear
+        const maxWaitTime = 120000 // 2 minutes
+        const startTime = Date.now()
+        let extractionComplete = false
+
+        while ((Date.now() - startTime) < maxWaitTime) {
+          // Check if "No pipeline data extracted yet" is still visible
+          const noDataText = await page.getByText(/no pipeline data extracted yet/i).isVisible().catch(() => false)
+
+          if (!noDataText) {
+            console.log('  → AI extraction complete - pipeline data appeared!')
+            extractionComplete = true
+            break
+          }
+
+          // Log progress every 15 seconds
+          const elapsed = Math.round((Date.now() - startTime) / 1000)
+          if (elapsed % 15 === 0 && elapsed > 0) {
+            console.log(`  → Still extracting... (${elapsed}s elapsed)`)
+          }
+
+          await page.waitForTimeout(3000) // Check every 3 seconds
+        }
+
+        if (!extractionComplete) {
+          console.log('  ⚠️  AI extraction timed out after 2 minutes')
+        }
+
+        // Wait an extra 2 seconds for UI to settle
+        await page.waitForTimeout(2000)
+
+        // Take screenshot of pipeline with extracted data
+        await page.screenshot({
+          path: '__tests__/output/screenshots/10-pipeline-extracted.png',
+          fullPage: true
+        })
+        console.log('✅ Screenshot: Pipeline with AI-extracted data')
+      } else {
+        console.log('  ⚠️  AI Extract button not found')
+      }
+    } else {
+      console.log('  ⚠️  Drug count input field not found')
+    }
   } else {
     console.log('  ⚠️  Pipeline tab not found')
   }
