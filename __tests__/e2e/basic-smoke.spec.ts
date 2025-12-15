@@ -576,6 +576,68 @@ test('app launches, login works, and dashboard loads', async ({ page }) => {
                   fullPage: true
                 })
                 console.log('✅ Screenshot: After adding to chat')
+
+                // =========================================
+                // STEP 21: Enter text and wait for graph to render
+                // =========================================
+                console.log('📍 Entering text in search bar and waiting for graph...')
+
+                // Find the search input field (placeholder: "Ask a follow-up question...")
+                const chatSearchInput = page.getByPlaceholder('Ask a follow-up question...')
+                const chatInputVisible = await chatSearchInput.isVisible({ timeout: 5000 }).catch(() => false)
+
+                if (chatInputVisible) {
+                  const graphQuery = 'Please write a python script creating a graph comparing the drugs from the paper'
+                  await chatSearchInput.fill(graphQuery)
+                  console.log(`  → Entered: "${graphQuery}"`)
+
+                  // Press Enter to submit
+                  await chatSearchInput.press('Enter')
+                  console.log('  → Pressed Enter to submit')
+
+                  // Wait for the graph to render
+                  console.log('  → Waiting for graph to render...')
+
+                  const maxGraphWaitTime = 180000 // 3 minutes
+                  const graphStartTime = Date.now()
+                  let graphRendered = false
+
+                  while ((Date.now() - graphStartTime) < maxGraphWaitTime) {
+                    // Check if "Graph Output (rendered in X s)" appears
+                    const graphOutputText = await page.getByText(/Graph Output\s*\(rendered in \d+ s\)/i).isVisible().catch(() => false)
+
+                    if (graphOutputText) {
+                      const graphText = await page.getByText(/Graph Output\s*\(rendered in \d+ s\)/i).textContent()
+                      console.log(`  → ${graphText} - Graph rendering complete!`)
+                      graphRendered = true
+                      break
+                    }
+
+                    // Log progress every 15 seconds
+                    const graphElapsed = Math.round((Date.now() - graphStartTime) / 1000)
+                    if (graphElapsed % 15 === 0 && graphElapsed > 0) {
+                      console.log(`  → Still rendering graph... (${graphElapsed}s elapsed)`)
+                    }
+
+                    await page.waitForTimeout(3000) // Check every 3 seconds
+                  }
+
+                  if (!graphRendered) {
+                    console.log('  ⚠️  Graph rendering timed out after 3 minutes')
+                  }
+
+                  // Wait for UI to settle
+                  await page.waitForTimeout(2000)
+
+                  // Take screenshot of the rendered graph
+                  await page.screenshot({
+                    path: '__tests__/output/screenshots/17-graph-output.png',
+                    fullPage: true
+                  })
+                  console.log('✅ Screenshot: Graph output rendered')
+                } else {
+                  console.log('  ⚠️  Search input field not found')
+                }
               } else {
                 console.log('  ⚠️  Add to Chat button not found')
               }
@@ -759,6 +821,68 @@ test('app launches, login works, and dashboard loads', async ({ page }) => {
                     fullPage: true
                   })
                   console.log('✅ Screenshot: After adding to chat')
+
+                  // =========================================
+                  // STEP 21: Enter text and wait for graph to render
+                  // =========================================
+                  console.log('📍 Entering text in search bar and waiting for graph...')
+
+                  // Find the search input field (placeholder: "Ask a follow-up question...")
+                  const chatSearchInput = page.getByPlaceholder('Ask a follow-up question...')
+                  const chatInputVisible = await chatSearchInput.isVisible({ timeout: 5000 }).catch(() => false)
+
+                  if (chatInputVisible) {
+                    const graphQuery = 'Please write a python script creating a graph comparing the drugs from the paper'
+                    await chatSearchInput.fill(graphQuery)
+                    console.log(`  → Entered: "${graphQuery}"`)
+
+                    // Press Enter to submit
+                    await chatSearchInput.press('Enter')
+                    console.log('  → Pressed Enter to submit')
+
+                    // Wait for the graph to render
+                    console.log('  → Waiting for graph to render...')
+
+                    const maxGraphWaitTime = 180000 // 3 minutes
+                    const graphStartTime = Date.now()
+                    let graphRendered = false
+
+                    while ((Date.now() - graphStartTime) < maxGraphWaitTime) {
+                      // Check if "Graph Output (rendered in X s)" appears
+                      const graphOutputText = await page.getByText(/Graph Output\s*\(rendered in \d+ s\)/i).isVisible().catch(() => false)
+
+                      if (graphOutputText) {
+                        const graphText = await page.getByText(/Graph Output\s*\(rendered in \d+ s\)/i).textContent()
+                        console.log(`  → ${graphText} - Graph rendering complete!`)
+                        graphRendered = true
+                        break
+                      }
+
+                      // Log progress every 15 seconds
+                      const graphElapsed = Math.round((Date.now() - graphStartTime) / 1000)
+                      if (graphElapsed % 15 === 0 && graphElapsed > 0) {
+                        console.log(`  → Still rendering graph... (${graphElapsed}s elapsed)`)
+                      }
+
+                      await page.waitForTimeout(3000) // Check every 3 seconds
+                    }
+
+                    if (!graphRendered) {
+                      console.log('  ⚠️  Graph rendering timed out after 3 minutes')
+                    }
+
+                    // Wait for UI to settle
+                    await page.waitForTimeout(2000)
+
+                    // Take screenshot of the rendered graph
+                    await page.screenshot({
+                      path: '__tests__/output/screenshots/17-graph-output.png',
+                      fullPage: true
+                    })
+                    console.log('✅ Screenshot: Graph output rendered')
+                  } else {
+                    console.log('  ⚠️  Search input field not found')
+                  }
                 } else {
                   console.log('  ⚠️  Add to Chat button not found')
                 }
