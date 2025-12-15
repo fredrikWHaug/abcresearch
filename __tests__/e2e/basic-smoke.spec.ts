@@ -474,12 +474,117 @@ test('app launches, login works, and dashboard loads', async ({ page }) => {
           // Wait for results to fully render
           await page.waitForTimeout(2000)
 
-          // Take final screenshot showing extraction results
+          // Take screenshot showing extraction results
           await page.screenshot({
             path: '__tests__/output/screenshots/13-pdf-extraction-complete.png',
             fullPage: true
           })
           console.log('✅ Screenshot: PDF extraction complete')
+
+          // =========================================
+          // STEP 18: Click View Comprehensive Analysis
+          // =========================================
+          console.log('📍 Clicking View Comprehensive Analysis button...')
+
+          const analysisButton = page.getByRole('button', { name: /view comprehensive analysis/i })
+          const analysisButtonVisible = await analysisButton.isVisible({ timeout: 5000 }).catch(() => false)
+
+          if (analysisButtonVisible) {
+            await analysisButton.click()
+            console.log('  → Clicked "View Comprehensive Analysis" button')
+
+            // Wait for the analysis page to render
+            await page.waitForTimeout(3000)
+
+            // Take screenshot of the comprehensive analysis page
+            await page.screenshot({
+              path: '__tests__/output/screenshots/14-comprehensive-analysis.png',
+              fullPage: true
+            })
+            console.log('✅ Screenshot: Comprehensive analysis page')
+
+            // =========================================
+            // STEP 19: Click Back to Upload
+            // =========================================
+            console.log('📍 Clicking Back to Upload button...')
+
+            // DEBUG: Log all elements containing "back" to see what's on the page
+            console.log('  → DEBUG: Looking for elements with "back" or "upload"...')
+            const allElementsFallback = await page.locator('button, a, [role="button"]').all()
+            for (const el of allElementsFallback) {
+              const text = await el.textContent().catch(() => '')
+              if (text && (text.toLowerCase().includes('back') || text.toLowerCase().includes('upload'))) {
+                const tagName = await el.evaluate(e => e.tagName).catch(() => 'unknown')
+                console.log(`  → Found: <${tagName}> "${text.trim().substring(0, 50)}"`)
+              }
+            }
+
+            // Try multiple selectors to find the back button in the top left
+            const backButtonSelectorsFallback = [
+              page.getByRole('button', { name: /back to upload/i }),
+              page.getByRole('link', { name: /back to upload/i }),
+              page.getByText(/back to upload/i),
+              page.getByText(/← back/i),
+              page.getByText(/back/i).filter({ has: page.locator('svg') }), // Button with arrow icon
+              page.locator('button:has-text("Back")'),
+              page.locator('a:has-text("Back")'),
+              page.locator('[href*="upload"]').filter({ hasText: /back/i }),
+            ]
+
+            let backButtonClickedFallback = false
+            for (const selector of backButtonSelectorsFallback) {
+              const isVisible = await selector.first().isVisible({ timeout: 2000 }).catch(() => false)
+              if (isVisible) {
+                const text = await selector.first().textContent().catch(() => 'unknown')
+                console.log(`  → Found back button with text: "${text}"`)
+                await selector.first().click()
+                console.log('  → Clicked back button')
+                backButtonClickedFallback = true
+                break
+              }
+            }
+
+            if (backButtonClickedFallback) {
+              // Wait for the upload page to render
+              await page.waitForTimeout(2000)
+
+              // Take screenshot of the upload page
+              await page.screenshot({
+                path: '__tests__/output/screenshots/15-back-to-upload.png',
+                fullPage: true
+              })
+              console.log('✅ Screenshot: Back to upload view')
+
+              // =========================================
+              // STEP 20: Click Add to Chat
+              // =========================================
+              console.log('📍 Clicking Add to Chat button...')
+
+              const addToChatButton = page.getByRole('button', { name: /add to chat/i })
+              const addToChatVisible = await addToChatButton.isVisible({ timeout: 5000 }).catch(() => false)
+
+              if (addToChatVisible) {
+                await addToChatButton.click()
+                console.log('  → Clicked "Add to Chat" button')
+
+                // Wait for the next page to render
+                await page.waitForTimeout(2000)
+
+                // Take screenshot of the page after adding to chat
+                await page.screenshot({
+                  path: '__tests__/output/screenshots/16-add-to-chat.png',
+                  fullPage: true
+                })
+                console.log('✅ Screenshot: After adding to chat')
+              } else {
+                console.log('  ⚠️  Add to Chat button not found')
+              }
+            } else {
+              console.log('  ⚠️  Back to Upload button not found - check debug output above')
+            }
+          } else {
+            console.log('  ⚠️  View Comprehensive Analysis button not found')
+          }
         } else {
           console.log('  ⚠️  Extract Content button not found')
         }
@@ -552,12 +657,117 @@ test('app launches, login works, and dashboard loads', async ({ page }) => {
             // Wait for results to fully render
             await page.waitForTimeout(2000)
 
-            // Take final screenshot showing extraction results
+            // Take screenshot showing extraction results
             await page.screenshot({
               path: '__tests__/output/screenshots/13-pdf-extraction-complete.png',
               fullPage: true
             })
             console.log('✅ Screenshot: PDF extraction complete')
+
+            // =========================================
+            // STEP 18: Click View Comprehensive Analysis
+            // =========================================
+            console.log('📍 Clicking View Comprehensive Analysis button...')
+
+            const analysisButton = page.getByRole('button', { name: /view comprehensive analysis/i })
+            const analysisButtonVisible = await analysisButton.isVisible({ timeout: 5000 }).catch(() => false)
+
+            if (analysisButtonVisible) {
+              await analysisButton.click()
+              console.log('  → Clicked "View Comprehensive Analysis" button')
+
+              // Wait for the analysis page to render
+              await page.waitForTimeout(3000)
+
+              // Take screenshot of the comprehensive analysis page
+              await page.screenshot({
+                path: '__tests__/output/screenshots/14-comprehensive-analysis.png',
+                fullPage: true
+              })
+              console.log('✅ Screenshot: Comprehensive analysis page')
+
+              // =========================================
+              // STEP 19: Click Back to Upload
+              // =========================================
+              console.log('📍 Clicking Back to Upload button...')
+
+              // DEBUG: Log all elements containing "back" to see what's on the page
+              console.log('  → DEBUG: Looking for elements with "back" or "upload"...')
+              const allElements = await page.locator('button, a, [role="button"]').all()
+              for (const el of allElements) {
+                const text = await el.textContent().catch(() => '')
+                if (text && (text.toLowerCase().includes('back') || text.toLowerCase().includes('upload'))) {
+                  const tagName = await el.evaluate(e => e.tagName).catch(() => 'unknown')
+                  console.log(`  → Found: <${tagName}> "${text.trim().substring(0, 50)}"`)
+                }
+              }
+
+              // Try multiple selectors to find the back button in the top left
+              const backButtonSelectors = [
+                page.getByRole('button', { name: /back to upload/i }),
+                page.getByRole('link', { name: /back to upload/i }),
+                page.getByText(/back to upload/i),
+                page.getByText(/← back/i),
+                page.getByText(/back/i).filter({ has: page.locator('svg') }), // Button with arrow icon
+                page.locator('button:has-text("Back")'),
+                page.locator('a:has-text("Back")'),
+                page.locator('[href*="upload"]').filter({ hasText: /back/i }),
+              ]
+
+              let backButtonClicked = false
+              for (const selector of backButtonSelectors) {
+                const isVisible = await selector.first().isVisible({ timeout: 2000 }).catch(() => false)
+                if (isVisible) {
+                  const text = await selector.first().textContent().catch(() => 'unknown')
+                  console.log(`  → Found back button with text: "${text}"`)
+                  await selector.first().click()
+                  console.log('  → Clicked back button')
+                  backButtonClicked = true
+                  break
+                }
+              }
+
+              if (backButtonClicked) {
+                // Wait for the upload page to render
+                await page.waitForTimeout(2000)
+
+                // Take screenshot of the upload page
+                await page.screenshot({
+                  path: '__tests__/output/screenshots/15-back-to-upload.png',
+                  fullPage: true
+                })
+                console.log('✅ Screenshot: Back to upload view')
+
+                // =========================================
+                // STEP 20: Click Add to Chat
+                // =========================================
+                console.log('📍 Clicking Add to Chat button...')
+
+                const addToChatButton = page.getByRole('button', { name: /add to chat/i })
+                const addToChatVisible = await addToChatButton.isVisible({ timeout: 5000 }).catch(() => false)
+
+                if (addToChatVisible) {
+                  await addToChatButton.click()
+                  console.log('  → Clicked "Add to Chat" button')
+
+                  // Wait for the next page to render
+                  await page.waitForTimeout(2000)
+
+                  // Take screenshot of the page after adding to chat
+                  await page.screenshot({
+                    path: '__tests__/output/screenshots/16-add-to-chat.png',
+                    fullPage: true
+                  })
+                  console.log('✅ Screenshot: After adding to chat')
+                } else {
+                  console.log('  ⚠️  Add to Chat button not found')
+                }
+              } else {
+                console.log('  ⚠️  Back to Upload button not found - check debug output above')
+              }
+            } else {
+              console.log('  ⚠️  View Comprehensive Analysis button not found')
+            }
           } else {
             console.log('  ⚠️  Extract Content button not found')
           }
