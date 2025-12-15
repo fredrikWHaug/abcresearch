@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { getUserProjects, createProject } from '@/services/projectService'
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Plus, FolderOpen, Calendar, ArrowRight } from 'lucide-react'
+import { Plus, FolderOpen, Calendar, ArrowRight, BarChart3 } from 'lucide-react'
 import { CreateProjectModal } from '@/components/CreateProjectModal'
 import { AnimatedGradientBackground } from '@/components/AnimatedGradientBackground'
 import { motion } from 'framer-motion'
@@ -175,6 +175,28 @@ export function ProjectsHomePage() {
                 </CardHeader>
                 {/* Subtle gradient on hover */}
                 <div className="absolute inset-0 bg-linear-to-br from-blue-100/0 to-blue-100/0 group-hover:from-blue-100/40 group-hover:to-purple-100/30 transition-all duration-300 pointer-events-none" />
+              </MotionCard>
+
+              {/* Scripts Analyst Card */}
+              <MotionCard
+                className="border-2 border-dashed border-white/40 hover:border-green-400/60 hover:shadow-2xl bg-white/40 backdrop-blur-xl cursor-pointer group relative overflow-hidden"
+                onClick={() => navigate('/app/analyst')}
+                whileHover={{ scale: 1.05 }}
+                transition={{ duration: 0.2, ease: "easeOut" }}
+              >
+                <CardHeader className="flex flex-col items-center justify-center h-48 text-center relative z-10">
+                  <div className="rounded-full bg-green-100/60 backdrop-blur-sm p-4 mb-4 group-hover:bg-green-200/70 group-hover:scale-110 transition-all duration-300 shadow-lg">
+                    <BarChart3 className="h-8 w-8 text-green-600" />
+                  </div>
+                  <CardTitle className="text-lg font-semibold text-gray-900 mb-1">
+                    Scripts Analyst
+                  </CardTitle>
+                  <CardDescription className="text-gray-600">
+                    Upload and analyze scripts data
+                  </CardDescription>
+                </CardHeader>
+                {/* Subtle gradient on hover */}
+                <div className="absolute inset-0 bg-linear-to-br from-green-100/0 to-green-100/0 group-hover:from-green-100/40 group-hover:to-emerald-100/30 transition-all duration-300 pointer-events-none" />
               </MotionCard>
 
               {/* Existing Project Cards */}

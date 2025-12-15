@@ -5,6 +5,7 @@ import { AuthForm } from '@/components/auth/AuthForm'
 import { Dashboard } from '@/components/Dashboard'
 import { AppShell } from '@/components/AppShell'
 import { ProjectsHomePage } from '@/components/ProjectsHomePage'
+import { AnalystPage } from '@/components/AnalystPage'
 import '@/utils/runMigration' // Makes window.runMigration() available in console
 
 // Protected route wrapper for authenticated users
@@ -133,6 +134,16 @@ function AppContent() {
           element={
             <GuestRedirect>
               <ProjectsHomePage />
+            </GuestRedirect>
+          } 
+        />
+
+        {/* Analyst page */}
+        <Route 
+          path="analyst" 
+          element={
+            <GuestRedirect>
+              <AnalystPage />
             </GuestRedirect>
           } 
         />
