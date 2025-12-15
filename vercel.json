@@ -1,5 +1,4 @@
 {
-  "framework": null,
   "rewrites": [
     {
       "source": "/((?!api/|@vite|@react-refresh|src/|node_modules/).*)",
