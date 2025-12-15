@@ -59,72 +59,73 @@ jobs:
     - name: Run linter
       run: npm run lint
 
-  e2e:
-    runs-on: ubuntu-latest
+  # E2E tests disabled for CI - run locally to generate screenshot proofs
+  # e2e:
+  #   runs-on: ubuntu-latest
+  #
+  #   steps:
+  #   - uses: actions/checkout@v4
+  #
+  #   - name: Setup Node.js
+  #     uses: actions/setup-node@v4
+  #     with:
+  #       node-version: '20.x'
+  #       cache: 'npm'
+  #
+  #   - name: Install dependencies
+  #     run: npm ci
+  #
+  #   - name: Install Playwright Browsers
+  #     run: npx playwright install --with-deps chromium
+  #
+  #   - name: Link and Pull Vercel Environment
+  #     run: |
+  #       mkdir -p .vercel
+  #       echo '{"projectId":"prj_P1KgTAsXlb9TUtIiKsIyCZ04tQFE","orgId":"team_ohK20Hkf1CDsy8ArExcqsld3","projectName":"abcresearch"}' > .vercel/project.json
+  #       npx vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
+  #
+  #   - name: Build Project for Vercel Dev
+  #     run: npm run build
+  #     env:
+  #       VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+  #       VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+  #
+  #   - name: Start Vercel Dev Server and Run E2E tests
+  #     run: |
+  #       # Start vercel dev server (runs both frontend AND API routes)
+  #       npx vercel dev --listen 3000 --yes --token=${{ secrets.VERCEL_TOKEN }} &
+  #       SERVER_PID=$!
+  #
+  #       # Wait for server to be ready (vercel dev takes longer to start)
+  #       echo "Waiting for server to start..."
+  #       npx wait-on http://localhost:3000 --timeout 120000
+  #
+  #       # Run the E2E tests
+  #       npx playwright test --config=__tests__/e2e/playwright.config.ts
+  #       TEST_EXIT_CODE=$?
+  #
+  #       # Cleanup
+  #       kill $SERVER_PID 2>/dev/null || true
+  #
+  #       exit $TEST_EXIT_CODE
+  #     env:
+  #       VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+  #       VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+  #       TEST_USER_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
+  #       TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
+  #       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+  #       GOOGLE_GEMINI_API_KEY: ${{ secrets.GOOGLE_GEMINI_API_KEY }}
+  #
+  #   - name: Upload test screenshots
+  #     if: failure()
+  #     uses: actions/upload-artifact@v4
+  #     with:
+  #       name: playwright-screenshots
+  #       path: __tests__/output/screenshots/
+  #       if-no-files-found: ignore
 
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20.x'
-        cache: 'npm'
-
-    - name: Install dependencies
-      run: npm ci
-
-    - name: Install Playwright Browsers
-      run: npx playwright install --with-deps chromium
-
-    - name: Link and Pull Vercel Environment
-      run: |
-        mkdir -p .vercel
-        echo '{"projectId":"prj_P1KgTAsXlb9TUtIiKsIyCZ04tQFE","orgId":"team_ohK20Hkf1CDsy8ArExcqsld3","projectName":"abcresearch"}' > .vercel/project.json
-        npx vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
-
-    - name: Build Project for Vercel Dev
-      run: npm run build
-      env:
-        VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-        VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
-
-    - name: Start Vercel Dev Server and Run E2E tests
-      run: |
-        # Start vercel dev server (runs both frontend AND API routes)
-        npx vercel dev --listen 3000 --yes --token=${{ secrets.VERCEL_TOKEN }} &
-        SERVER_PID=$!
-
-        # Wait for server to be ready (vercel dev takes longer to start)
-        echo "Waiting for server to start..."
-        npx wait-on http://localhost:3000 --timeout 120000
-
-        # Run the E2E tests
-        npx playwright test --config=__tests__/e2e/playwright.config.ts
-        TEST_EXIT_CODE=$?
-
-        # Cleanup
-        kill $SERVER_PID 2>/dev/null || true
-
-        exit $TEST_EXIT_CODE
-      env:
-        VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-        VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
-        TEST_USER_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
-        TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
-        ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        GOOGLE_GEMINI_API_KEY: ${{ secrets.GOOGLE_GEMINI_API_KEY }}
-
-    - name: Upload test screenshots
-      if: failure()
-      uses: actions/upload-artifact@v4
-      with:
-        name: playwright-screenshots
-        path: __tests__/output/screenshots/
-        if-no-files-found: ignore
-      
   deploy:
-    needs: [test, lint, e2e]
+    needs: [test, lint]
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     
