@@ -381,6 +381,32 @@ test('app launches, login works, and dashboard loads', async ({ page }) => {
     } else {
       console.log('  ⚠️  Drug count input field not found')
     }
+
+    // =========================================
+    // STEP 15: Click Extraction tab
+    // =========================================
+    console.log('📍 Clicking Extraction tab...')
+
+    // Look for the Extraction button/tab in the navigation
+    const extractionTab = page.getByRole('button', { name: /extraction/i })
+    const extractionTabVisible = await extractionTab.first().isVisible({ timeout: 5000 }).catch(() => false)
+
+    if (extractionTabVisible) {
+      await extractionTab.first().click()
+      console.log('  → Clicked Extraction tab')
+
+      // Wait for extraction view to render
+      await page.waitForTimeout(2000)
+
+      // Take screenshot of the extraction view
+      await page.screenshot({
+        path: '__tests__/output/screenshots/11-extraction-view.png',
+        fullPage: true
+      })
+      console.log('✅ Screenshot: Extraction view')
+    } else {
+      console.log('  ⚠️  Extraction tab not found')
+    }
   } else {
     console.log('  ⚠️  Pipeline tab not found')
   }
