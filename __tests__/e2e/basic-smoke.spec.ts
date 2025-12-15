@@ -236,12 +236,58 @@ test('app launches, login works, and dashboard loads', async ({ page }) => {
   // Wait an extra 2 seconds for results to fully render
   await page.waitForTimeout(2000)
 
-  // Take final screenshot of completed results
+  // Take screenshot of completed results with split screen
   await page.screenshot({
     path: '__tests__/output/screenshots/07-search-results-complete.png',
     fullPage: true
   })
   console.log('✅ Screenshot: Search results complete')
+
+  // =========================================
+  // STEP 12: Click on the top drug card
+  // =========================================
+  console.log('📍 Clicking on the top drug card...')
+
+  // First, find the drugs panel (the right side where "Drugs Found (X)" is)
+  // Then find clickable items within that panel only
+  const drugsPanel = page.locator('div, section').filter({ hasText: /Drugs Found \(\d+\)/i }).first()
+  const panelExists = await drugsPanel.isVisible({ timeout: 5000 }).catch(() => false)
+
+  let drugCardClicked = false
+
+  if (panelExists) {
+    console.log('  → Found drugs panel')
+
+    // Look for the "X total" text on drug cards (e.g., "72 total", "5 total")
+    const totalTextElement = page.getByText(/\d+ total/i).first()
+    const totalTextVisible = await totalTextElement.isVisible({ timeout: 3000 }).catch(() => false)
+
+    if (totalTextVisible) {
+      const totalText = await totalTextElement.textContent()
+      console.log(`  → Found drug card indicator: "${totalText}"`)
+
+      await totalTextElement.click()
+      console.log('  → Clicked on drug card (via "X total" text)')
+      drugCardClicked = true
+    } else {
+      console.log('  ⚠️  Could not find "X total" text on drug cards')
+    }
+  }
+
+  if (!drugCardClicked) {
+    console.log('  ⚠️  Could not find drug card to click')
+  } else {
+    // Wait longer for papers to load (5 seconds)
+    console.log('  → Waiting for drug detail view to load...')
+    await page.waitForTimeout(5000)
+
+    // Take screenshot of what's rendered after clicking the drug
+    await page.screenshot({
+      path: '__tests__/output/screenshots/08-drug-detail-view.png',
+      fullPage: true
+    })
+    console.log('✅ Screenshot: Drug detail view with papers')
+  }
 
   console.log('🎉 Basic smoke test complete!')
 })
