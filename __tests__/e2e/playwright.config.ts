@@ -67,12 +67,11 @@ export default defineConfig({
   // Run your local dev server before starting the tests
   // Runs both Vite (frontend on :3000) and Vercel dev (API routes on :3001)
   // Vite proxies /api/* requests to Vercel dev for real API calls
-  webServer: process.env.CI
-    ? undefined
-    : {
-        command: 'npm run dev:e2e',
-        port: 3000,
-        reuseExistingServer: true,
-        timeout: 120000, // Increased timeout for both servers to start
-      },
+  // Now runs in BOTH local and CI environments for consistent behavior
+  webServer: {
+    command: 'npm run dev:e2e',
+    port: 3000,
+    reuseExistingServer: !process.env.CI, // Fresh servers in CI, reuse locally
+    timeout: 120000, // Increased timeout for both servers to start
+  },
 })
