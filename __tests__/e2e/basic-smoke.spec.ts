@@ -595,20 +595,19 @@ test('app launches, login works, and dashboard loads', async ({ page }) => {
                   await chatSearchInput.press('Enter')
                   console.log('  → Pressed Enter to submit')
 
-                  // Wait for the graph to render
-                  console.log('  → Waiting for graph to render...')
+                  // Wait for the graph to fully render (indicated by "View Code" button)
+                  console.log('  → Waiting for graph to fully render...')
 
                   const maxGraphWaitTime = 180000 // 3 minutes
                   const graphStartTime = Date.now()
                   let graphRendered = false
 
                   while ((Date.now() - graphStartTime) < maxGraphWaitTime) {
-                    // Check if "Graph Output (rendered in X s)" appears
-                    const graphOutputText = await page.getByText(/Graph Output\s*\(rendered in \d+ s\)/i).isVisible().catch(() => false)
+                    // Check if "View Code" text appears (definitive signal graph is rendered)
+                    const viewCodeText = await page.getByText(/View Code/i).isVisible().catch(() => false)
 
-                    if (graphOutputText) {
-                      const graphText = await page.getByText(/Graph Output\s*\(rendered in \d+ s\)/i).textContent()
-                      console.log(`  → ${graphText} - Graph rendering complete!`)
+                    if (viewCodeText) {
+                      console.log('  → "View Code" button appeared - Graph fully rendered!')
                       graphRendered = true
                       break
                     }
@@ -629,12 +628,14 @@ test('app launches, login works, and dashboard loads', async ({ page }) => {
                   // Wait for UI to settle
                   await page.waitForTimeout(2000)
 
-                  // Take screenshot of the rendered graph
+                  // Take screenshot of the fully rendered graph
                   await page.screenshot({
                     path: '__tests__/output/screenshots/17-graph-output.png',
                     fullPage: true
                   })
-                  console.log('✅ Screenshot: Graph output rendered')
+                  console.log('✅ Screenshot: Graph output fully rendered')
+                  console.log('🎉 Basic smoke test complete!')
+                  return // Exit test immediately - full e2e journey succeeded
                 } else {
                   console.log('  ⚠️  Search input field not found')
                 }
@@ -840,20 +841,19 @@ test('app launches, login works, and dashboard loads', async ({ page }) => {
                     await chatSearchInput.press('Enter')
                     console.log('  → Pressed Enter to submit')
 
-                    // Wait for the graph to render
-                    console.log('  → Waiting for graph to render...')
+                    // Wait for the graph to fully render (indicated by "View Code" button)
+                    console.log('  → Waiting for graph to fully render...')
 
                     const maxGraphWaitTime = 180000 // 3 minutes
                     const graphStartTime = Date.now()
                     let graphRendered = false
 
                     while ((Date.now() - graphStartTime) < maxGraphWaitTime) {
-                      // Check if "Graph Output (rendered in X s)" appears
-                      const graphOutputText = await page.getByText(/Graph Output\s*\(rendered in \d+ s\)/i).isVisible().catch(() => false)
+                      // Check if "View Code" text appears (definitive signal graph is rendered)
+                      const viewCodeText = await page.getByText(/View Code/i).isVisible().catch(() => false)
 
-                      if (graphOutputText) {
-                        const graphText = await page.getByText(/Graph Output\s*\(rendered in \d+ s\)/i).textContent()
-                        console.log(`  → ${graphText} - Graph rendering complete!`)
+                      if (viewCodeText) {
+                        console.log('  → "View Code" button appeared - Graph fully rendered!')
                         graphRendered = true
                         break
                       }
@@ -874,12 +874,14 @@ test('app launches, login works, and dashboard loads', async ({ page }) => {
                     // Wait for UI to settle
                     await page.waitForTimeout(2000)
 
-                    // Take screenshot of the rendered graph
+                    // Take screenshot of the fully rendered graph
                     await page.screenshot({
                       path: '__tests__/output/screenshots/17-graph-output.png',
                       fullPage: true
                     })
-                    console.log('✅ Screenshot: Graph output rendered')
+                    console.log('✅ Screenshot: Graph output fully rendered')
+                    console.log('🎉 Basic smoke test complete!')
+                    return // Exit test immediately - full e2e journey succeeded
                   } else {
                     console.log('  ⚠️  Search input field not found')
                   }
