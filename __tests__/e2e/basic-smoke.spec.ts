@@ -398,12 +398,173 @@ test('app launches, login works, and dashboard loads', async ({ page }) => {
       // Wait for extraction view to render
       await page.waitForTimeout(2000)
 
-      // Take screenshot of the extraction view
+      // Take screenshot of the extraction view (before upload)
       await page.screenshot({
-        path: '__tests__/output/screenshots/11-extraction-view.png',
+        path: '__tests__/output/screenshots/11-extraction-view-before.png',
         fullPage: true
       })
-      console.log('✅ Screenshot: Extraction view')
+      console.log('✅ Screenshot: Extraction view (before upload)')
+
+      // =========================================
+      // STEP 16: Upload PDF file
+      // =========================================
+      console.log('📍 Uploading test PDF file...')
+
+      // Find the file input element (it might be hidden behind the upload button)
+      const fileInput = page.locator('input[type="file"]')
+      const fileInputExists = await fileInput.count() > 0
+
+      if (fileInputExists) {
+        // Upload the test PDF file
+        await fileInput.setInputFiles('__tests__/fixtures/test_paper.pdf')
+        console.log('  → Uploaded test_paper.pdf')
+
+        // Wait for the upload to register
+        await page.waitForTimeout(2000)
+
+        // Take screenshot after upload
+        await page.screenshot({
+          path: '__tests__/output/screenshots/12-pdf-uploaded.png',
+          fullPage: true
+        })
+        console.log('✅ Screenshot: After PDF upload')
+
+        // =========================================
+        // STEP 17: Click Extract Content and wait for success
+        // =========================================
+        console.log('📍 Clicking Extract Content button...')
+
+        const extractContentButton = page.getByRole('button', { name: /extract content/i })
+        const extractButtonVisible = await extractContentButton.isVisible({ timeout: 5000 }).catch(() => false)
+
+        if (extractButtonVisible) {
+          await extractContentButton.click()
+          console.log('  → Clicked "Extract Content" button')
+
+          // Wait for extraction to complete
+          console.log('  → Waiting for PDF extraction to complete...')
+
+          const maxWaitTime = 120000 // 2 minutes
+          const startTime = Date.now()
+          let extractionSuccessful = false
+
+          while ((Date.now() - startTime) < maxWaitTime) {
+            // Check if "Extraction Successful!" appears
+            const successMessage = await page.getByText(/extraction successful/i).isVisible().catch(() => false)
+
+            if (successMessage) {
+              console.log('  → Extraction Successful!')
+              extractionSuccessful = true
+              break
+            }
+
+            // Log progress every 15 seconds
+            const elapsed = Math.round((Date.now() - startTime) / 1000)
+            if (elapsed % 15 === 0 && elapsed > 0) {
+              console.log(`  → Still extracting... (${elapsed}s elapsed)`)
+            }
+
+            await page.waitForTimeout(3000) // Check every 3 seconds
+          }
+
+          if (!extractionSuccessful) {
+            console.log('  ⚠️  PDF extraction timed out after 2 minutes')
+          }
+
+          // Wait for results to fully render
+          await page.waitForTimeout(2000)
+
+          // Take final screenshot showing extraction results
+          await page.screenshot({
+            path: '__tests__/output/screenshots/13-pdf-extraction-complete.png',
+            fullPage: true
+          })
+          console.log('✅ Screenshot: PDF extraction complete')
+        } else {
+          console.log('  ⚠️  Extract Content button not found')
+        }
+      } else {
+        console.log('  ⚠️  File input not found - trying to click upload button first')
+
+        // Try clicking the upload button to reveal the file input
+        const uploadButton = page.getByText(/click or drag to upload pdf file/i)
+        const uploadButtonVisible = await uploadButton.isVisible({ timeout: 3000 }).catch(() => false)
+
+        if (uploadButtonVisible) {
+          await uploadButton.click()
+          console.log('  → Clicked upload button')
+          await page.waitForTimeout(500)
+
+          // Try to find file input again
+          const fileInputAfterClick = page.locator('input[type="file"]')
+          await fileInputAfterClick.setInputFiles('__tests__/fixtures/test_paper.pdf')
+          console.log('  → Uploaded test_paper.pdf')
+
+          // Wait for the upload to register
+          await page.waitForTimeout(2000)
+
+          // Take screenshot after upload
+          await page.screenshot({
+            path: '__tests__/output/screenshots/12-pdf-uploaded.png',
+            fullPage: true
+          })
+          console.log('✅ Screenshot: After PDF upload')
+
+          // Click Extract Content button
+          console.log('📍 Clicking Extract Content button...')
+          const extractContentButton = page.getByRole('button', { name: /extract content/i })
+          const extractButtonVisible = await extractContentButton.isVisible({ timeout: 5000 }).catch(() => false)
+
+          if (extractButtonVisible) {
+            await extractContentButton.click()
+            console.log('  → Clicked "Extract Content" button')
+
+            // Wait for extraction to complete
+            console.log('  → Waiting for PDF extraction to complete...')
+
+            const maxWaitTime = 120000 // 2 minutes
+            const startTime = Date.now()
+            let extractionSuccessful = false
+
+            while ((Date.now() - startTime) < maxWaitTime) {
+              // Check if "Extraction Successful!" appears
+              const successMessage = await page.getByText(/extraction successful/i).isVisible().catch(() => false)
+
+              if (successMessage) {
+                console.log('  → Extraction Successful!')
+                extractionSuccessful = true
+                break
+              }
+
+              // Log progress every 15 seconds
+              const elapsed = Math.round((Date.now() - startTime) / 1000)
+              if (elapsed % 15 === 0 && elapsed > 0) {
+                console.log(`  → Still extracting... (${elapsed}s elapsed)`)
+              }
+
+              await page.waitForTimeout(3000) // Check every 3 seconds
+            }
+
+            if (!extractionSuccessful) {
+              console.log('  ⚠️  PDF extraction timed out after 2 minutes')
+            }
+
+            // Wait for results to fully render
+            await page.waitForTimeout(2000)
+
+            // Take final screenshot showing extraction results
+            await page.screenshot({
+              path: '__tests__/output/screenshots/13-pdf-extraction-complete.png',
+              fullPage: true
+            })
+            console.log('✅ Screenshot: PDF extraction complete')
+          } else {
+            console.log('  ⚠️  Extract Content button not found')
+          }
+        } else {
+          console.log('  ⚠️  Upload button not found')
+        }
+      }
     } else {
       console.log('  ⚠️  Extraction tab not found')
     }
