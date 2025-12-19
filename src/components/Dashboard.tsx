@@ -524,61 +524,31 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
         }
       })
       
-      // Load trials, papers, and drug groups for the new project
-      console.log('[Dashboard] 📥 Loading project data (trials, papers, drug groups) for project', currentProjectId)
-      Promise.all([
-        import('@/services/trialService').then(({ getProjectTrials }) => getProjectTrials(currentProjectId)),
-        import('@/services/paperService').then(({ getProjectPapers }) => getProjectPapers(currentProjectId)),
-        import('@/services/drugAssociationService').then(({ loadDrugGroups }) => loadDrugGroups(currentProjectId))
-      ]).then(([projectTrials, projectPapers, drugGroups]) => {
-        console.log('[Dashboard] ✅ Loaded project data:', {
-          trials: projectTrials.length,
-          papers: projectPapers.length,
-          drugGroups: drugGroups.length
+      // Load all project data in ONE batched call (eliminates redundant queries)
+      // Previously made 3 parallel calls that duplicated data fetching
+      // Now uses loadDrugGroupsWithEntities which returns everything in ~9 queries total
+      console.log('[Dashboard] 📥 Loading project data with batch queries for project', currentProjectId)
+      import('@/services/drugAssociationService').then(({ loadDrugGroupsWithEntities }) => 
+        loadDrugGroupsWithEntities(currentProjectId)
+      ).then(({ drugGroups, allTrials, allPapers, allPressReleases, allIRDecks }) => {
+        console.log('[Dashboard] ✅ Loaded project data with batch queries:', {
+          trials: allTrials.length,
+          papers: allPapers.length,
+          drugGroups: drugGroups.length,
+          pressReleases: allPressReleases.length,
+          irDecks: allIRDecks.length
         })
-
-        // If project trials/papers are empty but we have drug groups, populate from drug groups
-        let effectiveTrials = projectTrials
-        let effectivePapers = projectPapers
-
-        if (effectiveTrials.length === 0 && drugGroups.length > 0) {
-          const allTrials = drugGroups.flatMap(dg => dg.trials)
-          // Deduplicate by nctId
-          const uniqueTrials = Array.from(new Map(allTrials.map(t => [t.nctId, t])).values())
-          console.log('[Dashboard] Populating trials from drug groups:', uniqueTrials.length)
-          effectiveTrials = uniqueTrials
-        }
-
-        if (effectivePapers.length === 0 && drugGroups.length > 0) {
-           const allPapers = drugGroups.flatMap(dg => dg.papers)
-           // Deduplicate by pmid
-           const uniquePapers = Array.from(new Map(allPapers.map(p => [p.pmid, p])).values())
-           console.log('[Dashboard] Populating papers from drug groups:', uniquePapers.length)
-           effectivePapers = uniquePapers
-        }
         
-        setTrials(effectiveTrials)
-        setPapers(effectivePapers)
+        setTrials(allTrials)
+        setPapers(allPapers)
         setDrugGroups(drugGroups)
-        
-        // Extract press releases and IR decks from drug groups
-        const allPressReleases: PressRelease[] = []
-        const allIRDecks: IRDeck[] = []
-        
-        drugGroups.forEach(drugGroup => {
-          allPressReleases.push(...drugGroup.pressReleases)
-          allIRDecks.push(...drugGroup.irDecks)
-        })
-        
         setPressReleases(allPressReleases)
         setIRDecks(allIRDecks)
         
-        const totalTrials = drugGroups.reduce((sum, dg) => sum + dg.trials.length, 0)
-        const totalPapers = drugGroups.reduce((sum, dg) => sum + dg.papers.length, 0)
-        console.log('[Dashboard] ✅ Set drugGroups state:', {
-          count: drugGroups.length,
-          totalTrials,
-          totalPapers,
+        console.log('[Dashboard] ✅ Set state from batch load:', {
+          drugGroups: drugGroups.length,
+          trials: allTrials.length,
+          papers: allPapers.length,
           sample: drugGroups.slice(0, 3).map(dg => ({
             name: dg.drugName,
             trials: dg.trials.length,
@@ -587,8 +557,8 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
         })
       }).catch(error => {
         console.error('[Dashboard] Failed to load project data:', error)
-      setTrials([])
-      setPapers([])
+        setTrials([])
+        setPapers([])
         setDrugGroups([])
         setPressReleases([])
         setIRDecks([])

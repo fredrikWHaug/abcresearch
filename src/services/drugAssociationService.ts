@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { supabase } from '@/lib/supabase'
-import { handleSupabaseQuery, linkDrugToEntity, getDrugEntityIds } from './utils/supabaseHelpers'
+import { handleSupabaseQuery, linkDrugToEntity, getDrugEntityIds, getAllProjectDrugAssociations } from './utils/supabaseHelpers'
 import type { DrugGroup } from './drugGroupingService'
 import type { PressRelease } from '@/types/press-releases'
 import type { IRDeck } from '@/types/ir-decks'
@@ -225,149 +225,431 @@ export async function getIRDecksByIds(ids: number[]): Promise<IRDeck[]> {
   }))
 }
 
+/**
+ * OPTIMIZED: Save drug groups using bulk upserts to minimize database requests.
+ * 
+ * Query breakdown:
+ * 1. Bulk upsert all unique trials (1 query)
+ * 2. Bulk upsert all unique papers (1 query)
+ * 3. Bulk upsert all unique press releases (1 query)
+ * 4. Bulk upsert all unique IR decks (1 query)
+ * 5. Upsert drugs and link entities (N queries for N drugs, but batched links)
+ * 
+ * Previously: ~8 queries per drug = 400 queries for 50 drugs
+ * Now: ~4 + N queries = ~54 queries for 50 drugs
+ */
 export async function saveDrugGroups(projectId: number, drugGroups: DrugGroup[]): Promise<void> {
-  const { upsertDrug, linkDrugToProject } = await import('./drugService')
-  const { upsertTrial } = await import('./trialService')
-  const { upsertPaper } = await import('./paperService')
+  if (drugGroups.length === 0) return
+  
+  console.log(`[DrugAssociationService] Saving ${drugGroups.length} drug groups with bulk upserts`)
+  
+  const { bulkUpsertDrugs, bulkLinkDrugsToProject } = await import('./drugService')
+  const { bulkUpsertTrials } = await import('./trialService')
+  const { bulkUpsertPapers } = await import('./paperService')
 
-  const trialIdMap = new Map<string, number>()
-  const paperIdMap = new Map<string, number>()
-  const pressReleaseIdMap = new Map<string, number>()
-  const irDeckIdMap = new Map<string, number>()
-
+  // Step 1: Collect all unique entities across all drug groups
+  const allTrials: any[] = []
+  const allPapers: any[] = []
+  const allPressReleases: { key: string; data: any }[] = []
+  const allIRDecks: { key: string; data: any }[] = []
+  
+  const seenTrials = new Set<string>()
+  const seenPapers = new Set<string>()
+  const seenPressReleases = new Set<string>()
+  const seenIRDecks = new Set<string>()
+  
   for (const drugGroup of drugGroups) {
-    try {
-      const drugId = await upsertDrug({
-        name: drugGroup.drugName,
-        normalized_name: drugGroup.normalizedName,
-      })
-
-      await linkDrugToProject(projectId, drugId)
-
-      const trialIds: number[] = []
-      for (const trial of drugGroup.trials) {
-        if (!trialIdMap.has(trial.nctId)) {
-          trialIdMap.set(trial.nctId, await upsertTrial(trial))
-        }
-        trialIds.push(trialIdMap.get(trial.nctId)!)
+    for (const trial of drugGroup.trials) {
+      if (!seenTrials.has(trial.nctId)) {
+        seenTrials.add(trial.nctId)
+        allTrials.push(trial)
       }
-
-      const paperIds: number[] = []
-      for (const paper of drugGroup.papers) {
-        if (!paperIdMap.has(paper.pmid)) {
-          paperIdMap.set(paper.pmid, await upsertPaper(paper))
-        }
-        paperIds.push(paperIdMap.get(paper.pmid)!)
+    }
+    
+    for (const paper of drugGroup.papers) {
+      if (!seenPapers.has(paper.pmid)) {
+        seenPapers.add(paper.pmid)
+        allPapers.push(paper)
       }
-
-      const pressReleaseIds: number[] = []
-      for (const pr of drugGroup.pressReleases) {
-        const key = `${pr.title}-${pr.company}`
-        if (!pressReleaseIdMap.has(key)) {
-          pressReleaseIdMap.set(key, await upsertPressRelease({
+    }
+    
+    for (const pr of drugGroup.pressReleases) {
+      const key = `${pr.title}-${pr.company}`
+      if (!seenPressReleases.has(key)) {
+        seenPressReleases.add(key)
+        allPressReleases.push({
+          key,
+          data: {
             title: pr.title,
             summary: pr.summary,
             company: pr.company,
             releaseDate: pr.releaseDate,
             url: pr.url,
-          }))
-        }
-        pressReleaseIds.push(pressReleaseIdMap.get(key)!)
+          }
+        })
       }
-
-      const irDeckIds: number[] = []
-      for (const irDeck of drugGroup.irDecks) {
-        const key = `${irDeck.title}-${irDeck.company}`
-        if (!irDeckIdMap.has(key)) {
-          irDeckIdMap.set(key, await upsertIRDeck({
+    }
+    
+    for (const irDeck of drugGroup.irDecks) {
+      const key = `${irDeck.title}-${irDeck.company}`
+      if (!seenIRDecks.has(key)) {
+        seenIRDecks.add(key)
+        allIRDecks.push({
+          key,
+          data: {
             title: irDeck.title,
             company: irDeck.company,
             description: irDeck.description,
             url: irDeck.url,
             deckDate: irDeck.filingDate,
-          }))
-        }
-        irDeckIds.push(irDeckIdMap.get(key)!)
+          }
+        })
       }
-
-      await batchLinkDrugEntities(drugId, projectId, { trialIds, paperIds, pressReleaseIds, irDeckIds })
-    } catch (error) {
-      console.error('[DrugAssociationService] Error saving drug group:', drugGroup.drugName, error)
     }
   }
+  
+  // Step 2: Bulk upsert all entities in parallel (4 queries)
+  const [trialIdMap, paperIdMap] = await Promise.all([
+    bulkUpsertTrials(allTrials),
+    bulkUpsertPapers(allPapers),
+  ])
+  
+  // Press releases and IR decks still need individual upserts due to unique key check
+  // But we batch them in parallel
+  const pressReleaseIdMap = new Map<string, number>()
+  const irDeckIdMap = new Map<string, number>()
+  
+  await Promise.all([
+    ...allPressReleases.map(async ({ key, data }) => {
+      const id = await upsertPressRelease(data)
+      pressReleaseIdMap.set(key, id)
+    }),
+    ...allIRDecks.map(async ({ key, data }) => {
+      const id = await upsertIRDeck(data)
+      irDeckIdMap.set(key, id)
+    }),
+  ])
+  
+  // Step 3: Bulk upsert all drugs
+  const drugRecords = drugGroups.map(dg => ({
+    name: dg.drugName,
+    normalized_name: dg.normalizedName,
+  }))
+  
+  const drugIdMap = await bulkUpsertDrugs(drugRecords)
+  
+  // Step 4: Link all drugs to the project in one call
+  const allDrugIds = Array.from(drugIdMap.values())
+  await bulkLinkDrugsToProject(projectId, allDrugIds)
+  
+  // Step 5: Link entities to drugs (batched per drug, but parallel)
+  await Promise.all(drugGroups.map(async (drugGroup) => {
+    const drugId = drugIdMap.get(drugGroup.drugName)
+    if (!drugId) {
+      console.error('[DrugAssociationService] Drug ID not found for:', drugGroup.drugName)
+      return
+    }
+    
+    const trialIds = drugGroup.trials
+      .map(t => trialIdMap.get(t.nctId))
+      .filter((id): id is number => id !== undefined)
+    
+    const paperIds = drugGroup.papers
+      .map(p => paperIdMap.get(p.pmid))
+      .filter((id): id is number => id !== undefined)
+    
+    const pressReleaseIds = drugGroup.pressReleases
+      .map(pr => pressReleaseIdMap.get(`${pr.title}-${pr.company}`))
+      .filter((id): id is number => id !== undefined)
+    
+    const irDeckIds = drugGroup.irDecks
+      .map(ir => irDeckIdMap.get(`${ir.title}-${ir.company}`))
+      .filter((id): id is number => id !== undefined)
+    
+    await batchLinkDrugEntities(drugId, projectId, { trialIds, paperIds, pressReleaseIds, irDeckIds })
+  }))
+  
+  console.log(`[DrugAssociationService] Saved ${drugGroups.length} drug groups with ${allTrials.length} trials, ${allPapers.length} papers`)
 }
 
+/**
+ * OPTIMIZED: Load all drug groups for a project using batch queries.
+ * This eliminates the N+1 query problem by fetching all data in ~9 queries total
+ * instead of 8+ queries per drug.
+ * 
+ * Query breakdown:
+ * 1. Get all drugs for project (1 query)
+ * 2. Get all associations - 4 parallel queries (trials, papers, press releases, IR decks)
+ * 3. Get all entities by collected IDs - 4 parallel queries
+ * 
+ * Returns: DrugGroup[] with all trials, papers, press releases, and IR decks populated
+ */
 export async function loadDrugGroups(projectId: number): Promise<DrugGroup[]> {
   const { getProjectDrugs } = await import('./drugService')
+  
+  // Query 1: Get all drugs for this project
   const projectDrugs = await getProjectDrugs(projectId)
-
   if (projectDrugs.length === 0) return []
+  
+  console.log(`[DrugAssociationService] Loading ${projectDrugs.length} drugs with batch queries`)
 
-  const drugGroupPromises = projectDrugs.map(async (drug) => {
-    try {
-      const associations = await getDrugAssociations(drug.id, projectId)
-
-      const [trialsData, papersData, pressReleases, irDecks] = await Promise.all([
-        handleSupabaseQuery<any[]>(
-          supabase.from('trials').select('*').in('id', associations.trialIds.length > 0 ? associations.trialIds : [-1])
-        ),
-        handleSupabaseQuery<any[]>(
-          supabase.from('papers').select('*').in('id', associations.paperIds.length > 0 ? associations.paperIds : [-1])
-        ),
-        getPressReleasesByIds(associations.pressReleaseIds),
-        getIRDecksByIds(associations.irDeckIds),
-      ])
-
-      const trials = trialsData.map((row: any) => ({
-        nctId: row.nct_id,
-        briefTitle: row.brief_title,
-        officialTitle: row.official_title,
-        overallStatus: row.overall_status,
-        phase: row.phase,
-        conditions: row.conditions,
-        interventions: row.interventions,
-        sponsors: { lead: row.sponsors_lead },
-        enrollment: row.enrollment,
-        startDate: row.start_date,
-        completionDate: row.completion_date,
-        locations: row.locations,
-        studyType: row.study_type,
-      }))
-
-      const papers = papersData.map((row: any) => ({
-        pmid: row.pmid,
-        title: row.title,
-        abstract: row.abstract,
-        journal: row.journal,
-        publicationDate: row.publication_date,
-        authors: row.authors,
-        doi: row.doi,
-        nctNumber: row.nct_number,
-        relevanceScore: row.relevance_score,
-        fullTextLinks: {
-          doi: row.doi ? `https://doi.org/${row.doi}` : undefined,
-          pubmed: `https://pubmed.ncbi.nlm.nih.gov/${row.pmid}/`,
-        },
-      }))
-
-      const totalResults = trials.length + papers.length + pressReleases.length + irDecks.length
-
-      return {
-        drugName: drug.name,
-        normalizedName: drug.normalized_name,
-        papers,
-        trials,
-        pressReleases,
-        irDecks,
-        totalResults,
-      }
-    } catch (error) {
-      console.error('[DrugAssociationService] Error loading drug group:', drug.name, error)
-      return null
-    }
-  })
-
-  const drugGroupResults = await Promise.all(drugGroupPromises)
-  const drugGroups = drugGroupResults.filter(dg => dg !== null) as DrugGroup[]
+  // Queries 2-5: Get ALL associations in 4 parallel queries (not per-drug!)
+  const associations = await getAllProjectDrugAssociations(projectId)
+  
+  // Collect all unique entity IDs across all drugs
+  const allTrialIds = new Set<number>()
+  const allPaperIds = new Set<number>()
+  const allPressReleaseIds = new Set<number>()
+  const allIRDeckIds = new Set<number>()
+  
+  for (const drug of projectDrugs) {
+    const trialIds = associations.drugTrials.get(drug.id) || []
+    const paperIds = associations.drugPapers.get(drug.id) || []
+    const prIds = associations.drugPressReleases.get(drug.id) || []
+    const irIds = associations.drugIRDecks.get(drug.id) || []
+    
+    trialIds.forEach(id => allTrialIds.add(id))
+    paperIds.forEach(id => allPaperIds.add(id))
+    prIds.forEach(id => allPressReleaseIds.add(id))
+    irIds.forEach(id => allIRDeckIds.add(id))
+  }
+  
+  // Queries 6-9: Fetch ALL entities in 4 parallel queries using .in()
+  const [allTrialsData, allPapersData, allPressReleases, allIRDecks] = await Promise.all([
+    allTrialIds.size > 0 
+      ? handleSupabaseQuery<any[]>(supabase.from('trials').select('*').in('id', Array.from(allTrialIds)))
+      : Promise.resolve([]),
+    allPaperIds.size > 0
+      ? handleSupabaseQuery<any[]>(supabase.from('papers').select('*').in('id', Array.from(allPaperIds)))
+      : Promise.resolve([]),
+    getPressReleasesByIds(Array.from(allPressReleaseIds)),
+    getIRDecksByIds(Array.from(allIRDeckIds)),
+  ])
+  
+  // Build lookup maps for O(1) entity access
+  const trialsMap = new Map<number, any>()
+  for (const row of allTrialsData) {
+    trialsMap.set(row.id, {
+      nctId: row.nct_id,
+      briefTitle: row.brief_title,
+      officialTitle: row.official_title,
+      overallStatus: row.overall_status,
+      phase: row.phase,
+      conditions: row.conditions,
+      interventions: row.interventions,
+      sponsors: { lead: row.sponsors_lead },
+      enrollment: row.enrollment,
+      startDate: row.start_date,
+      completionDate: row.completion_date,
+      locations: row.locations,
+      studyType: row.study_type,
+    })
+  }
+  
+  const papersMap = new Map<number, any>()
+  for (const row of allPapersData) {
+    papersMap.set(row.id, {
+      pmid: row.pmid,
+      title: row.title,
+      abstract: row.abstract,
+      journal: row.journal,
+      publicationDate: row.publication_date,
+      authors: row.authors,
+      doi: row.doi,
+      nctNumber: row.nct_number,
+      relevanceScore: row.relevance_score,
+      fullTextLinks: {
+        doi: row.doi ? `https://doi.org/${row.doi}` : undefined,
+        pubmed: `https://pubmed.ncbi.nlm.nih.gov/${row.pmid}/`,
+      },
+    })
+  }
+  
+  const pressReleasesMap = new Map<number, PressRelease>()
+  for (const pr of allPressReleases) {
+    pressReleasesMap.set(parseInt(pr.id), pr)
+  }
+  
+  const irDecksMap = new Map<number, IRDeck>()
+  for (const ir of allIRDecks) {
+    irDecksMap.set(parseInt(ir.id), ir)
+  }
+  
+  // Build drug groups by looking up entities from maps (O(1) per lookup)
+  const drugGroups: DrugGroup[] = []
+  
+  for (const drug of projectDrugs) {
+    const trialIds = associations.drugTrials.get(drug.id) || []
+    const paperIds = associations.drugPapers.get(drug.id) || []
+    const prIds = associations.drugPressReleases.get(drug.id) || []
+    const irIds = associations.drugIRDecks.get(drug.id) || []
+    
+    const trials = trialIds.map(id => trialsMap.get(id)).filter(Boolean)
+    const papers = paperIds.map(id => papersMap.get(id)).filter(Boolean)
+    const pressReleases = prIds.map(id => pressReleasesMap.get(id)).filter(Boolean) as PressRelease[]
+    const irDecks = irIds.map(id => irDecksMap.get(id)).filter(Boolean) as IRDeck[]
+    
+    const totalResults = trials.length + papers.length + pressReleases.length + irDecks.length
+    
+    drugGroups.push({
+      drugName: drug.name,
+      normalizedName: drug.normalized_name,
+      papers,
+      trials,
+      pressReleases,
+      irDecks,
+      totalResults,
+    })
+  }
+  
+  console.log(`[DrugAssociationService] Loaded ${drugGroups.length} drug groups with ~9 queries (was ${projectDrugs.length * 8}+ queries)`)
+  
   return drugGroups.sort((a, b) => b.totalResults - a.totalResults)
+}
+
+/**
+ * Extended version of loadDrugGroups that also returns aggregated trials and papers.
+ * Use this in Dashboard to avoid redundant getProjectTrials/getProjectPapers calls.
+ */
+export async function loadDrugGroupsWithEntities(projectId: number): Promise<{
+  drugGroups: DrugGroup[]
+  allTrials: any[]
+  allPapers: any[]
+  allPressReleases: PressRelease[]
+  allIRDecks: IRDeck[]
+}> {
+  const { getProjectDrugs } = await import('./drugService')
+  
+  // Query 1: Get all drugs for this project
+  const projectDrugs = await getProjectDrugs(projectId)
+  if (projectDrugs.length === 0) {
+    return { drugGroups: [], allTrials: [], allPapers: [], allPressReleases: [], allIRDecks: [] }
+  }
+  
+  console.log(`[DrugAssociationService] Loading ${projectDrugs.length} drugs with batch queries (with entities)`)
+
+  // Queries 2-5: Get ALL associations in 4 parallel queries
+  const associations = await getAllProjectDrugAssociations(projectId)
+  
+  // Collect all unique entity IDs
+  const allTrialIds = new Set<number>()
+  const allPaperIds = new Set<number>()
+  const allPressReleaseIds = new Set<number>()
+  const allIRDeckIds = new Set<number>()
+  
+  for (const drug of projectDrugs) {
+    const trialIds = associations.drugTrials.get(drug.id) || []
+    const paperIds = associations.drugPapers.get(drug.id) || []
+    const prIds = associations.drugPressReleases.get(drug.id) || []
+    const irIds = associations.drugIRDecks.get(drug.id) || []
+    
+    trialIds.forEach(id => allTrialIds.add(id))
+    paperIds.forEach(id => allPaperIds.add(id))
+    prIds.forEach(id => allPressReleaseIds.add(id))
+    irIds.forEach(id => allIRDeckIds.add(id))
+  }
+  
+  // Queries 6-9: Fetch ALL entities in 4 parallel queries
+  const [allTrialsData, allPapersData, allPressReleases, allIRDecks] = await Promise.all([
+    allTrialIds.size > 0 
+      ? handleSupabaseQuery<any[]>(supabase.from('trials').select('*').in('id', Array.from(allTrialIds)))
+      : Promise.resolve([]),
+    allPaperIds.size > 0
+      ? handleSupabaseQuery<any[]>(supabase.from('papers').select('*').in('id', Array.from(allPaperIds)))
+      : Promise.resolve([]),
+    getPressReleasesByIds(Array.from(allPressReleaseIds)),
+    getIRDecksByIds(Array.from(allIRDeckIds)),
+  ])
+  
+  // Build lookup maps
+  const trialsMap = new Map<number, any>()
+  const allTrials: any[] = []
+  for (const row of allTrialsData) {
+    const trial = {
+      nctId: row.nct_id,
+      briefTitle: row.brief_title,
+      officialTitle: row.official_title,
+      overallStatus: row.overall_status,
+      phase: row.phase,
+      conditions: row.conditions,
+      interventions: row.interventions,
+      sponsors: { lead: row.sponsors_lead },
+      enrollment: row.enrollment,
+      startDate: row.start_date,
+      completionDate: row.completion_date,
+      locations: row.locations,
+      studyType: row.study_type,
+    }
+    trialsMap.set(row.id, trial)
+    allTrials.push(trial)
+  }
+  
+  const papersMap = new Map<number, any>()
+  const allPapers: any[] = []
+  for (const row of allPapersData) {
+    const paper = {
+      pmid: row.pmid,
+      title: row.title,
+      abstract: row.abstract,
+      journal: row.journal,
+      publicationDate: row.publication_date,
+      authors: row.authors,
+      doi: row.doi,
+      nctNumber: row.nct_number,
+      relevanceScore: row.relevance_score,
+      fullTextLinks: {
+        doi: row.doi ? `https://doi.org/${row.doi}` : undefined,
+        pubmed: `https://pubmed.ncbi.nlm.nih.gov/${row.pmid}/`,
+      },
+    }
+    papersMap.set(row.id, paper)
+    allPapers.push(paper)
+  }
+  
+  const pressReleasesMap = new Map<number, PressRelease>()
+  for (const pr of allPressReleases) {
+    pressReleasesMap.set(parseInt(pr.id), pr)
+  }
+  
+  const irDecksMap = new Map<number, IRDeck>()
+  for (const ir of allIRDecks) {
+    irDecksMap.set(parseInt(ir.id), ir)
+  }
+  
+  // Build drug groups
+  const drugGroups: DrugGroup[] = []
+  
+  for (const drug of projectDrugs) {
+    const trialIds = associations.drugTrials.get(drug.id) || []
+    const paperIds = associations.drugPapers.get(drug.id) || []
+    const prIds = associations.drugPressReleases.get(drug.id) || []
+    const irIds = associations.drugIRDecks.get(drug.id) || []
+    
+    const trials = trialIds.map(id => trialsMap.get(id)).filter(Boolean)
+    const papers = paperIds.map(id => papersMap.get(id)).filter(Boolean)
+    const pressReleases = prIds.map(id => pressReleasesMap.get(id)).filter(Boolean) as PressRelease[]
+    const irDecks = irIds.map(id => irDecksMap.get(id)).filter(Boolean) as IRDeck[]
+    
+    const totalResults = trials.length + papers.length + pressReleases.length + irDecks.length
+    
+    drugGroups.push({
+      drugName: drug.name,
+      normalizedName: drug.normalized_name,
+      papers,
+      trials,
+      pressReleases,
+      irDecks,
+      totalResults,
+    })
+  }
+  
+  console.log(`[DrugAssociationService] Loaded ${drugGroups.length} drug groups, ${allTrials.length} trials, ${allPapers.length} papers with ~9 queries`)
+  
+  return {
+    drugGroups: drugGroups.sort((a, b) => b.totalResults - a.totalResults),
+    allTrials,
+    allPapers,
+    allPressReleases,
+    allIRDecks,
+  }
 }

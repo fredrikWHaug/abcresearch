@@ -76,3 +76,61 @@ export async function unlinkDrugFromProject(projectId: number, drugId: number): 
   )
 }
 
+/**
+ * BULK VERSION: Upsert multiple drugs in a single database call.
+ * Returns a Map of drug name -> database id for linking to projects/entities.
+ * Much more efficient than calling upsertDrug() in a loop.
+ */
+export async function bulkUpsertDrugs(drugs: {
+  name: string
+  normalized_name?: string
+  drug_type?: string
+  brand_names?: string[]
+  mechanism?: string
+}[]): Promise<Map<string, number>> {
+  if (drugs.length === 0) return new Map()
+  
+  // Deduplicate by name before upserting
+  const uniqueDrugs = Array.from(
+    new Map(drugs.map(d => [d.name, d])).values()
+  )
+  
+  const drugRecords = uniqueDrugs.map(drug => ({
+    name: drug.name,
+    normalized_name: drug.normalized_name || drug.name.toLowerCase(),
+    drug_type: drug.drug_type,
+    brand_names: drug.brand_names,
+    mechanism: drug.mechanism,
+  }))
+  
+  const data = await handleSupabaseQuery<{ id: number; name: string }[]>(
+    supabase
+      .from('drugs')
+      .upsert(drugRecords, { onConflict: 'name' })
+      .select('id, name')
+  )
+  
+  const result = new Map<string, number>()
+  for (const row of data) {
+    result.set(row.name, row.id)
+  }
+  
+  return result
+}
+
+/**
+ * BULK VERSION: Link multiple drugs to a project in a single database call.
+ */
+export async function bulkLinkDrugsToProject(projectId: number, drugIds: number[]): Promise<void> {
+  if (drugIds.length === 0) return
+  
+  const links = drugIds.map(drugId => ({
+    project_id: projectId,
+    drug_id: drugId,
+  }))
+  
+  await handleSupabaseQuery(
+    supabase.from('project_drugs').upsert(links, { onConflict: 'project_id,drug_id' })
+  )
+}
+

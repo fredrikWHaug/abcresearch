@@ -93,3 +93,59 @@ export async function unlinkPaperFromProject(projectId: number, paperId: number)
   )
 }
 
+/**
+ * BULK VERSION: Upsert multiple papers in a single database call.
+ * Returns a Map of pmid -> database id for linking to drugs/projects.
+ * Much more efficient than calling upsertPaper() in a loop.
+ */
+export async function bulkUpsertPapers(papers: PubMedArticle[]): Promise<Map<string, number>> {
+  if (papers.length === 0) return new Map()
+  
+  // Deduplicate by pmid before upserting
+  const uniquePapers = Array.from(
+    new Map(papers.map(p => [p.pmid, p])).values()
+  )
+  
+  const paperRecords = uniquePapers.map(paper => ({
+    pmid: paper.pmid,
+    title: paper.title,
+    abstract: paper.abstract,
+    journal: paper.journal,
+    publication_date: paper.publicationDate,
+    authors: paper.authors,
+    doi: paper.doi,
+    nct_number: paper.nctNumber,
+    relevance_score: paper.relevanceScore,
+  }))
+  
+  const data = await handleSupabaseQuery<{ id: number; pmid: string }[]>(
+    supabase
+      .from('papers')
+      .upsert(paperRecords, { onConflict: 'pmid' })
+      .select('id, pmid')
+  )
+  
+  const result = new Map<string, number>()
+  for (const row of data) {
+    result.set(row.pmid, row.id)
+  }
+  
+  return result
+}
+
+/**
+ * BULK VERSION: Link multiple papers to a project in a single database call.
+ */
+export async function bulkLinkPapersToProject(projectId: number, paperIds: number[]): Promise<void> {
+  if (paperIds.length === 0) return
+  
+  const links = paperIds.map(paperId => ({
+    project_id: projectId,
+    paper_id: paperId,
+  }))
+  
+  await handleSupabaseQuery(
+    supabase.from('project_papers').upsert(links, { onConflict: 'project_id,paper_id' })
+  )
+}
+

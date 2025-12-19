@@ -101,3 +101,63 @@ export async function unlinkTrialFromProject(projectId: number, trialId: number)
   )
 }
 
+/**
+ * BULK VERSION: Upsert multiple trials in a single database call.
+ * Returns a Map of nctId -> database id for linking to drugs/projects.
+ * Much more efficient than calling upsertTrial() in a loop.
+ */
+export async function bulkUpsertTrials(trials: ClinicalTrial[]): Promise<Map<string, number>> {
+  if (trials.length === 0) return new Map()
+  
+  // Deduplicate by nctId before upserting
+  const uniqueTrials = Array.from(
+    new Map(trials.map(t => [t.nctId, t])).values()
+  )
+  
+  const trialRecords = uniqueTrials.map(trial => ({
+    nct_id: trial.nctId,
+    brief_title: trial.briefTitle,
+    official_title: trial.officialTitle,
+    overall_status: trial.overallStatus,
+    phase: trial.phase,
+    conditions: trial.conditions,
+    interventions: trial.interventions,
+    sponsors_lead: trial.sponsors?.lead,
+    enrollment: trial.enrollment,
+    start_date: trial.startDate,
+    completion_date: trial.completionDate,
+    locations: trial.locations,
+    study_type: trial.studyType,
+  }))
+  
+  const data = await handleSupabaseQuery<{ id: number; nct_id: string }[]>(
+    supabase
+      .from('trials')
+      .upsert(trialRecords, { onConflict: 'nct_id' })
+      .select('id, nct_id')
+  )
+  
+  const result = new Map<string, number>()
+  for (const row of data) {
+    result.set(row.nct_id, row.id)
+  }
+  
+  return result
+}
+
+/**
+ * BULK VERSION: Link multiple trials to a project in a single database call.
+ */
+export async function bulkLinkTrialsToProject(projectId: number, trialIds: number[]): Promise<void> {
+  if (trialIds.length === 0) return
+  
+  const links = trialIds.map(trialId => ({
+    project_id: projectId,
+    trial_id: trialId,
+  }))
+  
+  await handleSupabaseQuery(
+    supabase.from('project_trials').upsert(links, { onConflict: 'project_id,trial_id' })
+  )
+}
+
