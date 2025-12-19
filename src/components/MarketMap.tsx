@@ -9,7 +9,7 @@ import { SlideAPI } from '@/services/slideAPI';
 import type { SlideData } from '@/services/slideAPI';
 import { MarketMapService } from '@/services/marketMapService';
 import { Slide } from '@/components/Slide';
-import { Building2, Calendar, Users, MapPin, Activity, FileText, Loader2, Save, X } from 'lucide-react';
+import { Building2, Calendar, Users, MapPin, Activity, Loader2, Save, X } from 'lucide-react';
 import type { DrugGroup } from '@/services/drugGroupingService';
 
 interface MarketMapProps {
@@ -217,7 +217,6 @@ export function MarketMap({
             onClick={handleGenerateSlide}
             className="border border-white/50 hover:border-white/70 bg-white/50 backdrop-blur-xl hover:shadow-2xl text-gray-900 px-8 py-4 text-lg font-semibold rounded-lg shadow-lg transition-all duration-200 hover:scale-105"
           >
-            <FileText className="h-5 w-5 mr-2" />
             Generate Market Map
           </Button>
         </div>
