@@ -63,7 +63,7 @@ export function SavedMapsGrid({
         <div className="flex-1 flex items-center justify-center px-6 relative z-10">
           <div className="text-center">
             <Loader2 className="h-12 w-12 animate-spin mx-auto mb-4 text-blue-600" />
-            <p className="text-gray-600">Loading your market maps...</p>
+            <p className="text-gray-600">Almost there...</p>
           </div>
         </div>
       </div>
