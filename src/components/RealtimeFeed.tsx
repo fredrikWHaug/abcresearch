@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase';
 import type { WatchedFeed, TimelineItem, TrialUpdate } from '@/types/rss-feed';
 import { ExternalLink, Plus, Trash2, RefreshCw, Calendar, AlertCircle } from 'lucide-react';
 import { InvestmentSignals } from '@/components/InvestmentSignals';
+import type { Session } from '@supabase/supabase-js';
 
 interface RealtimeFeedProps {
   isVisible?: boolean;
@@ -30,16 +31,138 @@ export function RealtimeFeed({ isVisible = true }: RealtimeFeedProps = {}) {
   const [emailAddress, setEmailAddress] = useState('');
   const [refreshProgress, setRefreshProgress] = useState<Record<number, { total: number; processed: number }>>({});
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  
+  // Cache the session to avoid repeated getSession() calls
+  const sessionRef = useRef<Session | null>(null);
+  const feedIdsRef = useRef<Set<number>>(new Set());
+  
+  // Get cached session or fetch it once
+  const getSession = useCallback(async (): Promise<Session | null> => {
+    if (sessionRef.current) {
+      return sessionRef.current;
+    }
+    const { data: { session } } = await supabase.auth.getSession();
+    sessionRef.current = session;
+    return session;
+  }, []);
+
+  // Define loadFeeds and loadUpdates BEFORE they are used in useEffect
+  const loadFeeds = useCallback(async () => {
+    try {
+      const session = await getSession();
+      if (!session) return;
+
+      const response = await fetch('/api/rss-feeds?action=watch', {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setFeeds(data.feeds);
+        
+        // Update feed IDs cache for realtime filtering
+        feedIdsRef.current = new Set(data.feeds.map((f: WatchedFeed) => f.id));
+        
+        // Update refresh progress for feeds with in-progress refresh
+        data.feeds.forEach((feed: WatchedFeed) => {
+          if (feed.refresh_status?.in_progress) {
+            setRefreshProgress(prev => ({
+              ...prev,
+              [feed.id]: {
+                total: feed.refresh_status?.total || 0,
+                processed: feed.refresh_status?.processed || 0,
+              },
+            }));
+            setRefreshingFeedId(feed.id);
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Failed to load feeds:', error);
+    }
+  }, [getSession]);
+
+  const loadUpdates = useCallback(async (feedId?: number) => {
+    try {
+      const session = await getSession();
+      if (!session) return;
+
+      // When viewing a specific feed, load ALL updates (no date filter)
+      // When viewing all feeds, show last 30 days
+      const url = feedId 
+        ? `/api/rss-feeds?action=updates&feedId=${feedId}&days=9999`
+        : '/api/rss-feeds?action=updates&days=30';
+
+      const response = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setTimeline(data.timeline);
+      }
+    } catch (error) {
+      console.error('Failed to load updates:', error);
+    }
+  }, [getSession]);
+
+  // Combined initial load function - uses optimized "init" endpoint
+  // This fetches feeds AND updates in a single API call (reduces requests from 2 to 1)
+  const loadInitialData = useCallback(async () => {
+    try {
+      const session = await getSession();
+      if (!session) {
+        setLoading(false);
+        return;
+      }
+
+      const response = await fetch('/api/rss-feeds?action=init&days=30', {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setFeeds(data.feeds);
+        setTimeline(data.timeline);
+        
+        // Update feed IDs cache for realtime filtering
+        feedIdsRef.current = new Set(data.feeds.map((f: WatchedFeed) => f.id));
+        
+        // Update refresh progress for feeds with in-progress refresh
+        data.feeds.forEach((feed: WatchedFeed) => {
+          if (feed.refresh_status?.in_progress) {
+            setRefreshProgress(prev => ({
+              ...prev,
+              [feed.id]: {
+                total: feed.refresh_status?.total || 0,
+                processed: feed.refresh_status?.processed || 0,
+              },
+            }));
+            setRefreshingFeedId(feed.id);
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Failed to load initial data:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [getSession]);
 
   // Lazy load: only load data when view becomes visible for the first time
-  // Data is user-scoped (not project-scoped), so no reload on project change
+  // OPTIMIZED: Uses combined "init" endpoint (1 API call instead of 2)
   useEffect(() => {
     if (isVisible && !hasLoadedOnce) {
       setHasLoadedOnce(true);
-      loadFeeds();
-      loadUpdates();
+      loadInitialData();
     }
-  }, [isVisible, hasLoadedOnce]);
+  }, [isVisible, hasLoadedOnce, loadInitialData]);
 
   useEffect(() => {
     // Set up Supabase real-time subscriptions
@@ -47,7 +170,7 @@ export function RealtimeFeed({ isVisible = true }: RealtimeFeedProps = {}) {
     let updatesChannel: ReturnType<typeof supabase.channel> | null = null;
 
     const setupSubscriptions = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const session = await getSession();
       if (!session) return;
 
       // Subscribe to watched_feeds changes for refresh_status updates
@@ -90,7 +213,7 @@ export function RealtimeFeed({ isVisible = true }: RealtimeFeedProps = {}) {
         .subscribe();
 
       // Subscribe to trial_updates for new updates
-      // Only listen to updates for feeds owned by this user
+      // OPTIMIZED: Use cached feed IDs instead of making a DB query for each update
       updatesChannel = supabase
         .channel(`trial_updates_changes_${session.user.id}`)
         .on(
@@ -100,19 +223,13 @@ export function RealtimeFeed({ isVisible = true }: RealtimeFeedProps = {}) {
             schema: 'public',
             table: 'trial_updates',
           },
-          async (payload) => {
+          (payload) => {
             console.log('New trial update received:', payload);
             const newUpdate = payload.new as TrialUpdate;
             
-            // Verify this update belongs to a feed owned by the user
-            const { data: feed } = await supabase
-              .from('watched_feeds')
-              .select('id')
-              .eq('id', newUpdate.feed_id)
-              .eq('user_id', session.user.id)
-              .single();
-            
-            if (feed) {
+            // OPTIMIZED: Check against cached feed IDs instead of querying DB
+            // This eliminates the redundant verification query
+            if (feedIdsRef.current.has(newUpdate.feed_id)) {
               // Reload updates to show new items
               loadUpdates(selectedFeed || undefined);
             }
@@ -132,69 +249,7 @@ export function RealtimeFeed({ isVisible = true }: RealtimeFeedProps = {}) {
         updatesChannel.unsubscribe();
       }
     };
-  }, [selectedFeed]);
-
-  const loadFeeds = async () => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-
-      const response = await fetch('/api/rss-feeds?action=watch', {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setFeeds(data.feeds);
-        
-        // Update refresh progress for feeds with in-progress refresh
-        data.feeds.forEach((feed: WatchedFeed) => {
-          if (feed.refresh_status?.in_progress) {
-            setRefreshProgress(prev => ({
-              ...prev,
-              [feed.id]: {
-                total: feed.refresh_status?.total || 0,
-                processed: feed.refresh_status?.processed || 0,
-              },
-            }));
-            setRefreshingFeedId(feed.id);
-          }
-        });
-      }
-    } catch (error) {
-      console.error('Failed to load feeds:', error);
-    }
-  };
-
-  const loadUpdates = async (feedId?: number) => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-
-      // When viewing a specific feed, load ALL updates (no date filter)
-      // When viewing all feeds, show last 30 days
-      const url = feedId 
-        ? `/api/rss-feeds?action=updates&feedId=${feedId}&days=9999`
-        : '/api/rss-feeds?action=updates&days=30';
-
-      const response = await fetch(url, {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setTimeline(data.timeline);
-      }
-    } catch (error) {
-      console.error('Failed to load updates:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [selectedFeed, getSession, loadFeeds, loadUpdates]);
 
   const handleAddFeed = async () => {
     if (!newSearchTerm.trim()) return;
@@ -203,7 +258,7 @@ export function RealtimeFeed({ isVisible = true }: RealtimeFeedProps = {}) {
     setValidatingFeed(true);
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const session = await getSession();
       if (!session) return;
 
       const response = await fetch('/api/rss-feeds?action=watch', {
@@ -275,7 +330,7 @@ export function RealtimeFeed({ isVisible = true }: RealtimeFeedProps = {}) {
     if (!editingFeed || !editSearchTerm.trim()) return;
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const session = await getSession();
       if (!session) return;
 
       // Build new RSS URL
@@ -320,7 +375,7 @@ export function RealtimeFeed({ isVisible = true }: RealtimeFeedProps = {}) {
 
   const handleDeleteFeed = async (feedId: number) => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const session = await getSession();
       if (!session) return;
 
       const response = await fetch('/api/rss-feeds?action=watch', {
@@ -351,7 +406,7 @@ export function RealtimeFeed({ isVisible = true }: RealtimeFeedProps = {}) {
       setRefreshingFeedId(feedId);
       setRefreshMessage('Starting refresh...');
 
-      const { data: { session } } = await supabase.auth.getSession();
+      const session = await getSession();
       if (!session) return;
 
       const response = await fetch('/api/rss-feeds?action=refresh', {
