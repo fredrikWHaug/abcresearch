@@ -317,6 +317,73 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       } else {
         return res.status(405).json({ error: 'Method not allowed' });
       }
+    } else if (action === 'init') {
+      // OPTIMIZED: Combined endpoint - get both feeds AND updates in a single request
+      // This eliminates the need for two separate API calls on initial load
+      if (req.method === 'GET') {
+        const { days = '30' } = req.query;
+        
+        // Fetch feeds and updates in PARALLEL (2 DB queries instead of 3)
+        const daysAgo = new Date();
+        daysAgo.setDate(daysAgo.getDate() - parseInt(days as string, 10));
+        
+        const [feedsResult, updatesResult] = await Promise.all([
+          // Query 1: Get all watched feeds for this user
+          supabase
+            .from('watched_feeds')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false }),
+          // Query 2: Get all updates for this user's feeds (with feed info via join)
+          supabase
+            .from('trial_updates')
+            .select(`
+              *,
+              watched_feeds!inner(id, label, feed_url, user_id)
+            `)
+            .eq('watched_feeds.user_id', user.id)
+            .gte('last_update', daysAgo.toISOString())
+            .order('last_update', { ascending: false })
+        ]);
+        
+        if (feedsResult.error) {
+          return res.status(500).json({ error: feedsResult.error.message });
+        }
+        
+        if (updatesResult.error) {
+          return res.status(500).json({ error: updatesResult.error.message });
+        }
+        
+        const feeds = (feedsResult.data || []).map((feed: any) => ({
+          ...feed,
+          refresh_status: feed.refresh_status || null,
+        }));
+        
+        // Build timeline from updates
+        const timeline: Record<string, any[]> = {};
+        (updatesResult.data || []).forEach((update) => {
+          const date = new Date(update.last_update).toISOString().split('T')[0];
+          if (!timeline[date]) {
+            timeline[date] = [];
+          }
+          timeline[date].push(update);
+        });
+        
+        const timelineArray = Object.keys(timeline)
+          .sort((a, b) => b.localeCompare(a))
+          .map((date) => ({
+            date,
+            updates: timeline[date],
+          }));
+        
+        return res.json({
+          feeds,
+          updates: updatesResult.data || [],
+          timeline: timelineArray,
+        });
+      } else {
+        return res.status(405).json({ error: 'Method not allowed' });
+      }
     } else if (action === 'progress') {
       // Get refresh progress for a feed
       if (req.method !== 'GET') {
