@@ -585,7 +585,7 @@ LATEST: 5
 Respond now with ONLY those two lines.`;
 
     const response = await axios.post(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${geminiApiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-lite:generateContent?key=${geminiApiKey}`,
       {
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: { temperature: 0.1, maxOutputTokens: 100 },
@@ -1092,7 +1092,7 @@ TRIAL: ${nctId} – ${title}
 Provide a clear, concise summary (2-3 sentences max).`;
 
     const response = await axios.post(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${geminiApiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-lite:generateContent?key=${geminiApiKey}`,
       {
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: { temperature: 0.3, maxOutputTokens: 200 },
@@ -1137,7 +1137,7 @@ Focus on substantive changes:
 - Enrollment numbers
 - Study status (recruiting, active, completed, terminated)
 - Study phase
-- Primary/secondary outcomes - this is very important to include. An example of how to explain this is: The primary outcome measure changed from "Change from baseline in fasting plasma glucose (FPG) at Week 26" to now "Week 52". 
+- Primary/secondary outcomes changes if any
 - Inclusion/exclusion criteria
 - Study locations
 - Intervention details (drugs, dosages)
@@ -1151,7 +1151,7 @@ ${comparisonHtml.substring(0, 15000)}
 Format: Do not add any preamble. Provide a brief, clear summary of up to 3 most significant changes in bullet points (newline for each change) and PLAIN TEXT. Do not return markdown.`;
 
     const response = await axios.post(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${geminiApiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-lite:generateContent?key=${geminiApiKey}`,
       {
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: { temperature: 0.3, maxOutputTokens: 250 },
