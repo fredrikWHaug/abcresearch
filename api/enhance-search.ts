@@ -49,7 +49,7 @@ export default async function handler(req: any, res: any) {
     console.log(`Enhancing ${searchType} search for: "${query}"`);
     if (context) console.log(`Context: "${context}"`);;
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${geminiApiKey}`, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-lite:generateContent?key=${geminiApiKey}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
