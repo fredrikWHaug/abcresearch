@@ -1004,7 +1004,7 @@ export async function processFeedUpdates(
     }
 
     let processedItems = 0;  // Will be incremented as we save each entry
-    let totalItemsToProcess = entriesToProcess.length;
+    const totalItemsToProcess = entriesToProcess.length;
     
     // Initialize progress tracking now that we know the total
     if (enableProgressTracking) {
@@ -1402,7 +1402,7 @@ Only report on substantive changes:
 - Study locations (added or removed sites - if more than 5 sites were changed,report only the total number of sites changed, do not list all of them)
 - Intervention details (drugs, dosages)
 
-Do NOT mention Last Update Submitted that Met QC Criteria or Last Update Posted since those are always present.
+Do NOT mention Record Verification Date, Last Update Submitted that Met QC Criteria or Last Update Posted since those are always present.
 
 Format: If there are no substantive changes, return "Only minor changes found.". Do not add any preamble. Provide a brief, clear summary of up to 3 most significant changes in plain text NO MARKDOWN.`;
 
