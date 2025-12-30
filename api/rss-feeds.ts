@@ -157,13 +157,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           // Process synchronously BEFORE sending response
           // This keeps the function alive and prevents execution context freeze
           try {
-            await processFeedUpdates(data.id, data.feed_url, geminiApiKey, supabase, true, controller.signal);
-            console.log(`[API] Initial processing completed for feed ${data.id}`);
+            const result = await processFeedUpdates(data.id, data.feed_url, geminiApiKey, supabase, true, controller.signal);
+            console.log(`[API] Initial processing completed for feed ${data.id}. Processed: ${result.processedItems}, HasMore: ${result.hasMoreEntries}`);
             
-            // Return success with the feed
+            // Return success with the feed AND chaining info for frontend
             return res.json({ 
               feed: data,
-              processing_complete: true,
+              processing_complete: !result.hasMoreEntries,
+              processedItems: result.processedItems,
+              newUpdates: result.newUpdates,
+              hasMoreEntries: result.hasMoreEntries,
+              remainingEntries: result.remainingEntries,
             });
           } catch (refreshError: any) {
             const isCancelled = refreshError.message?.includes('Processing cancelled');
@@ -465,8 +469,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       
       // MUST AWAIT in serverless - otherwise execution context freezes and kills timers
       try {
-        await processFeedUpdates(feed.id, feed.feed_url, geminiApiKey, supabase, true, controller.signal);
-        console.log(`[API] Refresh completed successfully for feed ${feed.id}`);
+        const result = await processFeedUpdates(feed.id, feed.feed_url, geminiApiKey, supabase, true, controller.signal);
+        console.log(`[API] Refresh completed successfully for feed ${feed.id}. Processed: ${result.processedItems}, New: ${result.newUpdates}, HasMore: ${result.hasMoreEntries}`);
         
         // Get updated feed data with new last_checked_at
         const { data: updatedFeed, error: fetchError } = await supabase
@@ -482,9 +486,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         
         return res.json({
           success: true,
-          message: 'Refresh completed successfully',
+          message: result.hasMoreEntries 
+            ? `Processed ${result.processedItems} entries. ${result.remainingEntries} more available.`
+            : `Completed! ${result.processedItems} entries processed, ${result.newUpdates} new updates.`,
           feed_id: feedId,
           feed: updatedFeed || null,
+          processedItems: result.processedItems,
+          newUpdates: result.newUpdates,
+          hasMoreEntries: result.hasMoreEntries,
+          remainingEntries: result.remainingEntries,
         });
       } catch (refreshError: any) {
         const isCancelled = refreshError.message?.includes('Processing cancelled');

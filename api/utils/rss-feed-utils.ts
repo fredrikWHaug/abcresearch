@@ -6,6 +6,8 @@ import chromium from '@sparticuz/chromium';
 import axios, { AxiosRequestConfig } from 'axios';
 import http from 'http';
 import https from 'https';
+import { promises as fs } from 'fs';
+import path from 'path';
 
 // Detect if we're in a serverless/production environment
 const isProduction = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME;
@@ -542,8 +544,16 @@ export async function parseLatestTwoVersions(
     await page.setUserAgent(DEFAULT_HEADERS['User-Agent']);
     
     // Navigate and wait for content
-    await page.goto(historyUrl, { waitUntil: 'networkidle0', timeout: 30000 });
-    await new Promise(resolve => setTimeout(resolve, 3000));
+    const response = await page.goto(historyUrl, { waitUntil: 'networkidle0', timeout: 30000 });
+    
+    // Check if page loaded successfully
+    if (!response || response.status() !== 200) {
+      console.error(`❌ Failed to load history page: HTTP ${response?.status()}`);
+      await browser.close();
+      return null;
+    }
+    
+    await new Promise(resolve => setTimeout(resolve, 1500));
     
     const pageText = await page.evaluate(() => document.body.innerText);
     await browser.close();
@@ -584,11 +594,11 @@ LATEST: 5
 
 Respond now with ONLY those two lines.`;
 
-    const response = await axios.post(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-lite:generateContent?key=${geminiApiKey}`,
+    const geminiResponse = await axios.post(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${geminiApiKey}`,
       {
         contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.1, maxOutputTokens: 100 },
+        generationConfig: { temperature: 0.3, maxOutputTokens: 100 },
       },
       {
         headers: { 'Content-Type': 'application/json' },
@@ -597,15 +607,32 @@ Respond now with ONLY those two lines.`;
       }
     );
 
-    const data = response.data;
+    const data = geminiResponse.data;
     const content = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    
+    console.log(`🤖 Gemini response: ${content}`);
     
     const prevMatch = content.match(/PREVIOUS:\s*(\d+)/i);
     const latestMatch = content.match(/LATEST:\s*(\d+)/i);
     
     if (!prevMatch || !latestMatch) {
-      console.log('Could not parse version numbers from LLM response');
-      return null;
+      console.error(`❌ Could not parse version numbers from Gemini response: "${content}"`);
+      console.log('⚠️  Attempting regex fallback...');
+      
+      // Fallback to regex parsing
+      const versionMatches = pageText.match(/\b(\d+)\b/g);
+      if (!versionMatches || versionMatches.length < 2) {
+        console.error('❌ Regex fallback also failed - no version numbers found');
+        return null;
+      }
+      const versions = versionMatches.map(v => parseInt(v, 10)).filter(v => v > 0 && v < 1000);
+      if (versions.length < 2) {
+        console.error(`❌ Only found ${versions.length} valid version numbers`);
+        return null;
+      }
+      const lastTwo = versions.slice(-2);
+      console.log(`✅ Regex fallback found versions: ${lastTwo[0]} → ${lastTwo[1]}`);
+      return { a: lastTwo[0], b: lastTwo[1] };
     }
     
     const result = {
@@ -615,8 +642,9 @@ Respond now with ONLY those two lines.`;
     
     console.log(`✅ Versions found: ${result.a} → ${result.b}`);
     return result;
-  } catch (error) {
-    console.error('Failed to parse versions:', error);
+  } catch (error: any) {
+    console.error(`❌ Failed to parse versions: ${error.message}`);
+    console.error(`   Stack: ${error.stack}`);
     if (browser) {
       await browser.close();
     }
@@ -637,25 +665,105 @@ export async function extractDiffBlocks(comparisonUrl: string): Promise<string[]
     await page.setUserAgent(DEFAULT_HEADERS['User-Agent']);
     
     // Navigate and wait for content
-    await page.goto(comparisonUrl, { waitUntil: 'networkidle0', timeout: 30000 });
-    await new Promise(resolve => setTimeout(resolve, 3000));
+    const response = await page.goto(comparisonUrl, { waitUntil: 'networkidle0', timeout: 30000 });
     
-    const fullHtml = await page.content();
+    // Check if page loaded successfully
+    if (!response || response.status() !== 200) {
+      console.error(`❌ Failed to load comparison page: HTTP ${response?.status()}`);
+      await browser.close();
+      return [`Error: HTTP ${response?.status()} when loading comparison page`];
+    }
+    
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    // Extract comparison content starting from Study Details section
+    const extractionResult = await page.evaluate(() => {
+      // Find the Study Details section
+      const studyDetailsCard = document.querySelector('#study-details-card, ctg-section-title-card[title="Study Details"]');
+      
+      let comparisonDiv: Element | null = null;
+      let selectorUsed = '';
+      
+      if (studyDetailsCard && studyDetailsCard.nextElementSibling) {
+        // Get the parent container that holds all sections after Study Details
+        const parent = studyDetailsCard.parentElement;
+        if (parent) {
+          // Clone the parent to manipulate it
+          const clonedParent = parent.cloneNode(true) as Element;
+          
+          // Remove everything before Study Details section
+          const clonedStudyDetails = clonedParent.querySelector('#study-details-card, ctg-section-title-card[title="Study Details"]');
+          if (clonedStudyDetails) {
+            let sibling = clonedParent.firstChild;
+            while (sibling && sibling !== clonedStudyDetails) {
+              const nextSibling = sibling.nextSibling;
+              clonedParent.removeChild(sibling);
+              sibling = nextSibling;
+            }
+          }
+          
+          comparisonDiv = clonedParent;
+          selectorUsed = 'Study Details section onwards';
+        }
+      }
+      
+      // Fallback: try to find the version comparison container
+      if (!comparisonDiv) {
+        comparisonDiv = document.querySelector('ctg-study-versions-compare');
+        if (comparisonDiv) {
+          selectorUsed = 'ctg-study-versions-compare';
+        }
+      }
+      
+      // Final fallback: use entire body
+      if (!comparisonDiv) {
+        comparisonDiv = document.body;
+        selectorUsed = 'body (fallback)';
+      }
+      
+      const html = comparisonDiv.outerHTML;
+      const text = (comparisonDiv as HTMLElement).innerText || comparisonDiv.textContent || '';
+      
+      return {
+        html,
+        text,
+        selectorUsed,
+        foundDiv: selectorUsed.includes('Study Details')
+      };
+    });
+    
     await browser.close();
     browser = undefined;
     
-    console.log(`✅ Extracted ${fullHtml.length} characters of comparison HTML`);
+    console.log(`✅ Extracted comparison content using selector: "${extractionResult.selectorUsed}"`);
+    console.log(`   HTML length: ${extractionResult.html.length} characters`);
     
-    const hasInsertions = fullHtml.includes('<ins>');
-    const hasDeletions = fullHtml.includes('<del>');
+    const fullHtml = extractionResult.html;
+    const hasRemovals = fullHtml.includes('ctg-diff-removed');
+    const hasAdditions = fullHtml.includes('ctg-diff-added');
     
-    if (!hasInsertions && !hasDeletions) {
-      console.warn('Warning: No diff markers found in comparison HTML');
+    console.log(`🔍 Diff markers found: ctg-diff-removed=${hasRemovals}, ctg-diff-added=${hasAdditions}`);
+    
+    if (!hasRemovals && !hasAdditions) {
+      console.warn('⚠️  Warning: No diff markers (ctg-diff-removed/ctg-diff-added) found in comparison HTML');
+      console.log(`📄 Full text content (first 2000 chars for debugging):`);
+      console.log(extractionResult.text.substring(0, 2000));
+    } else {
+      // Log sample of diff content
+      const firstRemoved = fullHtml.indexOf('ctg-diff-removed');
+      const firstAdded = fullHtml.indexOf('ctg-diff-added');
+      if (firstRemoved > -1) {
+        console.log(`📝 Sample removal: ${fullHtml.substring(firstRemoved, firstRemoved + 300)}`);
+      }
+      if (firstAdded > -1) {
+        console.log(`📝 Sample addition: ${fullHtml.substring(firstAdded, firstAdded + 300)}`);
+      }
     }
     
     return [fullHtml];
-  } catch (error) {
-    console.error('Failed to extract comparison:', error);
+  } catch (error: any) {
+    console.error(`❌ Failed to extract comparison: ${error.message}`);
+    console.error(`   Stack: ${error.stack}`);
     if (browser) {
       await browser.close();
     }
@@ -697,14 +805,16 @@ export async function processSingleEntry(
   let versionA: number;
   let versionB: number;
   let diffBlocks: string[];
-
-  // Fetch sponsor information
-  const sponsor = await fetchSponsorInfo(nctId);
+  let sponsor: string | null;
 
   // Handle brand new studies differently
   if (entry.isNew) {
     console.log(`${nctId} is a NEW study - generating summary`);
-    summary = await generateNewStudySummary(nctId, entry.title, geminiApiKey);
+    // Parallelize sponsor fetch and summary generation
+    [sponsor, summary] = await Promise.all([
+      fetchSponsorInfo(nctId),
+      generateNewStudySummary(nctId, entry.title, geminiApiKey),
+    ]);
     historyUrl = buildHistoryUrl(nctId);
     comparisonUrl = '';
     versionA = 1;
@@ -713,14 +823,29 @@ export async function processSingleEntry(
   } else {
     console.log(`${nctId} is an UPDATED study - comparing versions`);
     historyUrl = buildHistoryUrl(nctId);
+    
+    // Start sponsor fetch in parallel with version parsing
+    const sponsorPromise = fetchSponsorInfo(nctId);
     const versionPair = await parseLatestTwoVersions(historyUrl, geminiApiKey);
 
     if (!versionPair) {
-      throw new Error(`No version pair found for ${nctId}`);
+      console.error(`❌ ${nctId}: Failed to extract version numbers from history page`);
+      console.error(`   History URL: ${historyUrl}`);
+      console.error(`   This could mean:`);
+      console.error(`   - Study is too new and history page isn't populated yet`);
+      console.error(`   - Page structure has changed`);
+      console.error(`   - Network/Puppeteer error occurred`);
+      throw new Error(`No version pair found for ${nctId} - check logs for details`);
     }
 
     comparisonUrl = buildComparisonUrl(nctId, versionPair.a, versionPair.b);
-    diffBlocks = await extractDiffBlocks(comparisonUrl);
+    
+    // Parallelize diff extraction and sponsor fetch completion
+    [diffBlocks, sponsor] = await Promise.all([
+      extractDiffBlocks(comparisonUrl),
+      sponsorPromise,
+    ]);
+    
     summary = await generateChangeSummary(nctId, entry.title, diffBlocks, geminiApiKey);
     versionA = versionPair.a;
     versionB = versionPair.b;
@@ -813,6 +938,8 @@ export async function processFeedUpdates(
     versionB: number;
     lastUpdate: string;
   }>;
+  hasMoreEntries: boolean;
+  remainingEntries: number;
 }> {
   console.log(`[PROCESS_FEED] Starting for feed ${feedId}: ${feedUrl}`);
   
@@ -829,48 +956,23 @@ export async function processFeedUpdates(
     
     const recentEntries = entries.filter((e) => isWithinDays(e.updated_dt, 14));
     
-    // Limit to 10 most recent entries (RSS feeds are already sorted by date, newest first)
-    const limitedEntries = recentEntries.slice(0, 10);
-    console.log(`[PROCESS_FEED] Found ${recentEntries.length} recent entries (last 14 days), limiting to ${limitedEntries.length} most recent`);
-
-    const totalItems = limitedEntries.length;
-    let processedItems = 0;
-
-    // Step 2: Initialize progress tracking (if enabled)
-    if (enableProgressTracking) {
-      try {
-        await supabaseClient
-          .from('watched_feeds')
-          .update({
-            refresh_status: {
-              total: totalItems,
-              processed: 0,
-              in_progress: true,
-              started_at: new Date().toISOString(),
-            },
-          })
-          .eq('id', feedId);
-        console.log(`[PROCESS_FEED] Progress tracking initialized`);
-      } catch (error: any) {
-        if (error?.message?.includes('does not exist') || error?.code === '42703') {
-          console.warn('[PROCESS_FEED] refresh_status column not found, skipping progress tracking');
-        } else {
-          throw error;
-        }
-      }
-    }
-
-    // Step 3: Filter entries that need processing
-    console.log(`[PROCESS_FEED] Step 2: Filtering entries that need processing...`);
-    const entriesToProcess: typeof limitedEntries = [];
+    // Process only 3 entries per API call to stay well within 30s timeout
+    // Each API call gets its own 30s window - frontend chains multiple calls automatically
+    const ENTRIES_PER_BATCH = 3;
+    const MAX_ENTRIES_TO_CHECK = 10; // Only check the 10 most recent entries
     
-    for (const entry of limitedEntries) {
+    // First, filter out already-processed entries from the top 10 recent entries
+    console.log(`[PROCESS_FEED] Step 2: Checking which of the ${Math.min(recentEntries.length, MAX_ENTRIES_TO_CHECK)} most recent entries need processing...`);
+    const unprocessedEntries: typeof recentEntries = [];
+    let alreadyProcessedCount = 0;
+    
+    for (const entry of recentEntries.slice(0, MAX_ENTRIES_TO_CHECK)) {
       // Check for cancellation periodically
       checkCancellation(signal, feedId);
       
       const nctId = extractNctId(entry.link);
       if (!nctId) {
-        processedItems++;
+        alreadyProcessedCount++;
         continue;
       }
 
@@ -885,20 +987,55 @@ export async function processFeedUpdates(
 
       if (existing) {
         console.log(`Skipping ${nctId} - already processed`);
-        processedItems++;
+        alreadyProcessedCount++;
       } else {
-        entriesToProcess.push(entry);
+        unprocessedEntries.push(entry);
       }
     }
+    
+    // Now take only the first ENTRIES_PER_BATCH unprocessed entries for this API call
+    const entriesToProcess = unprocessedEntries.slice(0, ENTRIES_PER_BATCH);
+    const hasMoreEntries = unprocessedEntries.length > ENTRIES_PER_BATCH;
+    const remainingAfterThisBatch = unprocessedEntries.length - ENTRIES_PER_BATCH;
+    
+    console.log(`[PROCESS_FEED] Found ${unprocessedEntries.length} unprocessed entries, processing ${entriesToProcess.length} in this batch`);
+    if (hasMoreEntries) {
+      console.log(`[PROCESS_FEED] ⚠️  ${remainingAfterThisBatch} more unprocessed entries - will process in next API call`);
+    }
 
-    console.log(`[PROCESS_FEED] ${entriesToProcess.length} entries need processing`);
+    let processedItems = 0;  // Will be incremented as we save each entry
+    let totalItemsToProcess = entriesToProcess.length;
+    
+    // Initialize progress tracking now that we know the total
+    if (enableProgressTracking) {
+      try {
+        await supabaseClient
+          .from('watched_feeds')
+          .update({
+            refresh_status: {
+              total: totalItemsToProcess,
+              processed: processedItems,
+              in_progress: true,
+              started_at: new Date().toISOString(),
+            },
+          })
+          .eq('id', feedId);
+        console.log(`[PROCESS_FEED] Progress tracking initialized: ${totalItemsToProcess} items to process`);
+      } catch (error: any) {
+        if (error?.message?.includes('does not exist') || error?.code === '42703') {
+          console.warn('[PROCESS_FEED] refresh_status column not found, skipping progress tracking');
+        } else {
+          throw error;
+        }
+      }
+    }
     
     // Check for cancellation before heavy processing
     checkCancellation(signal, feedId);
 
-    // Step 4: Process entries in batches
+    // Step 4: Process entries in batches (smaller batches to avoid timeout)
     console.log(`[PROCESS_FEED] Step 3: Processing entries in batches...`);
-    const processedEntries = await processEntriesInBatches(entriesToProcess, geminiApiKey, 5, signal, feedId);
+    const processedEntries = await processEntriesInBatches(entriesToProcess, geminiApiKey, 3, signal, feedId);
     
     // Step 5: Save results to database
     console.log(`[PROCESS_FEED] Step 4: Saving ${processedEntries.length} results to database...`);
@@ -965,9 +1102,10 @@ export async function processFeedUpdates(
             .from('watched_feeds')
             .update({
               refresh_status: {
-                total: totalItems,
+                total: totalItemsToProcess,
                 processed: processedItems,
                 in_progress: true,
+                new_updates: newUpdates,
               },
             })
             .eq('id', feedId);
@@ -988,11 +1126,13 @@ export async function processFeedUpdates(
           .update({
             last_checked_at: new Date().toISOString(),
             refresh_status: {
-              total: totalItems,
+              total: totalItemsToProcess,
               processed: processedItems,
               in_progress: false,
               completed_at: new Date().toISOString(),
               new_updates: newUpdates,
+              has_more: hasMoreEntries,
+              remaining: hasMoreEntries ? remainingAfterThisBatch : 0,
             },
           })
           .eq('id', feedId);
@@ -1016,7 +1156,17 @@ export async function processFeedUpdates(
     }
 
     console.log(`[PROCESS_FEED] ✅ Complete: ${newUpdates} new updates found`);
-    return { newUpdates, processedItems, totalItems, updates };
+    if (hasMoreEntries) {
+      console.log(`[PROCESS_FEED] 🔄 ${remainingAfterThisBatch} more unprocessed entries - frontend will chain another API call`);
+    }
+    return { 
+      newUpdates, 
+      processedItems, 
+      totalItems: totalItemsToProcess, 
+      updates,
+      hasMoreEntries,
+      remainingEntries: hasMoreEntries ? remainingAfterThisBatch : 0,
+    };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     const isCancelled = errorMessage.includes('Processing cancelled');
@@ -1092,10 +1242,14 @@ TRIAL: ${nctId} – ${title}
 Provide a clear, concise summary (2-3 sentences max).`;
 
     const response = await axios.post(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-lite:generateContent?key=${geminiApiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${geminiApiKey}`,
       {
         contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.3, maxOutputTokens: 200 },
+        generationConfig: { 
+          temperature: 0.3, 
+          maxOutputTokens: 300,
+          thinkingConfig: { thinkingBudget: 0 },
+        },
       },
       {
         headers: { 'Content-Type': 'application/json' },
@@ -1105,12 +1259,86 @@ Provide a clear, concise summary (2-3 sentences max).`;
     );
 
     const content = response.data.candidates?.[0]?.content?.parts?.[0]?.text;
+    const trimmedContent = content?.trim() || '';
+    
+    console.log(`✅ New study summary (${trimmedContent.length} chars):`);
+    console.log(trimmedContent);
 
-    return content?.trim() || `New clinical trial: ${title}`;
+    return trimmedContent || `New clinical trial: ${title}`;
   } catch (error) {
     console.error('Failed to generate new study summary:', error);
     return `New clinical trial ${nctId}. View study URL for details.`;
   }
+}
+
+/**
+ * Extract meaningful diff content from HTML, removing all markup except diff indicators
+ */
+function sanitizeComparisonHtml(html: string): string {
+  const $ = cheerio.load(html);
+  
+  // Find all elements with diff markers
+  const diffElements: string[] = [];
+  
+  // Process each cell in the comparison table
+  $('.cell.content-cell').each((_, cell) => {
+    const $cell = $(cell);
+    
+    // Find the corresponding title cell (field name)
+    const $titleCell = $cell.prev('.cell.title-cell');
+    const fieldName = $titleCell.text().trim();
+    
+    // Check if this cell contains diff markers
+    const hasRemoved = $cell.find('.ctg-diff-removed').length > 0;
+    const hasAdded = $cell.find('.ctg-diff-added').length > 0;
+    
+    if (hasRemoved || hasAdded) {
+      // Extract the full text with markers
+      let cellContent = '';
+      
+      // Get the text content while preserving diff markers
+      $cell.find('.text-cell').each((_, textCell) => {
+        const $textCell = $(textCell);
+        
+        // Process each child element
+        $textCell.contents().each((_, node) => {
+          if (node.type === 'text') {
+            cellContent += $(node).text();
+          } else if (node.type === 'tag') {
+            const $node = $(node);
+            if ($node.hasClass('ctg-diff-removed')) {
+              cellContent += `[REMOVED: ${$node.text()}]`;
+            } else if ($node.hasClass('ctg-diff-added')) {
+              cellContent += `[ADDED: ${$node.text()}]`;
+            } else {
+              // For nested structures, recursively process
+              $node.find('.ctg-diff-removed').each((_, removed) => {
+                const text = $(removed).text();
+                if (text) cellContent += `[REMOVED: ${text}]`;
+              });
+              $node.find('.ctg-diff-added').each((_, added) => {
+                const text = $(added).text();
+                if (text) cellContent += `[ADDED: ${text}]`;
+              });
+              // Add other text content
+              const otherText = $node.clone().find('.ctg-diff-removed, .ctg-diff-added').remove().end().text();
+              if (otherText.trim()) cellContent += otherText;
+            }
+          }
+        });
+      });
+      
+      if (cellContent.trim() && (cellContent.includes('[REMOVED:') || cellContent.includes('[ADDED:'))) {
+        diffElements.push(`${fieldName}: ${cellContent.trim()}`);
+      }
+    }
+  });
+  
+  if (diffElements.length === 0) {
+    return 'No changes with diff markers found';
+  }
+  
+  return diffElements.join('\n\n');
 }
 
 /**
@@ -1125,36 +1353,70 @@ export async function generateChangeSummary(
   try {
     const comparisonHtml = diffs[0] || '';
     
-    const prompt = `You are a clinical trial change summarizer. Analyze the HTML from ClinicalTrials.gov's version comparison page.
-
-Diff markers:
-- <ins> tags or underlined text = ADDED content (new in latest version)
-- <del> tags or strikethrough text = REMOVED content (deleted from previous version)
-
-ALWAYS include original and updated values. Example: "Enrollment increased from 100 to 200."
-
-Focus on substantive changes:
-- Enrollment numbers
-- Study status (recruiting, active, completed, terminated)
-- Study phase
-- Primary/secondary outcomes changes if any
-- Inclusion/exclusion criteria
-- Study locations
-- Intervention details (drugs, dosages)
-- Study dates
-
+    // Write full comparison HTML to file for debugging
+    try {
+      const debugDir = path.join(process.cwd(), 'debug-comparisons');
+      await fs.mkdir(debugDir, { recursive: true });
+      const debugFile = path.join(debugDir, `${nctId}_comparison.html`);
+      await fs.writeFile(debugFile, comparisonHtml, 'utf-8');
+      console.log(`📁 Debug: Wrote full comparison HTML to ${debugFile}`);
+      console.log(`   HTML length: ${comparisonHtml.length} characters`);
+    } catch (debugError) {
+      console.error('Failed to write debug file:', debugError);
+      // Continue processing even if debug file write fails
+    }
+    
+    // Sanitize HTML to extract only diff content
+    console.log(`🧹 Sanitizing HTML to extract diff markers...`);
+    const sanitizedContent = sanitizeComparisonHtml(comparisonHtml);
+    console.log(`✅ Sanitized content length: ${sanitizedContent.length} characters (reduced from ${comparisonHtml.length})`);
+    console.log(`   Fields with changes: ${sanitizedContent.split('\n\n').length}`);
+    
+    // Write sanitized content to debug file too
+    try {
+      const debugDir = path.join(process.cwd(), 'debug-comparisons');
+      const sanitizedFile = path.join(debugDir, `${nctId}_sanitized.txt`);
+      await fs.writeFile(sanitizedFile, sanitizedContent, 'utf-8');
+      console.log(`📁 Debug: Wrote sanitized content to ${sanitizedFile}`);
+    } catch (debugError) {
+      console.error('Failed to write sanitized debug file:', debugError);
+    }
+    
+    const prompt = `You are a clinical trial change summarizer. Analyze changes from ClinicalTrials.gov.
 TRIAL: ${nctId} – ${title}
 
-VERSION COMPARISON HTML:
-${comparisonHtml.substring(0, 15000)}
+CHANGES DETECTED:
+${sanitizedContent}
 
-Format: Do not add any preamble. Provide a brief, clear summary of up to 3 most significant changes in bullet points (newline for each change) and PLAIN TEXT. Do not return markdown.`;
+Note: [REMOVED: text] indicates content deleted from previous version
+      [ADDED: text] indicates content added in latest version
+
+ALWAYS include BOTH the original value (removed) and the new value (added) for each change.
+
+Only report on substantive changes:
+- Primary/secondary outcomes modifications
+- Primary completion date or study completion date changes
+- Enrollment numbers (show change from X to Y)
+- Study status changes (e.g., "Active, not recruiting" to "Completed"). We only care about the Overall Status - not for each location.
+- Inclusion/exclusion criteria
+- Study locations (added or removed sites - if more than 5 sites were changed,report only the total number of sites changed, do not list all of them)
+- Intervention details (drugs, dosages)
+
+Do NOT mention Last Update Submitted that Met QC Criteria or Last Update Posted since those are always present.
+
+Format: If there are no substantive changes, return "Only minor changes found.". Do not add any preamble. Provide a brief, clear summary of up to 3 most significant changes in plain text NO MARKDOWN.`;
+
+    console.log(`🤖 Sending prompt to Gemini (total length: ${prompt.length} characters)`);
 
     const response = await axios.post(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-lite:generateContent?key=${geminiApiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${geminiApiKey}`,
       {
         contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.3, maxOutputTokens: 250 },
+        generationConfig: { 
+          temperature: 0.7, 
+          maxOutputTokens: 1500,
+          thinkingConfig: { thinkingBudget: 0 },
+        },
       },
       {
         headers: { 'Content-Type': 'application/json' },
@@ -1164,10 +1426,19 @@ Format: Do not add any preamble. Provide a brief, clear summary of up to 3 most 
     );
 
     const content = response.data.candidates?.[0]?.content?.parts?.[0]?.text;
+    
+    // Log full response (with length indicator)
+    const trimmedContent = content?.trim() || '';
+    console.log(`✅ Gemini response (${trimmedContent.length} chars):`);
+    console.log(trimmedContent);
 
-    return content?.trim() || `Changes detected for ${nctId}`;
-  } catch (error) {
-    console.error('Failed to generate change summary:', error);
+    return trimmedContent || `Changes detected for ${nctId}`;
+  } catch (error: any) {
+    console.error(`❌ Failed to generate change summary for ${nctId}:`, error.message);
+    if (error.response) {
+      console.error(`   API Response: ${JSON.stringify(error.response.data)}`);
+    }
     return `Changes detected for ${nctId}. View comparison URL for details.`;
   }
 }
+
