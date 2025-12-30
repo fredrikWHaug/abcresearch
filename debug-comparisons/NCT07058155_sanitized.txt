@@ -1,7 +1,0 @@
-Record Verification: 2025-[REMOVED: 10][ADDED: 12]
-
-Study Start: 2025-12[ADDED: -17] [[REMOVED: Estimated][ADDED: Actual]]
-
-Last Update Submitted that Met QC Criteria: 2025-[REMOVED: 10][ADDED: 12]-[REMOVED: 16][ADDED: 20]
-
-Last Update Posted: 2025-[REMOVED: 10][ADDED: 12]-[REMOVED: 17][ADDED: 23] [Estimated]
