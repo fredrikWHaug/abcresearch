@@ -20,14 +20,12 @@ interface DataExtractionViewProps {
 }
 
 export function DataExtractionView({
-  isVisible: _isVisible,
   currentProjectId,
   onAddToChat,
   onRemoveFromChat,
   isExtractionInContext
 }: DataExtractionViewProps) {
   const [isLoadingJobs, setIsLoadingJobs] = useState(true);
-  const [hasExtractions, setHasExtractions] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
@@ -42,7 +40,8 @@ export function DataExtractionView({
         });
 
         if (response.success) {
-          setHasExtractions(response.jobs.length > 0);
+          // Extractions loaded successfully
+          void response.jobs.length; // Count available but not currently needed
         }
       } catch (error) {
         console.error('Error checking extractions:', error);
@@ -65,7 +64,6 @@ export function DataExtractionView({
   const handleExtractionComplete = () => {
     // Trigger refresh of extraction grid
     setRefreshTrigger(prev => prev + 1);
-    setHasExtractions(true);
   };
 
   // Show loading spinner while checking for extractions

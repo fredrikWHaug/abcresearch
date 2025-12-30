@@ -102,8 +102,11 @@ describe('Bug 1: Data Extraction Tab Accessibility', () => {
 
     // When: The component renders
     await waitFor(() => {
-      // Then: Data Extraction content should be visible
-      expect(screen.getByText(/PDF Table Extraction/i)).toBeInTheDocument()
+      // Then: Data Extraction content should be visible (ExtractionHistoryGrid shows "Your Extractions" or "New Extraction")
+      const extractionContent = screen.queryByText(/Your Extractions/i) ||
+                               screen.queryByText(/New Extraction/i) ||
+                               screen.queryByText(/Loading your extractions/i)
+      expect(extractionContent).toBeInTheDocument()
     })
 
     // And: Chat interface should NOT be shown
@@ -138,7 +141,10 @@ describe('Bug 1: Data Extraction Tab Accessibility', () => {
 
     // Then: Should still show Data Extraction view, not chat
     await waitFor(() => {
-      expect(screen.getByText(/PDF Table Extraction/i)).toBeInTheDocument()
+      const extractionContent = screen.queryByText(/Your Extractions/i) ||
+                               screen.queryByText(/New Extraction/i) ||
+                               screen.queryByText(/Loading your extractions/i)
+      expect(extractionContent).toBeInTheDocument()
     })
     
     const chatbox = screen.queryByPlaceholderText(/Ask me anything/i)

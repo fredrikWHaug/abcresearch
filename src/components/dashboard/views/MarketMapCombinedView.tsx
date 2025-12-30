@@ -47,7 +47,6 @@ export function MarketMapCombinedView({
   onDeleteMap
 }: MarketMapCombinedViewProps) {
   const [showGeneratorView, setShowGeneratorView] = useState(false)
-  const [savedMapsCount, setSavedMapsCount] = useState(0)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
   const [hasSavedMaps, setHasSavedMaps] = useState(false)
   const [isLoadingMaps, setIsLoadingMaps] = useState(true)
@@ -61,7 +60,6 @@ export function MarketMapCombinedView({
       try {
         setIsLoadingMaps(true)
         const maps = await MarketMapService.getUserMarketMaps(currentProjectId)
-        setSavedMapsCount(maps.length)
         setHasSavedMaps(maps.length > 0)
 
         // If no saved maps exist and we have search results, show generator
@@ -79,7 +77,7 @@ export function MarketMapCombinedView({
     }
 
     checkSavedMaps()
-  }, [currentProjectId, refreshTrigger, hasNewSearchContent])
+  }, [currentProjectId, refreshTrigger, hasNewSearchContent, trials.length, query])
 
   const handleGenerateNewMap = () => {
     if (hasNewSearchContent) {
