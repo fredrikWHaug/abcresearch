@@ -292,8 +292,25 @@ export function RealtimeFeed({ isVisible = true }: RealtimeFeedProps = {}) {
         // Load feeds to show the new feed in the list
         await loadFeeds();
         
-        // If processing completed, show success message
-        if (data.processing_complete) {
+        // If there are more entries to process, chain additional API calls
+        console.log('[RealtimeFeed] Initial feed creation response:', {
+          hasMoreEntries: data.hasMoreEntries,
+          feedId: data.feed?.id,
+          processedItems: data.processedItems,
+          remainingEntries: data.remainingEntries,
+          processing_complete: data.processing_complete,
+        });
+        
+        if (data.hasMoreEntries && data.feed?.id) {
+          console.log(`[RealtimeFeed] Initial processing done, ${data.remainingEntries} more entries. Chaining refresh calls...`);
+          setRefreshMessage(`Feed added! Processing more updates (${data.remainingEntries} remaining)...`);
+          // Use handleRefreshFeed to process remaining entries
+          try {
+            await handleRefreshFeed(data.feed.id);
+          } catch (chainError) {
+            console.error('[RealtimeFeed] Error during chained refresh:', chainError);
+          }
+        } else if (data.processing_complete) {
           setRefreshMessage('Feed added and processed successfully!');
           setTimeout(() => setRefreshMessage(''), 3000);
         } else if (data.cancelled) {
@@ -404,56 +421,97 @@ export function RealtimeFeed({ isVisible = true }: RealtimeFeedProps = {}) {
   const handleRefreshFeed = async (feedId: number) => {
     try {
       setRefreshingFeedId(feedId);
-      setRefreshMessage('Starting refresh...');
-
+      
       const session = await getSession();
       if (!session) return;
 
-      const response = await fetch('/api/rss-feeds?action=refresh', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ feedId }),
-      });
+      let totalProcessed = 0;
+      let totalNewUpdates = 0;
+      let batchNumber = 1;
+      let hasMore = true;
+      const MAX_BATCHES = 5; // Safety limit: max 5 batches = 15 entries
 
-      if (response.ok) {
-        const data = await response.json();
-        setRefreshMessage(data.message || 'Refresh completed successfully');
+      // Process in batches until done or max batches reached
+      while (hasMore && batchNumber <= MAX_BATCHES) {
+        console.log(`[RealtimeFeed] Starting batch ${batchNumber} for feed ${feedId}`);
+        setRefreshMessage(`Processing batch ${batchNumber}...`);
         
+        const response = await fetch('/api/rss-feeds?action=refresh', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ feedId }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to refresh feed');
+        }
+
+        const data = await response.json();
+        console.log(`[RealtimeFeed] Batch ${batchNumber} response:`, {
+          processedItems: data.processedItems,
+          newUpdates: data.newUpdates,
+          hasMoreEntries: data.hasMoreEntries,
+          remainingEntries: data.remainingEntries,
+        });
+        
+        // Accumulate results
+        totalProcessed += data.processedItems || 0;
+        totalNewUpdates += data.newUpdates || 0;
+        hasMore = data.hasMoreEntries || false;
+        
+        console.log(`[RealtimeFeed] After batch ${batchNumber}: totalProcessed=${totalProcessed}, hasMore=${hasMore}`);
+        
+        // Update progress in UI
+        setRefreshProgress(prev => ({
+          ...prev,
+          [feedId]: {
+            total: totalProcessed + (data.remainingEntries || 0),
+            processed: totalProcessed,
+          },
+        }));
+
         // Update the feed in local state if returned
         if (data.feed) {
           setFeeds(prev => prev.map(f => f.id === feedId ? data.feed : f));
         }
         
-        // Reload feeds and updates to show new data
-        await loadFeeds();
+        // Reload updates after each batch to show progress
         await loadUpdates(selectedFeed || undefined);
         
-        // Clear refreshing state after completion
-        setRefreshingFeedId(null);
-        setRefreshProgress(prev => {
-          const updated = { ...prev };
-          delete updated[feedId];
-          return updated;
-        });
-        
-        // Clear success message after 3 seconds
-        setTimeout(() => {
-          setRefreshMessage('');
-        }, 3000);
-      } else {
-        const errorData = await response.json();
-        setRefreshMessage(errorData.error || 'Failed to refresh feed');
-        setRefreshingFeedId(null);
-        setTimeout(() => {
-          setRefreshMessage('');
-        }, 3000);
+        if (hasMore) {
+          setRefreshMessage(`Batch ${batchNumber} done. Processing more entries...`);
+          batchNumber++;
+        }
       }
+
+      // Final reload
+      await loadFeeds();
+      
+      // Show final message
+      const finalMessage = hasMore 
+        ? `Processed ${totalProcessed} entries (${totalNewUpdates} new). More available - refresh again.`
+        : `Completed! ${totalProcessed} entries processed, ${totalNewUpdates} new updates.`;
+      setRefreshMessage(finalMessage);
+      
+      // Clear refreshing state after completion
+      setRefreshingFeedId(null);
+      setRefreshProgress(prev => {
+        const updated = { ...prev };
+        delete updated[feedId];
+        return updated;
+      });
+      
+      // Clear success message after 5 seconds
+      setTimeout(() => {
+        setRefreshMessage('');
+      }, 5000);
     } catch (error) {
       console.error('Failed to refresh feed:', error);
-      setRefreshMessage('Error refreshing feed');
+      setRefreshMessage(error instanceof Error ? error.message : 'Error refreshing feed');
       setRefreshingFeedId(null);
       setTimeout(() => {
         setRefreshMessage('');
