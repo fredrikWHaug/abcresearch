@@ -26,12 +26,13 @@ export function renderWithProviders(
  * Render with mocked auth state
  */
 interface RenderWithAuthOptions {
-  isGuest?: boolean
   user?: {
     id: string
     email: string
   } | null
   loading?: boolean
+  isAuthorized?: boolean | null
+  authorizationChecked?: boolean
 }
 
 export function renderWithAuth(
@@ -39,22 +40,27 @@ export function renderWithAuth(
   authState: RenderWithAuthOptions = {},
   renderOptions?: Omit<RenderOptions, 'wrapper'>
 ) {
-  const { isGuest = false, user = null, loading = false } = authState
+  const { 
+    user = null, 
+    loading = false, 
+    isAuthorized = user ? true : null,
+    authorizationChecked = user ? true : false
+  } = authState
 
   // Mock the useAuth hook
   vi.mock('@/contexts/AuthContext', () => ({
     AuthProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
     useAuth: () => ({
       user,
-      session: user ? { user } : null,
+      session: user ? { user, access_token: 'mock-token' } : null,
       loading,
-      isGuest,
+      isAuthorized,
+      authorizationChecked,
       signUp: vi.fn(),
       signIn: vi.fn(),
       signInWithOAuth: vi.fn(),
       signOut: vi.fn(),
-      enterGuestMode: vi.fn(),
-      exitGuestMode: vi.fn(),
+      checkAuthorization: vi.fn().mockResolvedValue(isAuthorized ?? false),
     }),
   }))
 
@@ -77,4 +83,3 @@ export async function waitForLoadingToFinish() {
 export function createUserEvent() {
   return import('@testing-library/user-event').then(mod => mod.default.setup())
 }
-

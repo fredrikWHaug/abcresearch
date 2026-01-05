@@ -1,34 +1,43 @@
- 
 import React, { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useAuth } from '@/contexts/AuthContext'
+import { supabase } from '@/lib/supabase'
 
 export function AuthForm() {
-  const [isLogin, setIsLogin] = useState(true)
+  const [isLogin, setIsLogin] = useState(true) // Default to sign in
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
 
-  const { signIn, signUp, signInWithOAuth, enterGuestMode, user } = useAuth()
+  const { signIn, signUp, signInWithOAuth, user } = useAuth()
 
   // Redirect when user is authenticated
   useEffect(() => {
     if (user) {
-      console.log('User authenticated in AuthForm, clearing form')
-      // Clear form and message when user is authenticated
       setEmail('')
       setPassword('')
       setMessage('')
-      // Force a small delay to ensure state updates propagate
-      setTimeout(() => {
-        console.log('AuthForm: User state updated, should redirect to Dashboard')
-      }, 100)
     }
   }, [user])
+
+  // Check if email is in the invites table (for signup only)
+  // Uses RPC function to bypass RLS on invites table
+  const checkEmailInvited = async (emailToCheck: string): Promise<boolean> => {
+    const { data, error } = await supabase.rpc('check_email_invited', {
+      p_email: emailToCheck.trim()
+    })
+    
+    if (error) {
+      console.error('Error checking invite:', error)
+      return false
+    }
+    
+    return data === true
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -36,23 +45,21 @@ export function AuthForm() {
     setMessage('')
 
     try {
+      // For signup, check if email is in invites table
+      if (!isLogin) {
+        const isInvited = await checkEmailInvited(email)
+        if (!isInvited) {
+          setMessage('This app is invite-only. Your email is not on the invite list. Please contact the administrator.')
+          setLoading(false)
+          return
+        }
+      }
+
       const { data, error } = isLogin 
         ? await signIn(email, password)
         : await signUp(email, password)
 
-      // Debug logging
-      console.log('Auth response:', { data, error, isLogin })
-      if (data?.user) {
-        console.log('User data:', {
-          id: data.user.id,
-          email: data.user.email,
-          created_at: data.user.created_at,
-          email_confirmed_at: data.user.email_confirmed_at
-        })
-      }
-
       if (error) {
-        // Handle specific error cases
         if (error.message.includes('User already registered') || 
             error.message.includes('already exists') ||
             error.message.includes('duplicate key value')) {
@@ -69,22 +76,17 @@ export function AuthForm() {
       } else if (!isLogin) {
         // For signup success
         if (data.user) {
-          // Check if email confirmation is required
           if (!data.session && !data.user.email_confirmed_at) {
-            // This is normal - user created but needs email confirmation
             setMessage('Account created! Check your email for the confirmation link.')
           } else if (data.session) {
-            // User created and automatically logged in (when email confirmation is disabled)
             setMessage('Account created successfully!')
           } else {
-            // User exists but still show success message since signup didn't error
             setMessage('Account created! Please check your email to confirm.')
           }
         } else {
           setMessage('Account creation failed. Please try again.')
         }
       } else if (isLogin) {
-        // Successful login - only show message if we have a session
         if (data?.session) {
           setMessage('Welcome back!')
         } else {
@@ -99,10 +101,6 @@ export function AuthForm() {
     }
   }
 
-  const handleGuestMode = () => {
-    enterGuestMode()
-  }
-
   const handleOAuthLogin = async (provider: 'google' | 'github') => {
     setLoading(true)
     setMessage('')
@@ -114,12 +112,23 @@ export function AuthForm() {
         setMessage(`Failed to sign in with ${provider}. Please try again.`)
       }
       // If successful, user will be redirected to OAuth provider
+      // The invite check for OAuth happens after authentication via the authorization flow
     } catch (error) {
       console.error('OAuth error:', error)
       setMessage('An unexpected error occurred. Please try again.')
     } finally {
       setLoading(false)
     }
+  }
+
+  const isErrorMessage = (msg: string) => {
+    return msg.includes('error') || 
+           msg.includes('Invalid') || 
+           msg.includes('failed') ||
+           msg.includes('already exists') ||
+           msg.includes('unexpected') ||
+           msg.includes('invite-only') ||
+           msg.includes('not on the invite')
   }
 
   return (
@@ -156,11 +165,7 @@ export function AuthForm() {
             </div>
             {message && (
               <div className={`text-sm p-3 rounded-md ${
-                message.includes('error') || 
-                message.includes('Invalid') || 
-                message.includes('failed') ||
-                message.includes('already exists') ||
-                message.includes('unexpected error')
+                isErrorMessage(message)
                   ? 'text-red-700 bg-red-50 border border-red-200' 
                   : 'text-green-700 bg-green-50 border border-green-200'
               }`}>
@@ -233,22 +238,6 @@ export function AuthForm() {
             </div>
           </div>
 
-          {/* Guest Mode Section */}
-          <div className="mt-6 pt-6 border-t border-border">
-            <div className="text-center space-y-3">
-              <div className="text-sm text-muted-foreground">
-                Want to try the app without creating an account?
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleGuestMode}
-                className="w-full"
-              >
-                Continue as Guest
-              </Button>
-            </div>
-          </div>
         </CardContent>
       </Card>
     </div>

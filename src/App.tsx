@@ -7,10 +7,11 @@ import { AppShell } from '@/components/AppShell'
 import { ProjectsHomePage } from '@/components/ProjectsHomePage'
 import '@/utils/runMigration' // Makes window.runMigration() available in console
 
-// Protected route wrapper for authenticated users
+// Protected route wrapper for authenticated AND authorized users
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading, isGuest } = useAuth()
+  const { user, loading, isAuthorized, authorizationChecked } = useAuth()
 
+  // Show loading while checking auth
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -22,27 +23,89 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     )
   }
 
-  if (!user && !isGuest) {
+  // Not authenticated - redirect to auth
+  if (!user) {
     return <Navigate to="/auth" replace />
   }
 
+  // Authenticated but still checking authorization
+  if (!authorizationChecked || isAuthorized === null) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-foreground mx-auto"></div>
+          <p className="mt-4 text-muted-foreground">Checking access...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Authenticated but NOT authorized (no profile)
+  if (!isAuthorized) {
+    return <Navigate to="/unauthorized" replace />
+  }
+
+  // Authenticated AND authorized
   return <>{children}</>
 }
 
-// Guest redirect - guests shouldn't access home page, send them to Dashboard
-function GuestRedirect({ children }: { children: React.ReactNode }) {
-  const { isGuest } = useAuth()
-  
-  if (isGuest) {
-    return <Navigate to="/app/project/null" replace />
+// Unauthorized page - shown when user is authenticated but doesn't have a profile
+function UnauthorizedPage() {
+  const { user, signOut, isAuthorized, loading, authorizationChecked } = useAuth()
+
+  // If not authenticated, redirect to auth
+  if (!loading && !user) {
+    return <Navigate to="/auth" replace />
   }
-  
-  return <>{children}</>
+
+  // If authorized, redirect to home
+  if (authorizationChecked && isAuthorized) {
+    return <Navigate to="/app/home" replace />
+  }
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <div className="w-full max-w-md text-center">
+        <div className="mx-auto mb-6 h-16 w-16 rounded-full bg-yellow-100 flex items-center justify-center">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="h-8 w-8 text-yellow-600"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+            />
+          </svg>
+        </div>
+        <h1 className="text-2xl font-bold mb-2">Invite Only</h1>
+        <p className="text-muted-foreground mb-6">
+          ABCresearch is currently invite-only. Your email is not on the invite list.
+          Please contact the administrator for access.
+        </p>
+        {user && (
+          <p className="text-sm text-muted-foreground mb-6">
+            Signed in as: {user.email}
+          </p>
+        )}
+        <button
+          onClick={() => signOut()}
+          className="w-full px-4 py-2 border border-border rounded-md hover:bg-muted transition-colors"
+        >
+          Sign Out
+        </button>
+      </div>
+    </div>
+  )
 }
 
 // Root redirect - sends to appropriate page based on auth status
 function RootRedirect() {
-  const { user, loading, isGuest } = useAuth()
+  const { user, loading, isAuthorized, authorizationChecked } = useAuth()
 
   if (loading) {
     return (
@@ -55,18 +118,30 @@ function RootRedirect() {
     )
   }
 
-  // Guest users go directly to Dashboard (original fix - bypass project selection)
-  if (isGuest) {
-    return <Navigate to="/app/project/null" replace />
-  }
-
-  // Authenticated users go to home page (project cards)
-  if (user) {
-    return <Navigate to="/app/home" replace />
-  }
-
   // Not authenticated - show auth form
-  return <Navigate to="/auth" replace />
+  if (!user) {
+    return <Navigate to="/auth" replace />
+  }
+
+  // Authenticated but still checking authorization
+  if (!authorizationChecked || isAuthorized === null) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-foreground mx-auto"></div>
+          <p className="mt-4 text-muted-foreground">Checking access...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Authenticated but not authorized
+  if (!isAuthorized) {
+    return <Navigate to="/unauthorized" replace />
+  }
+
+  // Authenticated and authorized - go to home
+  return <Navigate to="/app/home" replace />
 }
 
 // Project route wrapper - passes project ID and view mode to Dashboard
@@ -80,9 +155,9 @@ function ProjectRoute({ view = 'research' }: { view?: string }) {
   return <Dashboard projectId={numericProjectId} showHeader={false} insideAppShell={true} initialView={view} />
 }
 
-// Auth route wrapper - redirects if already authenticated
+// Auth route wrapper - redirects if already authenticated and authorized
 function AuthRoute() {
-  const { user, loading, isGuest } = useAuth()
+  const { user, loading, isAuthorized, authorizationChecked } = useAuth()
 
   if (loading) {
     return (
@@ -95,14 +170,27 @@ function AuthRoute() {
     )
   }
 
-  // If guest, redirect to Dashboard
-  if (isGuest) {
-    return <Navigate to="/app/project/null" replace />
-  }
-
-  // If authenticated, redirect to home
+  // If authenticated, check authorization
   if (user) {
-    return <Navigate to="/app/home" replace />
+    // Still checking authorization
+    if (!authorizationChecked || isAuthorized === null) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-background">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-foreground mx-auto"></div>
+            <p className="mt-4 text-muted-foreground">Checking access...</p>
+          </div>
+        </div>
+      )
+    }
+    
+    // Authorized - redirect to home
+    if (isAuthorized) {
+      return <Navigate to="/app/home" replace />
+    }
+    
+    // Not authorized - redirect to unauthorized page
+    return <Navigate to="/unauthorized" replace />
   }
 
   // Not authenticated - show auth form
@@ -118,6 +206,9 @@ function AppContent() {
       {/* Auth route - redirects if already authenticated */}
       <Route path="/auth" element={<AuthRoute />} />
 
+      {/* Unauthorized page - for authenticated users without profile */}
+      <Route path="/unauthorized" element={<UnauthorizedPage />} />
+
       {/* Protected app routes */}
       <Route
         path="/app"
@@ -127,15 +218,8 @@ function AppContent() {
           </ProtectedRoute>
         }
       >
-        {/* Projects home page - redirect guests to Dashboard */}
-        <Route 
-          path="home" 
-          element={
-            <GuestRedirect>
-              <ProjectsHomePage />
-            </GuestRedirect>
-          } 
-        />
+        {/* Projects home page */}
+        <Route path="home" element={<ProjectsHomePage />} />
 
         {/* Individual project views with sub-routes */}
         <Route path="project/:projectId">
