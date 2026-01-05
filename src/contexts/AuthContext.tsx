@@ -68,21 +68,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return true
       }
 
-      // No profile - check if their email is in invites table
-      const userEmail = user.email?.toLowerCase()
+      // No profile - check if their email is in invites table using RPC function
+      const userEmail = user.email?.toLowerCase().trim()
       if (!userEmail) {
         setIsAuthorized(false)
         setAuthorizationChecked(true)
         return false
       }
 
-      const { data: invite } = await supabase
-        .from('invites')
-        .select('id')
-        .ilike('email', userEmail)
-        .single()
+      // Use RPC function to check invite (bypasses RLS)
+      const { data: isInvited, error: inviteCheckError } = await supabase.rpc('check_email_invited', {
+        p_email: userEmail
+      })
 
-      if (invite) {
+      if (inviteCheckError) {
+        console.error('Error checking invite in AuthContext:', inviteCheckError)
+        setIsAuthorized(false)
+        setAuthorizationChecked(true)
+        return false
+      }
+
+      if (isInvited === true) {
         // Email is invited - create profile for them
         const { error: createError } = await supabase
           .from('profiles')
