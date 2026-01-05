@@ -1,4 +1,3 @@
-/* eslint-disable */
 /**
  * Authorization Check API
  * 

@@ -3,8 +3,6 @@
  * Mock external services and APIs that shouldn't be called during tests
  */
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 import { vi } from 'vitest'
 
 /**

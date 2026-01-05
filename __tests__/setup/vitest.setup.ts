@@ -3,8 +3,6 @@
  * Runs once before all tests
  */
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 import { afterEach, vi } from 'vitest'
 import { cleanup } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
