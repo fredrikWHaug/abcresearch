@@ -44,7 +44,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user])
 
-  // Check if user is authorized (has a profile) - uses direct Supabase query for speed
+  // Check if user is authorized (has a profile OR is invited and needs profile created)
   const checkAuthorization = useCallback(async (): Promise<boolean> => {
     if (!user) {
       setIsAuthorized(false)
@@ -53,23 +53,58 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      // Direct Supabase query - much faster than API endpoint
-      const { data: profile, error } = await supabase
+      // First check if user already has a profile
+      const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('id')
         .eq('user_id', user.id)
         .single()
 
-      const authorized = !!profile && !error
-      setIsAuthorized(authorized)
-      setAuthorizationChecked(true)
-      
-      // Log the login if authorized
-      if (authorized) {
+      if (profile && !profileError) {
+        // User has a profile - authorized
+        setIsAuthorized(true)
+        setAuthorizationChecked(true)
         logSession('login')
+        return true
       }
-      
-      return authorized
+
+      // No profile - check if their email is in invites table
+      const userEmail = user.email?.toLowerCase()
+      if (!userEmail) {
+        setIsAuthorized(false)
+        setAuthorizationChecked(true)
+        return false
+      }
+
+      const { data: invite } = await supabase
+        .from('invites')
+        .select('id')
+        .ilike('email', userEmail)
+        .single()
+
+      if (invite) {
+        // Email is invited - create profile for them
+        const { error: createError } = await supabase
+          .from('profiles')
+          .insert({
+            user_id: user.id,
+            email: userEmail,
+          })
+
+        if (!createError) {
+          setIsAuthorized(true)
+          setAuthorizationChecked(true)
+          logSession('signup')
+          return true
+        } else {
+          console.error('Failed to create profile:', createError)
+        }
+      }
+
+      // Not invited - unauthorized
+      setIsAuthorized(false)
+      setAuthorizationChecked(true)
+      return false
     } catch (error) {
       console.error('Authorization check failed:', error)
       setIsAuthorized(false)
@@ -95,10 +130,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Handle token refresh silently without triggering full state update
       if (_event === 'TOKEN_REFRESHED') {
         console.log('Token refreshed silently')
-        // Update session but don't trigger re-renders if user is the same
         setSession((prevSession) => {
           if (prevSession?.user?.id === session?.user?.id) {
-            return session // Just update the tokens
+            return session
           }
           return session
         })
@@ -106,7 +140,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       
       // For SIGNED_IN and SIGNED_OUT events, update state
-      // Prevent unnecessary state updates if session hasn't actually changed
       setSession((prevSession) => {
         const sessionChanged = prevSession?.access_token !== session?.access_token
         if (sessionChanged || !prevSession) {
@@ -146,7 +179,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Check authorization when session changes and we have a user
   useEffect(() => {
     if (session && user && !authorizationChecked) {
-      // Small delay to ensure session is fully established
       const timer = setTimeout(() => {
         checkAuthorization()
       }, 100)
@@ -167,32 +199,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       email,
       password,
     })
-
-    // Don't manually update state here - onAuthStateChange will handle it
-    // This prevents duplicate state updates and re-renders
-
     return { data, error }
   }
 
   const signInWithOAuth = async (provider: 'google' | 'github') => {
-    // Check if we're coming from an invite flow
-    const inviteToken = localStorage.getItem('invite_token')
-    
     // Use localhost for development, window.location.origin for production
     const isDevelopment = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
     const baseUrl = isDevelopment
       ? `http://localhost:${window.location.port || '5173'}`
       : window.location.origin
 
-    // If there's an invite token, redirect to the complete page
-    const redirectUrl = inviteToken 
-      ? `${baseUrl}/invite/complete`
-      : baseUrl
-
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
-        redirectTo: redirectUrl,
+        redirectTo: baseUrl,
+        // Force account picker to show (don't auto-select previous account)
+        queryParams: provider === 'google' 
+          ? { prompt: 'select_account' }
+          : { prompt: 'consent' }, // GitHub uses 'consent' to re-prompt
       },
     })
     return { data, error }
@@ -205,17 +229,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     
     try {
-      await supabase.auth.signOut()
+      // Sign out from all tabs/windows
+      await supabase.auth.signOut({ scope: 'global' })
     } catch (error) {
       console.log('Supabase signOut error (but continuing with local signOut):', error)
     }
+    
     // Force local sign out regardless of API response
     setSession(null)
     setUser(null)
     setIsAuthorized(null)
     setAuthorizationChecked(false)
-    // Clean up any invite tokens
-    localStorage.removeItem('invite_token')
   }
 
   const value = {

@@ -207,6 +207,27 @@ END;
 $$;
 
 
+-- 5b. CHECK_EMAIL_INVITED FUNCTION
+-- Checks if an email is on the invite list (bypasses RLS)
+CREATE OR REPLACE FUNCTION check_email_invited(p_email TEXT)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM invites 
+    WHERE LOWER(email) = LOWER(TRIM(p_email))
+  );
+END;
+$$;
+
+-- Allow anyone to call this function (needed for signup check)
+GRANT EXECUTE ON FUNCTION check_email_invited(TEXT) TO anon;
+GRANT EXECUTE ON FUNCTION check_email_invited(TEXT) TO authenticated;
+
+
 -- 6. MIGRATE EXISTING USERS
 -- Add existing auth.users to profiles table so they remain authorized
 -- This runs once during migration
