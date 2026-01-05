@@ -16,7 +16,7 @@ const NAV_ITEMS = [
 export function AppShell() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { user, signOut, isGuest, exitGuestMode } = useAuth()
+  const { user, signOut } = useAuth()
   
   // Detect if we're on a project route
   const projectRouteMatch = location.pathname.match(/^\/app\/project\/([^/]+)(?:\/(.+))?/)
@@ -136,32 +136,8 @@ export function AppShell() {
 
           {/* Right: User Menu */}
           <div className="flex items-center gap-3">
-            
-            {/* Guest Mode: Show Sign Up button */}
-            {isGuest && (
-              <>
-                <div className="flex items-center gap-2 px-4 py-1.5 bg-amber-50/80 border border-amber-200/50 rounded-full backdrop-blur-sm">
-                  <div className="h-2 w-2 bg-amber-500 rounded-full animate-pulse" />
-                  <span className="text-xs text-amber-700 font-medium uppercase tracking-wide">
-                    Guest
-                  </span>
-                </div>
-                <Button
-                  variant="default"
-                  size="sm"
-                  onClick={() => {
-                    exitGuestMode()
-                    navigate('/auth')
-                  }}
-                  className="bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg transition-all duration-300 transform hover:-translate-y-0.5"
-                >
-                  <span>Sign Up</span>
-                </Button>
-              </>
-            )}
-
             {/* Authenticated User: Show email and Sign Out Menu */}
-            {user && !isGuest && (
+            {user && (
               <div className="relative" ref={userMenuRef}>
                 <button
                   onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
