@@ -35,7 +35,7 @@ interface DashboardProps {
 }
 
 export function Dashboard({ initialShowSavedMaps = false, projectName = '', projectId = null, showHeader = true, insideAppShell = false, initialView = 'research' }: DashboardProps) {
-  const { signOut, isGuest, exitGuestMode } = useAuth()
+  const { signOut } = useAuth()
   const navigate = useNavigate()
   const urlParams = useParams<{ projectId?: string }>()
   
@@ -302,7 +302,6 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
   // Fetch user's projects on mount
   React.useEffect(() => {
     const fetchUserProjects = async () => {
-      if (isGuest) return;
       
       try {
         setLoadingProjects(true)
@@ -331,7 +330,7 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
     }
     
     fetchUserProjects()
-  }, [isGuest])
+  }, [])
   
   // Set project ID and name when props change
   React.useEffect(() => {
@@ -1082,8 +1081,8 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
       {/* Only show left side if NOT inside AppShell */}
       {!insideAppShell && (
         <div className="flex items-center gap-3 px-6">
-          {/* Hamburger Menu - Only show for authenticated users */}
-          {!isGuest && (
+          {/* Hamburger Menu */}
+          {(
           <div className="relative menu-container">
             <Button
               variant="ghost"
@@ -1284,55 +1283,8 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
     </div>
   );
 
-  // Guest mode indicator component with animation
-  const GuestModeIndicator = () => {
-    const [isExpanded, setIsExpanded] = useState(false);
-
-    if (!isGuest) return null;
-    
-    return (
-      <div 
-        className={`bg-amber-50 border border-amber-200 rounded-lg shadow-lg transition-all duration-300 ease-in-out ${
-          isExpanded ? 'p-3 max-w-xs' : 'p-2 w-12 h-12 flex items-center justify-center cursor-pointer'
-        }`}
-        onClick={!isExpanded ? () => setIsExpanded(true) : undefined}
-      >
-          <div className={`flex items-start gap-2 ${isExpanded ? '' : 'items-center justify-center'}`}>
-            <svg className={`text-amber-600 flex-shrink-0 ${isExpanded ? 'w-4 h-4 mt-0.5' : 'w-6 h-6'}`} fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-            </svg>
-            {isExpanded && (
-              <div className="text-xs relative">
-                {/* X button - show when expanded */}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setIsExpanded(false);
-                  }}
-                    className="absolute -top-1 -right-1 w-5 h-5 bg-gray-200 hover:bg-gray-300 rounded-full flex items-center justify-center text-gray-600 hover:text-gray-700 p-0 h-5 w-5"
-                  >
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </Button>
-                <div className="font-medium text-amber-800">Guest Mode</div>
-                <div className="text-amber-700 mt-1">Your data won't be saved. 
-                  <Button 
-                    variant="link"
-                    onClick={exitGuestMode}
-                    className="text-amber-700 hover:text-amber-900 ml-1 p-0 h-auto font-normal underline"
-                  >
-                    Sign up to save
-                  </Button>
-                </div>
-              </div>
-            )}
-          </div>
-      </div>
-    );
-  };
+  // Guest mode indicator - removed (guest mode no longer exists)
+  const GuestModeIndicator = () => null;
 
   // Memoize ProjectModal component to prevent recreation on every render
   const ProjectModal = useCallback(() => (
@@ -1341,13 +1293,6 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
       onClose={() => setShowCreateProjectModal(false)}
       onConfirm={async (name) => {
         console.log('[Dashboard] Creating new project:', name)
-        
-        // Block guest users from creating projects
-        if (isGuest) {
-          console.warn('[Dashboard] Guest users cannot create projects')
-          alert('Guest users cannot create projects. Please sign up or sign in to create projects.')
-          return
-        }
         
         try {
           setCreatingProject(true)
@@ -1385,7 +1330,7 @@ export function Dashboard({ initialShowSavedMaps = false, projectName = '', proj
         }
       }}
     />
-  ), [showCreateProjectModal, isGuest])
+  ), [showCreateProjectModal])
 
   type ViewVariant = 'initial' | 'default';
 

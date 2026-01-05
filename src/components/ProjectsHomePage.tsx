@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useAuth } from '@/contexts/AuthContext'
 import { getUserProjects, createProject } from '@/services/projectService'
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -36,20 +35,13 @@ function ProjectCardSkeleton() {
 
 export function ProjectsHomePage() {
   const navigate = useNavigate()
-  const { isGuest } = useAuth()
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
   const [showCreateModal, setShowCreateModal] = useState(false)
 
   useEffect(() => {
-    // Only load projects for authenticated users, not guests
-    if (!isGuest) {
-      loadProjects()
-    } else {
-      // For guest users, just stop loading and show empty state
-      setLoading(false)
-    }
-  }, [isGuest])
+    loadProjects()
+  }, [])
 
   async function loadProjects() {
     try {
@@ -70,11 +62,6 @@ export function ProjectsHomePage() {
   }
 
   async function handleCreateProject(name: string) {
-    if (isGuest) {
-      alert('Guest users cannot create projects. Please sign up or sign in to create projects.')
-      return
-    }
-
     try {
       const project = await createProject(name)
       setShowCreateModal(false)
@@ -104,23 +91,19 @@ export function ProjectsHomePage() {
               </div>
             </div>
             <h3 className="text-2xl font-semibold text-gray-900 mb-3">
-              {isGuest ? 'Welcome, Guest!' : 'No projects yet'}
+              No projects yet
             </h3>
             <p className="text-gray-500 text-lg mb-8 max-w-md mx-auto">
-              {isGuest 
-                ? 'Sign up to create projects and save your research for later' 
-                : 'Create your first project to start researching clinical trials and academic papers'}
+              Create your first project to start researching clinical trials and academic papers
             </p>
-            {!isGuest && (
-              <Button 
-                onClick={() => setShowCreateModal(true)} 
-                size="lg"
-                className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm hover:shadow-md transition-all"
-              >
-                <Plus className="h-5 w-5 mr-2" />
-                Create Your First Project
-              </Button>
-            )}
+            <Button 
+              onClick={() => setShowCreateModal(true)} 
+              size="lg"
+              className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm hover:shadow-md transition-all"
+            >
+              <Plus className="h-5 w-5 mr-2" />
+              Create Your First Project
+            </Button>
           </div>
         </div>
       )}
