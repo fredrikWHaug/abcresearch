@@ -209,16 +209,30 @@ $$;
 
 -- 5b. CHECK_EMAIL_INVITED FUNCTION
 -- Checks if an email is on the invite list (bypasses RLS)
+-- Returns true if there's an invite with matching email (case-insensitive, trimmed)
 CREATE OR REPLACE FUNCTION check_email_invited(p_email TEXT)
 RETURNS BOOLEAN
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 AS $$
+DECLARE
+  v_normalized_email TEXT;
 BEGIN
+  -- Normalize the input email: lowercase and trim whitespace
+  v_normalized_email := LOWER(TRIM(p_email));
+  
+  -- Check if email is valid
+  IF v_normalized_email IS NULL OR v_normalized_email = '' THEN
+    RETURN FALSE;
+  END IF;
+  
+  -- Return true if there's an invite with matching email
+  -- Both sides are normalized: lowercase and trimmed
   RETURN EXISTS (
     SELECT 1 FROM invites 
-    WHERE LOWER(email) = LOWER(TRIM(p_email))
+    WHERE email IS NOT NULL 
+      AND LOWER(TRIM(email)) = v_normalized_email
   );
 END;
 $$;
