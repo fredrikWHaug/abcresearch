@@ -8,13 +8,14 @@ import * as AuthContextModule from '@/contexts/AuthContext'
 /**
  * REGRESSION TEST: Auth Redirect Behavior
  * 
- * This test prevents the bug where users could sign in or enter guest mode
+ * This test prevents the bug where users could sign in
  * but wouldn't be redirected from the auth page.
  * 
  * Critical behaviors to maintain:
- * 1. After successful sign in → redirect to /app/home
- * 2. After entering guest mode → redirect to /app/project/null
- * 3. Already authenticated users visiting /auth → auto-redirect
+ * 1. After successful sign in (authorized) → redirect to /app/home
+ * 2. Authenticated but not authorized → redirect to /unauthorized
+ * 3. Already authenticated+authorized users visiting /auth → auto-redirect
+ * 4. Unauthenticated users → stay on /auth
  */
 
 describe('Auth Redirect - Regression Prevention', () => {
@@ -22,21 +23,21 @@ describe('Auth Redirect - Regression Prevention', () => {
     vi.clearAllMocks()
   })
 
-  it('CRITICAL: authenticated user on /auth must redirect to /app/home', async () => {
-    // Mock an authenticated user
+  it('CRITICAL: authenticated AND authorized user on /auth must redirect to /app/home', async () => {
+    // Mock an authenticated and authorized user
     const mockUser = { id: 'user-123', email: 'test@example.com' } as User
 
     vi.spyOn(AuthContextModule, 'useAuth').mockReturnValue({
       user: mockUser,
       session: {} as Session,
       loading: false,
-      isGuest: false,
+      isAuthorized: true,
+      authorizationChecked: true,
       signUp: vi.fn(),
       signIn: vi.fn(),
       signInWithOAuth: vi.fn(),
       signOut: vi.fn(),
-      enterGuestMode: vi.fn(),
-      exitGuestMode: vi.fn(),
+      checkAuthorization: vi.fn().mockResolvedValue(true),
     })
 
     // Start at /auth
@@ -55,22 +56,24 @@ describe('Auth Redirect - Regression Prevention', () => {
       expect(screen.queryByText(/ABCresearch Portal/i)).not.toBeInTheDocument()
     }, { timeout: 2000 })
 
-    console.log('✅ REGRESSION PREVENTION: Authenticated users redirect from /auth')
+    console.log('✅ REGRESSION PREVENTION: Authenticated+authorized users redirect from /auth')
   })
 
-  it('CRITICAL: guest user on /auth must redirect to Dashboard', async () => {
-    // Mock a guest user
+  it('CRITICAL: authenticated but NOT authorized user must redirect to /unauthorized', async () => {
+    // Mock an authenticated but not authorized user
+    const mockUser = { id: 'user-123', email: 'test@example.com' } as User
+
     vi.spyOn(AuthContextModule, 'useAuth').mockReturnValue({
-      user: null,
-      session: null,
+      user: mockUser,
+      session: {} as Session,
       loading: false,
-      isGuest: true,
+      isAuthorized: false,
+      authorizationChecked: true,
       signUp: vi.fn(),
       signIn: vi.fn(),
       signInWithOAuth: vi.fn(),
       signOut: vi.fn(),
-      enterGuestMode: vi.fn(),
-      exitGuestMode: vi.fn(),
+      checkAuthorization: vi.fn().mockResolvedValue(false),
     })
 
     // Start at /auth
@@ -80,17 +83,16 @@ describe('Auth Redirect - Regression Prevention', () => {
       </MemoryRouter>
     )
 
-    // Should redirect to Dashboard at /app/project/null
+    // Should redirect to unauthorized page
     await waitFor(() => {
-      // Dashboard should be visible (it has specific UI elements)
-      // We're looking for ANY indication we're NOT on the auth page
-      expect(screen.queryByText(/ABCresearch Portal/i)).not.toBeInTheDocument()
+      // Should see the invite-only message
+      expect(screen.queryByText(/Invite Only/i)).toBeInTheDocument()
       
-      // If we're stuck on auth form, this is the regression bug
-      expect(screen.queryByText(/Continue as Guest/i)).not.toBeInTheDocument()
+      // Should NOT see the auth form
+      expect(screen.queryByText(/ABCresearch Portal/i)).not.toBeInTheDocument()
     }, { timeout: 2000 })
 
-    console.log('✅ REGRESSION PREVENTION: Guest users redirect from /auth')
+    console.log('✅ REGRESSION PREVENTION: Unauthorized users redirect to /unauthorized')
   })
 
   it('CRITICAL: unauthenticated user stays on /auth (does NOT redirect)', async () => {
@@ -99,13 +101,13 @@ describe('Auth Redirect - Regression Prevention', () => {
       user: null,
       session: null,
       loading: false,
-      isGuest: false,
+      isAuthorized: null,
+      authorizationChecked: false,
       signUp: vi.fn(),
       signIn: vi.fn(),
       signInWithOAuth: vi.fn(),
       signOut: vi.fn(),
-      enterGuestMode: vi.fn(),
-      exitGuestMode: vi.fn(),
+      checkAuthorization: vi.fn().mockResolvedValue(false),
     })
 
     // Start at /auth
@@ -133,13 +135,13 @@ describe('Auth Redirect - Regression Prevention', () => {
       user: null,
       session: null,
       loading: false,
-      isGuest: false,
+      isAuthorized: null,
+      authorizationChecked: false,
       signUp: vi.fn(),
       signIn: vi.fn(),
       signInWithOAuth: vi.fn(),
       signOut: vi.fn(),
-      enterGuestMode: vi.fn(),
-      exitGuestMode: vi.fn(),
+      checkAuthorization: vi.fn().mockResolvedValue(false),
     })
 
     const { rerender } = render(
@@ -151,19 +153,19 @@ describe('Auth Redirect - Regression Prevention', () => {
     // Verify we're on auth page
     expect(screen.queryByText(/ABCresearch Portal/i)).toBeInTheDocument()
 
-    // Simulate successful sign in (auth state changes)
+    // Simulate successful sign in (auth state changes to authenticated + authorized)
     const mockUser = { id: 'user-123', email: 'test@example.com' } as User
     mockAuthHook.mockReturnValue({
       user: mockUser,
       session: {} as Session,
       loading: false,
-      isGuest: false,
+      isAuthorized: true,
+      authorizationChecked: true,
       signUp: vi.fn(),
       signIn: vi.fn(),
       signInWithOAuth: vi.fn(),
       signOut: vi.fn(),
-      enterGuestMode: vi.fn(),
-      exitGuestMode: vi.fn(),
+      checkAuthorization: vi.fn().mockResolvedValue(true),
     })
 
     // Re-render with new auth state
@@ -182,4 +184,3 @@ describe('Auth Redirect - Regression Prevention', () => {
     console.log('✅ REGRESSION PREVENTION: Auth state changes trigger redirect')
   })
 })
-

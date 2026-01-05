@@ -1,5 +1,5 @@
 /* eslint-disable */
-import React, { createContext, useContext, useEffect, useState } from 'react'
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import type { User, Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 
@@ -7,13 +7,13 @@ interface AuthContextType {
   user: User | null
   session: Session | null
   loading: boolean
-  isGuest: boolean
+  isAuthorized: boolean | null  // null = checking, true = has profile, false = no profile
+  authorizationChecked: boolean
   signUp: (email: string, password: string) => Promise<any>
   signIn: (email: string, password: string) => Promise<any>
   signInWithOAuth: (provider: 'google' | 'github') => Promise<any>
   signOut: () => Promise<void>
-  enterGuestMode: () => void
-  exitGuestMode: () => void
+  checkAuthorization: () => Promise<boolean>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -22,28 +22,68 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
-  const [isGuest, setIsGuest] = useState(false)
+  const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null)
+  const [authorizationChecked, setAuthorizationChecked] = useState(false)
 
-  useEffect(() => {
-    // Check for guest mode in localStorage
-    const guestMode = localStorage.getItem('isGuestMode') === 'true'
-    if (guestMode) {
-      setIsGuest(true)
-      setLoading(false)
-      return
+  // Log user session (fire and forget - doesn't block)
+  const logSession = useCallback(async (eventType: string, metadata: Record<string, any> = {}) => {
+    if (!user) return
+    
+    try {
+      await supabase.from('user_sessions').insert({
+        user_id: user.id,
+        email: user.email,
+        event_type: eventType,
+        user_agent: navigator.userAgent,
+        metadata,
+        timestamp: new Date().toISOString()
+      })
+    } catch (error) {
+      // Don't block on logging errors
+      console.debug('Session logging (non-critical):', error)
+    }
+  }, [user])
+
+  // Check if user is authorized (has a profile) - uses direct Supabase query for speed
+  const checkAuthorization = useCallback(async (): Promise<boolean> => {
+    if (!user) {
+      setIsAuthorized(false)
+      setAuthorizationChecked(true)
+      return false
     }
 
+    try {
+      // Direct Supabase query - much faster than API endpoint
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('user_id', user.id)
+        .single()
+
+      const authorized = !!profile && !error
+      setIsAuthorized(authorized)
+      setAuthorizationChecked(true)
+      
+      // Log the login if authorized
+      if (authorized) {
+        logSession('login')
+      }
+      
+      return authorized
+    } catch (error) {
+      console.error('Authorization check failed:', error)
+      setIsAuthorized(false)
+      setAuthorizationChecked(true)
+      return false
+    }
+  }, [user, logSession])
+
+  useEffect(() => {
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
       setUser(session?.user ?? null)
       setLoading(false)
-      
-      // If there's an existing session, exit guest mode
-      if (session?.user) {
-        setIsGuest(false)
-        localStorage.removeItem('isGuestMode')
-      }
     })
 
     // Listen for auth changes
@@ -87,16 +127,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       setLoading(false)
       
-      // If user successfully authenticates, exit guest mode
-      if (session?.user && _event === 'SIGNED_IN') {
-        console.log('User authenticated, exiting guest mode')
-        setIsGuest(false)
-        localStorage.removeItem('isGuestMode')
+      // Reset authorization when user signs out
+      if (_event === 'SIGNED_OUT') {
+        setIsAuthorized(null)
+        setAuthorizationChecked(false)
+      }
+      
+      // Reset authorization check when new user signs in
+      if (_event === 'SIGNED_IN') {
+        setIsAuthorized(null)
+        setAuthorizationChecked(false)
       }
     })
 
     return () => subscription.unsubscribe()
   }, [])
+
+  // Check authorization when session changes and we have a user
+  useEffect(() => {
+    if (session && user && !authorizationChecked) {
+      // Small delay to ensure session is fully established
+      const timer = setTimeout(() => {
+        checkAuthorization()
+      }, 100)
+      return () => clearTimeout(timer)
+    }
+  }, [session, user, authorizationChecked, checkAuthorization])
 
   const signUp = async (email: string, password: string) => {
     const { data, error } = await supabase.auth.signUp({
@@ -119,11 +175,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signInWithOAuth = async (provider: 'google' | 'github') => {
+    // Check if we're coming from an invite flow
+    const inviteToken = localStorage.getItem('invite_token')
+    
     // Use localhost for development, window.location.origin for production
     const isDevelopment = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-    const redirectUrl = isDevelopment
+    const baseUrl = isDevelopment
       ? `http://localhost:${window.location.port || '5173'}`
       : window.location.origin
+
+    // If there's an invite token, redirect to the complete page
+    const redirectUrl = inviteToken 
+      ? `${baseUrl}/invite/complete`
+      : baseUrl
 
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider,
@@ -135,6 +199,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signOut = async () => {
+    // Log the logout before clearing state
+    if (user) {
+      logSession('logout')
+    }
+    
     try {
       await supabase.auth.signOut()
     } catch (error) {
@@ -143,31 +212,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Force local sign out regardless of API response
     setSession(null)
     setUser(null)
-    setIsGuest(false)
-    localStorage.removeItem('isGuestMode')
-  }
-
-  const enterGuestMode = () => {
-    setIsGuest(true)
-    localStorage.setItem('isGuestMode', 'true')
-  }
-
-  const exitGuestMode = () => {
-    setIsGuest(false)
-    localStorage.removeItem('isGuestMode')
+    setIsAuthorized(null)
+    setAuthorizationChecked(false)
+    // Clean up any invite tokens
+    localStorage.removeItem('invite_token')
   }
 
   const value = {
     user,
     session,
     loading,
-    isGuest,
+    isAuthorized,
+    authorizationChecked,
     signUp,
     signIn,
     signInWithOAuth,
     signOut,
-    enterGuestMode,
-    exitGuestMode,
+    checkAuthorization,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

@@ -1,19 +1,26 @@
- 
 import React, { useState, useEffect } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useAuth } from '@/contexts/AuthContext'
+import { supabase } from '@/lib/supabase'
 
 export function AuthForm() {
-  const [isLogin, setIsLogin] = useState(true)
+  const [searchParams] = useSearchParams()
+  
+  // Check if coming from invite flow - default to sign up mode for invites
+  const fromInvite = searchParams.get('from') === 'invite'
+  
+  const [isLogin, setIsLogin] = useState(!fromInvite) // Sign up mode if from invite
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
 
-  const { signIn, signUp, signInWithOAuth, enterGuestMode, user } = useAuth()
+  const { signIn, signUp, signInWithOAuth, user } = useAuth()
+  const navigate = useNavigate()
 
   // Redirect when user is authenticated
   useEffect(() => {
@@ -30,12 +37,70 @@ export function AuthForm() {
     }
   }, [user])
 
+  // Check if email has a valid invite (for signup only)
+  const checkInviteExists = async (emailToCheck: string): Promise<boolean> => {
+    const normalizedEmail = emailToCheck.trim().toLowerCase()
+    
+    // Check if email already has a profile (existing authorized user)
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('email', normalizedEmail)
+      .single()
+    
+    if (profile) {
+      return true // Already authorized
+    }
+    
+    // Check if there's a valid, unused invite for this email OR a general invite token stored
+    const inviteToken = localStorage.getItem('invite_token')
+    
+    if (inviteToken) {
+      // Verify the token is valid
+      const { data: invite } = await supabase
+        .from('invites')
+        .select('id, email, used_at, expires_at')
+        .eq('token', inviteToken)
+        .is('used_at', null)
+        .gt('expires_at', new Date().toISOString())
+        .single()
+      
+      if (invite) {
+        // Token is valid - check if it's email-restricted
+        if (!invite.email || invite.email.toLowerCase() === normalizedEmail) {
+          return true
+        }
+      }
+    }
+    
+    // Check if there's an email-specific invite
+    const { data: emailInvite } = await supabase
+      .from('invites')
+      .select('id')
+      .ilike('email', normalizedEmail)
+      .is('used_at', null)
+      .gt('expires_at', new Date().toISOString())
+      .single()
+    
+    return !!emailInvite
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setMessage('')
 
     try {
+      // For signup, check if email has a valid invite first
+      if (!isLogin) {
+        const hasInvite = await checkInviteExists(email)
+        if (!hasInvite) {
+          setMessage('This app is invite-only. This email does not have a valid invite. Please use a different email or contact the administrator.')
+          setLoading(false)
+          return
+        }
+      }
+
       const { data, error } = isLogin 
         ? await signIn(email, password)
         : await signUp(email, password)
@@ -99,15 +164,22 @@ export function AuthForm() {
     }
   }
 
-  const handleGuestMode = () => {
-    enterGuestMode()
-  }
-
   const handleOAuthLogin = async (provider: 'google' | 'github') => {
     setLoading(true)
     setMessage('')
 
     try {
+      // For sign up mode (not sign in), check if user has an invite token
+      // We can't check email-specific invites for OAuth since we don't know the email yet
+      if (!isLogin) {
+        const inviteToken = localStorage.getItem('invite_token')
+        if (!inviteToken) {
+          setMessage('This app is invite-only. Please use an invite link to sign up, or sign in if you already have an account.')
+          setLoading(false)
+          return
+        }
+      }
+
       const { error } = await signInWithOAuth(provider)
 
       if (error) {
@@ -129,6 +201,15 @@ export function AuthForm() {
           <CardTitle className="text-2xl font-bold">
             {isLogin ? 'ABCresearch Portal' : 'Create Account'}
           </CardTitle>
+          {fromInvite && (
+            <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded-md">
+              <p className="text-sm text-green-800">
+                {isLogin 
+                  ? 'Sign in with your email to activate your invite.'
+                  : 'Create an account to activate your invite. You may need to verify your email.'}
+              </p>
+            </div>
+          )}
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -160,7 +241,9 @@ export function AuthForm() {
                 message.includes('Invalid') || 
                 message.includes('failed') ||
                 message.includes('already exists') ||
-                message.includes('unexpected error')
+                message.includes('unexpected error') ||
+                message.includes('invite-only') ||
+                message.includes('does not have')
                   ? 'text-red-700 bg-red-50 border border-red-200' 
                   : 'text-green-700 bg-green-50 border border-green-200'
               }`}>
@@ -233,22 +316,6 @@ export function AuthForm() {
             </div>
           </div>
 
-          {/* Guest Mode Section */}
-          <div className="mt-6 pt-6 border-t border-border">
-            <div className="text-center space-y-3">
-              <div className="text-sm text-muted-foreground">
-                Want to try the app without creating an account?
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleGuestMode}
-                className="w-full"
-              >
-                Continue as Guest
-              </Button>
-            </div>
-          </div>
         </CardContent>
       </Card>
     </div>
