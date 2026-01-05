@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -8,12 +8,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
 
 export function AuthForm() {
-  const [searchParams] = useSearchParams()
-  
-  // Check if coming from invite flow - default to sign up mode for invites
-  const fromInvite = searchParams.get('from') === 'invite'
-  
-  const [isLogin, setIsLogin] = useState(!fromInvite) // Sign up mode if from invite
+  const [isLogin, setIsLogin] = useState(true) // Default to sign in
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -25,64 +20,25 @@ export function AuthForm() {
   // Redirect when user is authenticated
   useEffect(() => {
     if (user) {
-      console.log('User authenticated in AuthForm, clearing form')
-      // Clear form and message when user is authenticated
       setEmail('')
       setPassword('')
       setMessage('')
-      // Force a small delay to ensure state updates propagate
-      setTimeout(() => {
-        console.log('AuthForm: User state updated, should redirect to Dashboard')
-      }, 100)
     }
   }, [user])
 
-  // Check if email has a valid invite (for signup only)
-  const checkInviteExists = async (emailToCheck: string): Promise<boolean> => {
-    const normalizedEmail = emailToCheck.trim().toLowerCase()
+  // Check if email is in the invites table (for signup only)
+  // Uses RPC function to bypass RLS on invites table
+  const checkEmailInvited = async (emailToCheck: string): Promise<boolean> => {
+    const { data, error } = await supabase.rpc('check_email_invited', {
+      p_email: emailToCheck.trim()
+    })
     
-    // Check if email already has a profile (existing authorized user)
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('email', normalizedEmail)
-      .single()
-    
-    if (profile) {
-      return true // Already authorized
+    if (error) {
+      console.error('Error checking invite:', error)
+      return false
     }
     
-    // Check if there's a valid, unused invite for this email OR a general invite token stored
-    const inviteToken = localStorage.getItem('invite_token')
-    
-    if (inviteToken) {
-      // Verify the token is valid
-      const { data: invite } = await supabase
-        .from('invites')
-        .select('id, email, used_at, expires_at')
-        .eq('token', inviteToken)
-        .is('used_at', null)
-        .gt('expires_at', new Date().toISOString())
-        .single()
-      
-      if (invite) {
-        // Token is valid - check if it's email-restricted
-        if (!invite.email || invite.email.toLowerCase() === normalizedEmail) {
-          return true
-        }
-      }
-    }
-    
-    // Check if there's an email-specific invite
-    const { data: emailInvite } = await supabase
-      .from('invites')
-      .select('id')
-      .ilike('email', normalizedEmail)
-      .is('used_at', null)
-      .gt('expires_at', new Date().toISOString())
-      .single()
-    
-    return !!emailInvite
+    return data === true
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -91,11 +47,11 @@ export function AuthForm() {
     setMessage('')
 
     try {
-      // For signup, check if email has a valid invite first
+      // For signup, check if email is in invites table
       if (!isLogin) {
-        const hasInvite = await checkInviteExists(email)
-        if (!hasInvite) {
-          setMessage('This app is invite-only. This email does not have a valid invite. Please use a different email or contact the administrator.')
+        const isInvited = await checkEmailInvited(email)
+        if (!isInvited) {
+          setMessage('This app is invite-only. Your email is not on the invite list. Please contact the administrator.')
           setLoading(false)
           return
         }
@@ -105,19 +61,7 @@ export function AuthForm() {
         ? await signIn(email, password)
         : await signUp(email, password)
 
-      // Debug logging
-      console.log('Auth response:', { data, error, isLogin })
-      if (data?.user) {
-        console.log('User data:', {
-          id: data.user.id,
-          email: data.user.email,
-          created_at: data.user.created_at,
-          email_confirmed_at: data.user.email_confirmed_at
-        })
-      }
-
       if (error) {
-        // Handle specific error cases
         if (error.message.includes('User already registered') || 
             error.message.includes('already exists') ||
             error.message.includes('duplicate key value')) {
@@ -134,22 +78,17 @@ export function AuthForm() {
       } else if (!isLogin) {
         // For signup success
         if (data.user) {
-          // Check if email confirmation is required
           if (!data.session && !data.user.email_confirmed_at) {
-            // This is normal - user created but needs email confirmation
             setMessage('Account created! Check your email for the confirmation link.')
           } else if (data.session) {
-            // User created and automatically logged in (when email confirmation is disabled)
             setMessage('Account created successfully!')
           } else {
-            // User exists but still show success message since signup didn't error
             setMessage('Account created! Please check your email to confirm.')
           }
         } else {
           setMessage('Account creation failed. Please try again.')
         }
       } else if (isLogin) {
-        // Successful login - only show message if we have a session
         if (data?.session) {
           setMessage('Welcome back!')
         } else {
@@ -169,29 +108,29 @@ export function AuthForm() {
     setMessage('')
 
     try {
-      // For sign up mode (not sign in), check if user has an invite token
-      // We can't check email-specific invites for OAuth since we don't know the email yet
-      if (!isLogin) {
-        const inviteToken = localStorage.getItem('invite_token')
-        if (!inviteToken) {
-          setMessage('This app is invite-only. Please use an invite link to sign up, or sign in if you already have an account.')
-          setLoading(false)
-          return
-        }
-      }
-
       const { error } = await signInWithOAuth(provider)
 
       if (error) {
         setMessage(`Failed to sign in with ${provider}. Please try again.`)
       }
       // If successful, user will be redirected to OAuth provider
+      // The invite check for OAuth happens after authentication via the authorization flow
     } catch (error) {
       console.error('OAuth error:', error)
       setMessage('An unexpected error occurred. Please try again.')
     } finally {
       setLoading(false)
     }
+  }
+
+  const isErrorMessage = (msg: string) => {
+    return msg.includes('error') || 
+           msg.includes('Invalid') || 
+           msg.includes('failed') ||
+           msg.includes('already exists') ||
+           msg.includes('unexpected') ||
+           msg.includes('invite-only') ||
+           msg.includes('not on the invite')
   }
 
   return (
@@ -201,15 +140,6 @@ export function AuthForm() {
           <CardTitle className="text-2xl font-bold">
             {isLogin ? 'ABCresearch Portal' : 'Create Account'}
           </CardTitle>
-          {fromInvite && (
-            <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded-md">
-              <p className="text-sm text-green-800">
-                {isLogin 
-                  ? 'Sign in with your email to activate your invite.'
-                  : 'Create an account to activate your invite. You may need to verify your email.'}
-              </p>
-            </div>
-          )}
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -237,13 +167,7 @@ export function AuthForm() {
             </div>
             {message && (
               <div className={`text-sm p-3 rounded-md ${
-                message.includes('error') || 
-                message.includes('Invalid') || 
-                message.includes('failed') ||
-                message.includes('already exists') ||
-                message.includes('unexpected error') ||
-                message.includes('invite-only') ||
-                message.includes('does not have')
+                isErrorMessage(message)
                   ? 'text-red-700 bg-red-50 border border-red-200' 
                   : 'text-green-700 bg-green-50 border border-green-200'
               }`}>

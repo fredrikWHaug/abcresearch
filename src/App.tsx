@@ -5,8 +5,6 @@ import { AuthForm } from '@/components/auth/AuthForm'
 import { Dashboard } from '@/components/Dashboard'
 import { AppShell } from '@/components/AppShell'
 import { ProjectsHomePage } from '@/components/ProjectsHomePage'
-import { InviteRedeemPage } from '@/components/invite/InviteRedeemPage'
-import { InviteCompletePage } from '@/components/invite/InviteCompletePage'
 import '@/utils/runMigration' // Makes window.runMigration() available in console
 
 // Protected route wrapper for authenticated AND authorized users
@@ -86,8 +84,8 @@ function UnauthorizedPage() {
         </div>
         <h1 className="text-2xl font-bold mb-2">Invite Only</h1>
         <p className="text-muted-foreground mb-6">
-          ABCresearch is currently invite-only. If you have an invite link, please use it to sign in.
-          Otherwise, you can request access below.
+          ABCresearch is currently invite-only. Your email is not on the invite list.
+          Please contact the administrator for access.
         </p>
         {user && (
           <p className="text-sm text-muted-foreground mb-6">
@@ -123,12 +121,6 @@ function RootRedirect() {
   // Not authenticated - show auth form
   if (!user) {
     return <Navigate to="/auth" replace />
-  }
-
-  // Check if there's a pending invite token - redirect to complete it
-  const inviteToken = localStorage.getItem('invite_token')
-  if (inviteToken) {
-    return <Navigate to="/invite/complete" replace />
   }
 
   // Authenticated but still checking authorization
@@ -178,14 +170,8 @@ function AuthRoute() {
     )
   }
 
-  // If authenticated, check for invite token first
+  // If authenticated, check authorization
   if (user) {
-    // Check if there's a pending invite token - redirect to complete it
-    const inviteToken = localStorage.getItem('invite_token')
-    if (inviteToken) {
-      return <Navigate to="/invite/complete" replace />
-    }
-    
     // Still checking authorization
     if (!authorizationChecked || isAuthorized === null) {
       return (
@@ -222,11 +208,6 @@ function AppContent() {
 
       {/* Unauthorized page - for authenticated users without profile */}
       <Route path="/unauthorized" element={<UnauthorizedPage />} />
-
-      {/* Invite flow routes */}
-      <Route path="/invite/redeem" element={<InviteRedeemPage />} />
-      <Route path="/invite/complete" element={<InviteCompletePage />} />
-
 
       {/* Protected app routes */}
       <Route
