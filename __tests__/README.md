@@ -50,12 +50,12 @@ describe('projectService', () => {
 
 **Example**:
 ```typescript
-// __tests__/integration/auth/guestMode.test.ts
+// __tests__/integration/routing/authRedirect.test.tsx
 import { render } from '@testing-library/react'
-import { App } from '@/App'
+import { AppContent } from '@/App'
 
-describe('Guest Mode', () => {
-  it('should allow guests to search without creating projects', async () => {
+describe('Auth Redirect', () => {
+  it('should redirect authenticated users to home', async () => {
     // Test full auth flow with real components
   })
 })
@@ -176,7 +176,7 @@ describe('ComponentName or ServiceName', () => {
 
 ### Run single test file
 ```bash
-npm test -- guestMode.test.ts
+npm test -- authRedirect.test.tsx
 ```
 
 ### Run with debugger

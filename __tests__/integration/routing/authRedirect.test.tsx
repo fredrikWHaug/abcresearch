@@ -38,6 +38,8 @@ describe('Auth Redirect - Regression Prevention', () => {
       signInWithOAuth: vi.fn(),
       signOut: vi.fn(),
       checkAuthorization: vi.fn().mockResolvedValue(true),
+      logPageVisit: vi.fn(),
+      logSession: vi.fn(),
     })
 
     // Start at /auth
@@ -74,6 +76,8 @@ describe('Auth Redirect - Regression Prevention', () => {
       signInWithOAuth: vi.fn(),
       signOut: vi.fn(),
       checkAuthorization: vi.fn().mockResolvedValue(false),
+      logPageVisit: vi.fn(),
+      logSession: vi.fn(),
     })
 
     // Start at /auth
@@ -108,6 +112,8 @@ describe('Auth Redirect - Regression Prevention', () => {
       signInWithOAuth: vi.fn(),
       signOut: vi.fn(),
       checkAuthorization: vi.fn().mockResolvedValue(false),
+      logPageVisit: vi.fn(),
+      logSession: vi.fn(),
     })
 
     // Start at /auth
@@ -142,6 +148,8 @@ describe('Auth Redirect - Regression Prevention', () => {
       signInWithOAuth: vi.fn(),
       signOut: vi.fn(),
       checkAuthorization: vi.fn().mockResolvedValue(false),
+      logPageVisit: vi.fn(),
+      logSession: vi.fn(),
     })
 
     const { rerender } = render(
@@ -166,6 +174,8 @@ describe('Auth Redirect - Regression Prevention', () => {
       signInWithOAuth: vi.fn(),
       signOut: vi.fn(),
       checkAuthorization: vi.fn().mockResolvedValue(true),
+      logPageVisit: vi.fn(),
+      logSession: vi.fn(),
     })
 
     // Re-render with new auth state
