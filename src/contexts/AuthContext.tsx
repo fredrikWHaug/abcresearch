@@ -14,6 +14,8 @@ interface AuthContextType {
   signInWithOAuth: (provider: 'google' | 'github') => Promise<any>
   signOut: () => Promise<void>
   checkAuthorization: () => Promise<boolean>
+  logPageVisit: (page: string, metadata?: Record<string, any>) => Promise<void>
+  logSession: (eventType: string, metadata?: Record<string, any>) => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -41,6 +43,58 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       // Don't block on logging errors
       console.debug('Session logging (non-critical):', error)
+    }
+  }, [user])
+
+  // Log page visit (fire and forget - doesn't block)
+  const logPageVisit = useCallback(async (page: string, metadata: Record<string, any> = {}) => {
+    if (!user) return
+    
+    // Determine event type from page path
+    let eventType: string
+    
+    if (page === '/' || page === '/app/home') {
+      eventType = 'page_home'
+    } else if (page.startsWith('/app/project/') && page.includes('/research')) {
+      eventType = 'page_research'
+    } else if (page.startsWith('/app/project/') && page.includes('/pipeline')) {
+      eventType = 'page_pipeline'
+    } else if (page.startsWith('/app/project/') && page.includes('/marketmap')) {
+      eventType = 'page_marketmap'
+    } else if (page.startsWith('/app/project/') && page.includes('/extraction')) {
+      eventType = 'page_extraction'
+    } else if (page.startsWith('/app/project/') && page.includes('/feed')) {
+      eventType = 'page_feed'
+    } else if (page === '/auth') {
+      eventType = 'page_auth'
+    } else if (page === '/unauthorized') {
+      eventType = 'page_unauthorized'
+    } else {
+      // Fallback for unknown pages
+      eventType = 'page_visit'
+    }
+
+    // Extract project ID from path if present
+    const projectIdMatch = page.match(/\/project\/(\d+)/)
+    if (projectIdMatch) {
+      metadata.project_id = parseInt(projectIdMatch[1], 10)
+    }
+
+    try {
+      await supabase.from('user_sessions').insert({
+        user_id: user.id,
+        email: user.email,
+        event_type: eventType,
+        user_agent: navigator.userAgent,
+        metadata: {
+          ...metadata,
+          page_path: page,
+        },
+        timestamp: new Date().toISOString()
+      })
+    } catch (error) {
+      // Don't block on logging errors
+      console.debug('Page visit logging (non-critical):', error)
     }
   }, [user])
 
@@ -89,12 +143,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (isInvited === true) {
-        // Email is invited - create profile for them
+        // Email is invited - mark invite as used first to get invite_id
+        const { data: inviteResult, error: inviteError } = await supabase.rpc('mark_invite_used_by_email', {
+          p_email: userEmail,
+          p_user_id: user.id
+        })
+
+        if (inviteError) {
+          console.error('Error marking invite as used:', inviteError)
+          // Continue anyway - profile creation is more important
+        }
+
+        const inviteId = inviteResult?.invite_id || null
+
+        // Create profile for them (link to invite if available)
         const { error: createError } = await supabase
           .from('profiles')
           .insert({
             user_id: user.id,
             email: userEmail,
+            invite_id: inviteId,
           })
 
         if (!createError) {
@@ -259,6 +327,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     signInWithOAuth,
     signOut,
     checkAuthorization,
+    logPageVisit,
+    logSession,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
