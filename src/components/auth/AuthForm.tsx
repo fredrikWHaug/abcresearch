@@ -49,6 +49,23 @@ export function AuthForm() {
       if (!isLogin) {
         const isInvited = await checkEmailInvited(email)
         if (!isInvited) {
+          // Log invite check failure (fire and forget - doesn't block)
+          try {
+            await supabase.from('user_sessions').insert({
+              email: email.trim().toLowerCase(),
+              event_type: 'invite_check_failed',
+              user_agent: navigator.userAgent,
+              metadata: {
+                attempted_email: email.trim().toLowerCase(),
+                action: 'signup_attempt',
+              },
+              timestamp: new Date().toISOString()
+            })
+          } catch (error) {
+            // Don't block on logging errors
+            console.debug('Invite check failure logging (non-critical):', error)
+          }
+          
           setMessage('This app is invite-only. Your email is not on the invite list. Please contact the administrator.')
           setLoading(false)
           return
