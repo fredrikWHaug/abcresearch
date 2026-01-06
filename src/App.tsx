@@ -5,6 +5,7 @@ import { AuthForm } from '@/components/auth/AuthForm'
 import { Dashboard } from '@/components/Dashboard'
 import { AppShell } from '@/components/AppShell'
 import { ProjectsHomePage } from '@/components/ProjectsHomePage'
+import { usePageTracking } from '@/hooks/usePageTracking'
 import '@/utils/runMigration' // Makes window.runMigration() available in console
 
 // Protected route wrapper for authenticated AND authorized users
@@ -51,7 +52,17 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
 // Unauthorized page - shown when user is authenticated but doesn't have a profile
 function UnauthorizedPage() {
-  const { user, signOut, isAuthorized, loading, authorizationChecked } = useAuth()
+  const { user, signOut, isAuthorized, loading, authorizationChecked, logSession } = useAuth()
+
+  // Log invite check failure when page is shown (only once per mount)
+  React.useEffect(() => {
+    if (user && authorizationChecked && !isAuthorized) {
+      logSession('invite_check_failed', {
+        user_email: user.email,
+        reason: 'authenticated_but_no_profile',
+      })
+    }
+  }, [user, authorizationChecked, isAuthorized, logSession])
 
   // If not authenticated, redirect to auth
   if (!loading && !user) {
@@ -197,9 +208,16 @@ function AuthRoute() {
   return <AuthForm />
 }
 
+// Page tracking wrapper component
+function PageTrackingWrapper({ children }: { children: React.ReactNode }) {
+  usePageTracking()
+  return <>{children}</>
+}
+
 function AppContent() {
   return (
-    <Routes>
+    <PageTrackingWrapper>
+      <Routes>
       {/* Root - redirect based on auth status */}
       <Route path="/" element={<RootRedirect />} />
 
@@ -239,6 +257,7 @@ function AppContent() {
       {/* Catch-all redirect */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </PageTrackingWrapper>
   )
 }
 
