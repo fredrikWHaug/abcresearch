@@ -143,35 +143,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (isInvited === true) {
-        // Email is invited - mark invite as used first to get invite_id
+        // Email is invited - try to mark invite as used first to get invite_id
+        let inviteId: string | null = null
+        
         const { data: inviteResult, error: inviteError } = await supabase.rpc('mark_invite_used_by_email', {
           p_email: userEmail,
           p_user_id: user.id
         })
 
-        if (inviteError) {
-          console.error('Error marking invite as used:', inviteError)
-          // Continue anyway - profile creation is more important
+        if (!inviteError && inviteResult?.success) {
+          // Successfully marked invite as used (or found already-used invite)
+          inviteId = inviteResult.invite_id || null
+        } else {
+          // Invite might already be used or there was an error
+          // We'll still try to create profile without invite_id
+          console.warn('Could not get invite_id, will create profile without it:', inviteError || inviteResult?.error)
         }
 
-        const inviteId = inviteResult?.invite_id || null
+        // Create profile using RPC function (bypasses RLS)
+        const { data: profileResult, error: createError } = await supabase.rpc('create_profile_for_invited_user', {
+          p_user_id: user.id,
+          p_email: userEmail,
+          p_invite_id: inviteId,
+        })
 
-        // Create profile for them (link to invite if available)
-        const { error: createError } = await supabase
-          .from('profiles')
-          .insert({
-            user_id: user.id,
-            email: userEmail,
-            invite_id: inviteId,
-          })
-
-        if (!createError) {
+        if (!createError && profileResult?.success) {
           setIsAuthorized(true)
           setAuthorizationChecked(true)
           logSession('signup')
           return true
+        } else if (profileResult?.already_exists) {
+          // Profile already exists - user is authorized
+          setIsAuthorized(true)
+          setAuthorizationChecked(true)
+          logSession('login')
+          return true
         } else {
-          console.error('Failed to create profile:', createError)
+          console.error('Failed to create profile:', createError || profileResult?.error)
         }
       }
 
@@ -213,37 +221,86 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return
       }
       
-      // For SIGNED_IN and SIGNED_OUT events, update state
-      setSession((prevSession) => {
-        const sessionChanged = prevSession?.access_token !== session?.access_token
-        if (sessionChanged || !prevSession) {
-          console.log('Session updated')
-          return session
+      // For SIGNED_IN and SIGNED_OUT events, always update state
+      // This ensures email verification redirects properly trigger authorization checks
+      if (_event === 'SIGNED_IN' || _event === 'SIGNED_OUT') {
+        console.log('Auth event:', _event, 'Session:', !!session, 'User:', !!session?.user)
+        // Always update session and user on SIGNED_IN/SIGNED_OUT to ensure state is fresh
+        setSession(session)
+        const newUser = session?.user ?? null
+        setUser(newUser)
+        setLoading(false)
+        
+        // Reset authorization check when user signs in (including email verification)
+        if (_event === 'SIGNED_IN' && newUser && session) {
+          setIsAuthorized(null)
+          setAuthorizationChecked(false)
+          
+          // Log OAuth login if user signed in via OAuth provider
+          // Check app_metadata.provider or app_metadata.providers to detect OAuth
+          const provider = newUser.app_metadata?.provider
+          const providers = newUser.app_metadata?.providers || []
+          
+          // Determine if this is an OAuth login (not email/password)
+          const isOAuth = (provider && provider !== 'email') || 
+                         (providers.length > 0 && providers.some((p: string) => p !== 'email'))
+          
+          if (isOAuth) {
+            // Determine which OAuth provider (Google or GitHub)
+            const oauthProvider = (provider === 'google' || providers.includes('google'))
+              ? 'oauth_google' 
+              : (provider === 'github' || providers.includes('github'))
+              ? 'oauth_github'
+              : null
+            
+            if (oauthProvider) {
+              // Log OAuth login directly (fire and forget - doesn't block)
+              // We use the session's user directly since logSession depends on user state
+              supabase.from('user_sessions').insert({
+                user_id: newUser.id,
+                email: newUser.email,
+                event_type: oauthProvider,
+                user_agent: navigator.userAgent,
+                metadata: {
+                  provider: provider || providers[0],
+                  auth_method: 'oauth'
+                },
+                timestamp: new Date().toISOString()
+              }).then(({ error }) => {
+                if (error) {
+                  console.debug('OAuth login logging (non-critical):', error)
+                }
+              })
+            }
+          }
         }
-        console.log('Session unchanged, skipping update')
-        return prevSession
-      })
-      
-      setUser((prevUser) => {
-        const userChanged = prevUser?.id !== session?.user?.id
-        if (userChanged || !prevUser) {
-          return session?.user ?? null
+        
+        // Reset authorization when user signs out
+        if (_event === 'SIGNED_OUT') {
+          setIsAuthorized(null)
+          setAuthorizationChecked(false)
         }
-        return prevUser
-      })
-      
-      setLoading(false)
-      
-      // Reset authorization when user signs out
-      if (_event === 'SIGNED_OUT') {
-        setIsAuthorized(null)
-        setAuthorizationChecked(false)
-      }
-      
-      // Reset authorization check when new user signs in
-      if (_event === 'SIGNED_IN') {
-        setIsAuthorized(null)
-        setAuthorizationChecked(false)
+      } else {
+        // For other events (TOKEN_REFRESHED, etc.), use conditional updates
+        setSession((prevSession) => {
+          const sessionChanged = prevSession?.access_token !== session?.access_token
+          if (sessionChanged || !prevSession) {
+            console.log('Session updated')
+            return session
+          }
+          console.log('Session unchanged, skipping update')
+          return prevSession
+        })
+        
+        setUser((prevUser) => {
+          const userChanged = prevUser?.id !== session?.user?.id
+          if (userChanged || !prevUser) {
+            return session?.user ?? null
+          }
+          return prevUser
+        })
+        
+        setLoading(false)
       }
     })
 

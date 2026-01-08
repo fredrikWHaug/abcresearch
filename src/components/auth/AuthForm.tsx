@@ -27,13 +27,21 @@ export function AuthForm() {
   // Check if email is in the invites table (for signup only)
   // Uses RPC function to bypass RLS on invites table
   const checkEmailInvited = async (emailToCheck: string): Promise<boolean> => {
+    // Normalize email the same way the database function does
+    const normalizedEmail = emailToCheck.trim().toLowerCase()
+    
     const { data, error } = await supabase.rpc('check_email_invited', {
-      p_email: emailToCheck.trim()
+      p_email: normalizedEmail
     })
     
     if (error) {
       console.error('Error checking invite:', error)
+      console.error('Email checked:', normalizedEmail)
       return false
+    }
+    
+    if (data !== true) {
+      console.warn('Email not found in invite list:', normalizedEmail)
     }
     
     return data === true
