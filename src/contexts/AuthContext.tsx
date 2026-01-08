@@ -221,37 +221,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return
       }
       
-      // For SIGNED_IN and SIGNED_OUT events, update state
-      setSession((prevSession) => {
-        const sessionChanged = prevSession?.access_token !== session?.access_token
-        if (sessionChanged || !prevSession) {
-          console.log('Session updated')
-          return session
+      // For SIGNED_IN and SIGNED_OUT events, always update state
+      // This ensures email verification redirects properly trigger authorization checks
+      if (_event === 'SIGNED_IN' || _event === 'SIGNED_OUT') {
+        console.log('Auth event:', _event, 'Session:', !!session, 'User:', !!session?.user)
+        // Always update session and user on SIGNED_IN/SIGNED_OUT to ensure state is fresh
+        setSession(session)
+        setUser(session?.user ?? null)
+        setLoading(false)
+        
+        // Reset authorization check when user signs in (including email verification)
+        if (_event === 'SIGNED_IN') {
+          setIsAuthorized(null)
+          setAuthorizationChecked(false)
         }
-        console.log('Session unchanged, skipping update')
-        return prevSession
-      })
-      
-      setUser((prevUser) => {
-        const userChanged = prevUser?.id !== session?.user?.id
-        if (userChanged || !prevUser) {
-          return session?.user ?? null
+        
+        // Reset authorization when user signs out
+        if (_event === 'SIGNED_OUT') {
+          setIsAuthorized(null)
+          setAuthorizationChecked(false)
         }
-        return prevUser
-      })
-      
-      setLoading(false)
-      
-      // Reset authorization when user signs out
-      if (_event === 'SIGNED_OUT') {
-        setIsAuthorized(null)
-        setAuthorizationChecked(false)
-      }
-      
-      // Reset authorization check when new user signs in
-      if (_event === 'SIGNED_IN') {
-        setIsAuthorized(null)
-        setAuthorizationChecked(false)
+      } else {
+        // For other events (TOKEN_REFRESHED, etc.), use conditional updates
+        setSession((prevSession) => {
+          const sessionChanged = prevSession?.access_token !== session?.access_token
+          if (sessionChanged || !prevSession) {
+            console.log('Session updated')
+            return session
+          }
+          console.log('Session unchanged, skipping update')
+          return prevSession
+        })
+        
+        setUser((prevUser) => {
+          const userChanged = prevUser?.id !== session?.user?.id
+          if (userChanged || !prevUser) {
+            return session?.user ?? null
+          }
+          return prevUser
+        })
+        
+        setLoading(false)
       }
     })
 
