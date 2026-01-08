@@ -143,35 +143,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (isInvited === true) {
-        // Email is invited - mark invite as used first to get invite_id
+        // Email is invited - try to mark invite as used first to get invite_id
+        let inviteId: string | null = null
+        
         const { data: inviteResult, error: inviteError } = await supabase.rpc('mark_invite_used_by_email', {
           p_email: userEmail,
           p_user_id: user.id
         })
 
-        if (inviteError) {
-          console.error('Error marking invite as used:', inviteError)
-          // Continue anyway - profile creation is more important
+        if (!inviteError && inviteResult?.success) {
+          // Successfully marked invite as used (or found already-used invite)
+          inviteId = inviteResult.invite_id || null
+        } else {
+          // Invite might already be used or there was an error
+          // We'll still try to create profile without invite_id
+          console.warn('Could not get invite_id, will create profile without it:', inviteError || inviteResult?.error)
         }
 
-        const inviteId = inviteResult?.invite_id || null
+        // Create profile using RPC function (bypasses RLS)
+        const { data: profileResult, error: createError } = await supabase.rpc('create_profile_for_invited_user', {
+          p_user_id: user.id,
+          p_email: userEmail,
+          p_invite_id: inviteId,
+        })
 
-        // Create profile for them (link to invite if available)
-        const { error: createError } = await supabase
-          .from('profiles')
-          .insert({
-            user_id: user.id,
-            email: userEmail,
-            invite_id: inviteId,
-          })
-
-        if (!createError) {
+        if (!createError && profileResult?.success) {
           setIsAuthorized(true)
           setAuthorizationChecked(true)
           logSession('signup')
           return true
+        } else if (profileResult?.already_exists) {
+          // Profile already exists - user is authorized
+          setIsAuthorized(true)
+          setAuthorizationChecked(true)
+          logSession('login')
+          return true
         } else {
-          console.error('Failed to create profile:', createError)
+          console.error('Failed to create profile:', createError || profileResult?.error)
         }
       }
 

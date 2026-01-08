@@ -35,10 +35,31 @@ BEGIN
   
   -- Check if invite exists
   IF NOT FOUND THEN
-    RETURN json_build_object(
-      'success', false,
-      'error', 'No unused invite found for this email'
-    );
+    -- Try to find an already-used invite for this email (in case it was used before)
+    -- This allows profile creation even if invite was already marked as used
+    SELECT * INTO v_invite
+    FROM invites
+    WHERE email IS NOT NULL
+      AND LOWER(TRIM(email)) = v_normalized_email
+      AND (used_by = p_user_id OR used_at IS NOT NULL)
+    ORDER BY created_at ASC
+    LIMIT 1;
+    
+    IF FOUND THEN
+      -- Invite exists but was already used - return it anyway for profile linking
+      RETURN json_build_object(
+        'success', true,
+        'message', 'Invite already used, but found for profile linking',
+        'invite_id', v_invite.id,
+        'already_used', true
+      );
+    ELSE
+      -- No invite found at all
+      RETURN json_build_object(
+        'success', false,
+        'error', 'No invite found for this email'
+      );
+    END IF;
   END IF;
   
   -- Mark invite as used
@@ -50,7 +71,8 @@ BEGIN
   RETURN json_build_object(
     'success', true,
     'message', 'Invite marked as used',
-    'invite_id', v_invite.id
+    'invite_id', v_invite.id,
+    'already_used', false
   );
   
 EXCEPTION
