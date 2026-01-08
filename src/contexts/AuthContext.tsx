@@ -227,13 +227,52 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.log('Auth event:', _event, 'Session:', !!session, 'User:', !!session?.user)
         // Always update session and user on SIGNED_IN/SIGNED_OUT to ensure state is fresh
         setSession(session)
-        setUser(session?.user ?? null)
+        const newUser = session?.user ?? null
+        setUser(newUser)
         setLoading(false)
         
         // Reset authorization check when user signs in (including email verification)
-        if (_event === 'SIGNED_IN') {
+        if (_event === 'SIGNED_IN' && newUser && session) {
           setIsAuthorized(null)
           setAuthorizationChecked(false)
+          
+          // Log OAuth login if user signed in via OAuth provider
+          // Check app_metadata.provider or app_metadata.providers to detect OAuth
+          const provider = newUser.app_metadata?.provider
+          const providers = newUser.app_metadata?.providers || []
+          
+          // Determine if this is an OAuth login (not email/password)
+          const isOAuth = (provider && provider !== 'email') || 
+                         (providers.length > 0 && providers.some((p: string) => p !== 'email'))
+          
+          if (isOAuth) {
+            // Determine which OAuth provider (Google or GitHub)
+            const oauthProvider = (provider === 'google' || providers.includes('google'))
+              ? 'oauth_google' 
+              : (provider === 'github' || providers.includes('github'))
+              ? 'oauth_github'
+              : null
+            
+            if (oauthProvider) {
+              // Log OAuth login directly (fire and forget - doesn't block)
+              // We use the session's user directly since logSession depends on user state
+              supabase.from('user_sessions').insert({
+                user_id: newUser.id,
+                email: newUser.email,
+                event_type: oauthProvider,
+                user_agent: navigator.userAgent,
+                metadata: {
+                  provider: provider || providers[0],
+                  auth_method: 'oauth'
+                },
+                timestamp: new Date().toISOString()
+              }).then(({ error }) => {
+                if (error) {
+                  console.debug('OAuth login logging (non-critical):', error)
+                }
+              })
+            }
+          }
         }
         
         // Reset authorization when user signs out
